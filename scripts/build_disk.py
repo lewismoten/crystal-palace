@@ -10,8 +10,8 @@ from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 11
-CURRENT_DESCRIPTION = "test-original-attention-value"
+CURRENT_STAGE = 12
+CURRENT_DESCRIPTION = "test-original-self-attention-score"
 
 
 def stage_image_path(number: int, description: str) -> Path:

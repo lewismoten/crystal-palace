@@ -28,6 +28,7 @@ QUERY_VECTOR = $c740
 KEY_VECTOR = $c780
 PROJECTION_SCRATCH = $c7c0
 VALUE_VECTOR = $c800
+ATTENTION_SCORES = $c840
 pointer = $fb
 vector_base = $fd
 
@@ -107,6 +108,7 @@ attention_input_loaded:
     jsr project_query
     jsr project_key
     jsr project_value
+    jsr materialize_self_attention_scores
     lda #<scale_result
     ldy #>scale_result
     jsr print
@@ -695,6 +697,140 @@ project_value_dot:
 project_value_done:
     rts
 
+; Materialize the eight scaled self-attention scores. Crystal-9 has eight
+; four-wide heads, so each Q·K score is divided by sqrt(4)=2 into Q8.8.
+materialize_self_attention_scores:
+    lda #0
+    sta score_offset
+    sta score_store_offset
+self_attention_head:
+    lda #0
+    sta dot0
+    sta dot1
+    sta dot2
+    sta dot3
+    lda #4
+    sta head_components
+    ldy score_offset
+self_attention_component:
+    lda QUERY_VECTOR,y
+    sta mul_a_lo
+    lda QUERY_VECTOR+1,y
+    sta mul_a_hi
+    lda KEY_VECTOR,y
+    sta mul_b_lo
+    lda KEY_VECTOR+1,y
+    sta mul_b_hi
+    jsr multiply_q8_8
+    clc
+    lda dot0
+    adc product0
+    sta dot0
+    lda dot1
+    adc product1
+    sta dot1
+    lda dot2
+    adc product2
+    sta dot2
+    lda dot3
+    adc product3
+    sta dot3
+    iny
+    iny
+    dec head_components
+    bne self_attention_component
+    jsr rounded_score_to_q8_8
+    ldy score_store_offset
+    lda result_lo
+    sta ATTENTION_SCORES,y
+    iny
+    lda result_hi
+    sta ATTENTION_SCORES,y
+    inc score_store_offset
+    inc score_store_offset
+    lda score_offset
+    clc
+    adc #8
+    sta score_offset
+    cmp #64
+    beq self_attention_done
+    jmp self_attention_head
+self_attention_done:
+    rts
+
+; Symmetrically round a signed Q16.16 score after division by sqrt(4)=2.
+rounded_score_to_q8_8:
+    lda dot3
+    bpl rounded_score_positive
+    lda #0
+    sec
+    sbc dot0
+    sta dot0
+    lda #0
+    sbc dot1
+    sta dot1
+    lda #0
+    sbc dot2
+    sta dot2
+    lda #0
+    sbc dot3
+    sta dot3
+    jsr rounded_score_magnitude
+    lda #0
+    sec
+    sbc result_lo
+    sta result_lo
+    lda #0
+    sbc result_hi
+    sta result_hi
+    rts
+rounded_score_positive:
+    jsr rounded_score_magnitude
+    rts
+rounded_score_magnitude:
+    clc
+    lda dot0
+    adc #0
+    sta dot0
+    lda dot1
+    adc #1              ; add 256 before the Q16.16 / 512 shift
+    sta dot1
+    lda dot2
+    adc #0
+    sta dot2
+    lda dot3
+    adc #0
+    sta dot3
+    lda dot2
+    and #1
+    asl
+    asl
+    asl
+    asl
+    asl
+    asl
+    asl
+    sta score_high_bit
+    lda dot1
+    lsr
+    ora score_high_bit
+    sta result_lo
+    lda dot3
+    and #1
+    asl
+    asl
+    asl
+    asl
+    asl
+    asl
+    asl
+    sta score_high_bit
+    lda dot2
+    lsr
+    ora score_high_bit
+    sta result_hi
+    rts
+
 ; Signed 16-bit Q8.8 operands become a signed 32-bit Q16.16 product.
 multiply_q8_8:
     lda mul_a_hi
@@ -1219,6 +1355,10 @@ result_hi: .byte 0
 query_sumlo: .byte 0
 query_sumhi: .byte 0
 query_factor: .byte 0
+score_offset: .byte 0
+score_store_offset: .byte 0
+head_components: .byte 0
+score_high_bit: .byte 0
 
 title:
     .text "CP64 CRYSTAL-9",13
