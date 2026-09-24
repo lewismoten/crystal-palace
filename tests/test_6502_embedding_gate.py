@@ -1,4 +1,5 @@
 import subprocess
+from math import exp
 from pathlib import Path
 
 import pytest
@@ -479,6 +480,30 @@ def test_6502_checksums_single_token_attended_output(tmp_path):
     actual = mpu.memory[symbols["attended_sumlo"]] | (mpu.memory[symbols["attended_sumhi"]] << 8)
     assert actual == expected
 
+
+def test_6502_two_key_head0_softmax_uses_original_value_history(tmp_path):
+    """Two original visible keys produce normalized Q0.15 weights and V output."""
+    prg = tmp_path / "CP64.PRG"
+    labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    assert "two_key_head0_softmax_attention_output" in symbols
+    assert "VALUE_HISTORY" in symbols
+    mpu = MPU()
+    image = prg.read_bytes()
+    load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    for address, value in ((symbols["CAUSAL_SCORES"], 3), (symbols["CAUSAL_SCORES"] + 16, 28)):
+        mpu.memory[address] = value
+        mpu.memory[address + 1] = 0
+    for base, values in ((symbols["VALUE_HISTORY"], [1387, 4499, 815, 3678]), (symbols["VALUE_HISTORY"] + 64, [2158, 1612, 1809, 1974])):
+        for index, value in enumerate(values):
+            mpu.memory[base + index * 2] = value & 0xFF
+            mpu.memory[base + index * 2 + 1] = value >> 8
+    call(mpu, symbols["two_key_head0_softmax_attention_output"], steps=2_000_000)
+    assert signed_vector(mpu, symbols["ATTENDED_VECTOR"])[:4] == [1791, 2985, 1336, 2784]
+    assert mpu.memory[symbols["softmax_weight_a_lo"]] | (mpu.memory[symbols["softmax_weight_a_hi"]] << 8) == 15585
+    assert mpu.memory[symbols["softmax_weight_b_lo"]] | (mpu.memory[symbols["softmax_weight_b_hi"]] << 8) == 17183
 
 
 def test_6502_causal_score_row_masks_the_future_original_key(tmp_path):

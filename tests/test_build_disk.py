@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_single_token_attention_output():
+def test_current_disk_stage_reports_two_key_softmax_gate():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 20
-    assert builder.CURRENT_DESCRIPTION == "show-single-token-attention-output"
+    assert builder.CURRENT_STAGE == 21
+    assert builder.CURRENT_DESCRIPTION == "test-two-key-softmax"

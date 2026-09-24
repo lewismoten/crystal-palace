@@ -10,8 +10,8 @@ from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 20
-CURRENT_DESCRIPTION = "show-single-token-attention-output"
+CURRENT_STAGE = 21
+CURRENT_DESCRIPTION = "test-two-key-softmax"
 
 
 def stage_image_path(number: int, description: str) -> Path:

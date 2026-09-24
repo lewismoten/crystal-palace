@@ -32,6 +32,7 @@ ATTENTION_SCORES = $c840
 KEY_HISTORY = $c880
 ATTENDED_VECTOR = $c900
 CAUSAL_SCORES = $c940
+VALUE_HISTORY = $c980
 pointer = $fb
 vector_base = $fd
 
@@ -132,11 +133,21 @@ attention_input_loaded:
     ldy #>step_value
     jsr print
     jsr project_value
+    jsr capture_two_key_sequence
     lda #<step_scores
     ldy #>step_scores
     jsr print
     jsr materialize_self_attention_scores
+    lda two_key_ready
+    beq attended_single_key
+    lda #1
+    sta causal_query_position
+    jsr materialize_two_token_causal_scores
+    jsr two_key_head0_softmax_attention_output
+    jmp attended_ready
+attended_single_key:
     jsr single_token_attention_output
+attended_ready:
     jsr checksum_attended_output
     lda #<scale_result
     ldy #>scale_result
@@ -837,6 +848,216 @@ checksum_attended_multiply:
     inc factor
     cpy #64
     bne checksum_attended_component
+    rts
+
+; Bounded two-key/head-0 causal-softmax gate. The score delta is Q8.8;
+; the 0..31 table holds round(sigmoid(delta/256)*32768) Q0.15 weights.
+two_key_head0_softmax_attention_output:
+    ldy #0
+    lda #0
+softmax_clear_output:
+    sta ATTENDED_VECTOR,y
+    iny
+    cpy #64
+    bne softmax_clear_output
+    sec
+    lda CAUSAL_SCORES+16
+    sbc CAUSAL_SCORES
+    tay
+    cpy #32
+    bcc softmax_weight_ready
+    ldy #31
+softmax_weight_ready:
+    lda softmax_lo,y
+    sta softmax_weight_b_lo
+    lda softmax_hi,y
+    sta softmax_weight_b_hi
+    lda #0
+    sec
+    sbc softmax_weight_b_lo
+    sta softmax_weight_a_lo
+    lda #$80
+    sbc softmax_weight_b_hi
+    sta softmax_weight_a_hi
+    ldy #0
+    sty softmax_offset
+softmax_component:
+    lda VALUE_HISTORY,y
+    sta mul_a_lo
+    lda VALUE_HISTORY+1,y
+    sta mul_a_hi
+    lda softmax_weight_a_lo
+    sta mul_b_lo
+    lda softmax_weight_a_hi
+    sta mul_b_hi
+    jsr multiply_q8_8
+    lda product0
+    sta dot0
+    lda product1
+    sta dot1
+    lda product2
+    sta dot2
+    lda product3
+    sta dot3
+    tya
+    clc
+    adc #64
+    tax
+    lda VALUE_HISTORY,x
+    sta mul_a_lo
+    lda VALUE_HISTORY+1,x
+    sta mul_a_hi
+    lda softmax_weight_b_lo
+    sta mul_b_lo
+    lda softmax_weight_b_hi
+    sta mul_b_hi
+    jsr multiply_q8_8
+    clc
+    lda dot0
+    adc product0
+    sta dot0
+    lda dot1
+    adc product1
+    sta dot1
+    lda dot2
+    adc product2
+    sta dot2
+    lda dot3
+    adc product3
+    sta dot3
+    jsr rounded_q15_sum
+    ldy softmax_offset
+    lda result_lo
+    sta ATTENDED_VECTOR,y
+    iny
+    lda result_hi
+    sta ATTENDED_VECTOR,y
+    iny
+    sty softmax_offset
+    cpy #8
+    beq softmax_done
+    jmp softmax_component
+softmax_done:
+    rts
+
+rounded_q15_sum:
+    lda dot3
+    bpl rounded_q15_positive
+    lda #0
+    sec
+    sbc dot0
+    sta dot0
+    lda #0
+    sbc dot1
+    sta dot1
+    lda #0
+    sbc dot2
+    sta dot2
+    lda #0
+    sbc dot3
+    sta dot3
+    jsr rounded_q15_magnitude
+    lda #0
+    sec
+    sbc result_lo
+    sta result_lo
+    lda #0
+    sbc result_hi
+    sta result_hi
+    rts
+rounded_q15_positive:
+    jsr rounded_q15_magnitude
+    rts
+rounded_q15_magnitude:
+    clc
+    lda dot1
+    adc #$40
+    sta dot1
+    lda dot2
+    adc #0
+    sta dot2
+    lda dot3
+    adc #0
+    sta dot3
+    lda dot2
+    and #$7f
+    asl
+    sta softmax_bits
+    lda dot1
+    lsr
+    lsr
+    lsr
+    lsr
+    lsr
+    lsr
+    lsr
+    ora softmax_bits
+    sta result_lo
+    lda dot3
+    and #$7f
+    asl
+    sta softmax_bits
+    lda dot2
+    lsr
+    lsr
+    lsr
+    lsr
+    lsr
+    lsr
+    lsr
+    ora softmax_bits
+    sta result_hi
+    rts
+
+; Browser proof sequence: type A, wait for completion, then type B. Each
+; projected original K/V vector is retained before the next disk page.
+capture_two_key_sequence:
+    lda #0
+    sta two_key_ready
+    lda selected
+    cmp #'a'
+    bne capture_b
+    lda #0
+    sta history_offset
+    lda #1
+    sta two_key_state
+    jmp capture_history
+capture_b:
+    cmp #'b'
+    bne capture_reset
+    lda two_key_state
+    cmp #1
+    bne capture_reset
+    lda #64
+    sta history_offset
+    lda #1
+    sta two_key_ready
+    lda #2
+    sta two_key_state
+    jmp capture_history
+capture_reset:
+    lda #0
+    sta two_key_state
+    rts
+capture_history:
+    ldx #0
+    ldy history_offset
+capture_key_loop:
+    lda KEY_VECTOR,x
+    sta KEY_HISTORY,y
+    inx
+    iny
+    cpx #64
+    bne capture_key_loop
+    ldx #0
+    ldy history_offset
+capture_value_loop:
+    lda VALUE_VECTOR,x
+    sta VALUE_HISTORY,y
+    inx
+    iny
+    cpx #64
+    bne capture_value_loop
     rts
 
 ; Materialize a causal score row. KEY_HISTORY holds contiguous 32-value Q8.8
@@ -1590,6 +1811,17 @@ causal_key_position: .byte 0
 causal_score_store_offset: .byte 0
 causal_key_count: .byte 0
 causal_key_advance_count: .byte 0
+softmax_weight_a_lo: .byte 0
+softmax_weight_a_hi: .byte 0
+softmax_weight_b_lo: .byte 0
+softmax_weight_b_hi: .byte 0
+softmax_offset: .byte 0
+softmax_bits: .byte 0
+two_key_ready: .byte 0
+two_key_state: .byte 0
+history_offset: .byte 0
+softmax_lo: .byte $00,$20,$40,$60,$80,$a0,$c0,$e0,$00,$20,$40,$60,$80,$a0,$c0,$e0,$00,$20,$40,$60,$80,$a0,$c0,$e0,$ff,$1f,$3f,$5f,$7f,$9f,$bf,$df
+softmax_hi: .byte $40,$40,$40,$40,$40,$40,$40,$40,$41,$41,$41,$41,$41,$41,$41,$41,$42,$42,$42,$42,$42,$42,$42,$42,$42,$43,$43,$43,$43,$43,$43,$43
 
 title:
     .text "CP64 CRYSTAL-9",13

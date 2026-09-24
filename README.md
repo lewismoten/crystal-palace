@@ -43,6 +43,7 @@ build/cs64-016-fix-selected-token-after-load.d64
 build/cs64-017-show-inference-progress.d64
 build/cs64-018-show-attention-query-checksum.d64
 build/cs64-020-show-single-token-attention-output.d64
+build/cs64-021-test-two-key-softmax.d64
 ```
 
 `cp64.d64` is a compatibility copy of the current numbered gate. A number is reserved only after its gate builds and passes its reference tests.
@@ -60,6 +61,10 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 ### Stage 020 browser-emulator acceptance
 
 `cs64-020-show-single-token-attention-output.d64` performs the exact degenerate causal-softmax case: one visible key has probability 1, so the attended vector is an exact copy of the original projected V vector. It displays a checksum over the retained attended Q8.8 vector. On C64 Online Emulator, the expected attended-output checksum matched.
+
+### Stage 021 two-key softmax proof
+
+`cs64-021-test-two-key-softmax.d64` retains original Q/K/V vectors for the bounded sequence `A` at position 0 followed by `B` at position 1. For head 0 it materializes the two visible causal scores, derives normalized Q0.15 weights from their Q8.8 delta, and applies them to four original projected V lanes. Enter `A`, wait for completion, then enter `B`. The expected final attended-output checksum is `5979`; the independent 6502 reference also verifies scores `[3, 28]`, weights `[15585, 17183]`, and output `[1791, 2985, 1336, 2784]`. This is an explicitly bounded CP64 fixed-point contract, not a claim of source-FP32 bit parity.
 
 ### Browser test target
 
