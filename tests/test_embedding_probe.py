@@ -18,3 +18,9 @@ def test_unpack_int4_is_low_nibble_first_and_signed():
 def test_weighted_checksum_uses_one_based_positions():
     probe = load_probe()
     assert probe.weighted_checksum([1, -2, 3]) == 6
+
+
+def test_fp16_scale_and_int4_code_materialize_q8_8_activation():
+    probe = load_probe()
+    assert probe.fp16le_to_q8_8(bytes.fromhex("cc3f")) == 499
+    assert probe.scale_int4_code_q8_8(-4, 499) == -285

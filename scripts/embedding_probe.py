@@ -17,6 +17,34 @@ def weighted_checksum(values: list[int]) -> int:
     return sum((index + 1) * value for index, value in enumerate(values))
 
 
+def fp16le_to_q8_8(raw: bytes) -> int:
+    """Decode a finite IEEE-754 binary16 value to signed Q8.8 with rounding."""
+    if len(raw) != 2:
+        raise ValueError("binary16 requires exactly two bytes")
+    bits = int.from_bytes(raw, "little")
+    sign = -1 if bits & 0x8000 else 1
+    exponent = (bits >> 10) & 0x1F
+    fraction = bits & 0x03FF
+    if exponent == 0x1F:
+        raise ValueError("infinite and NaN scales are invalid")
+    mantissa = fraction if exponent == 0 else 1024 + fraction
+    shift = exponent - 17 if exponent else -16
+    if shift >= 0:
+        magnitude = mantissa << shift
+    else:
+        divisor = 1 << -shift
+        magnitude = (mantissa + divisor // 2) // divisor
+    return sign * magnitude
+
+
+def scale_int4_code_q8_8(code: int, scale_q8_8: int) -> int:
+    """Materialize code * scale / 7 using symmetric nearest-integer rounding."""
+    if not -8 <= code <= 7:
+        raise ValueError("INT4 code is outside [-8, 7]")
+    product = code * scale_q8_8
+    return (product + 3) // 7 if product >= 0 else -((-product + 3) // 7)
+
+
 def embedding_row(path: Path, token: str) -> list[int]:
     if len(token) != 1 or token not in "abcdefghi":
         raise ValueError("token must be a-i")
