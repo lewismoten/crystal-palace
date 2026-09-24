@@ -1,0 +1,2 @@
+# Development-only machine-code regression tests.
+py65==1.2.0

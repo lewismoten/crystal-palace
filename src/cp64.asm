@@ -172,21 +172,17 @@ materialized_byte_loop:
     lda (pointer),y
     sta packed_byte
     and #$0f
-    tya
-    pha
+    sty packed_index
     jsr materialize_nibble
-    pla
-    tay
+    ldy packed_index
     lda packed_byte
     lsr
     lsr
     lsr
     lsr
-    tya
-    pha
+    sty packed_index
     jsr materialize_nibble
-    pla
-    tay
+    ldy packed_index
     iny
     cpy #16
     bne materialized_byte_loop
@@ -505,6 +501,7 @@ act_hi: .byte 0
 quotient_lo: .byte 0
 quotient_hi: .byte 0
 vector_index: .byte 0
+packed_index: .byte 0
 filename: .text "C9W00.PRG"
 
 title:
