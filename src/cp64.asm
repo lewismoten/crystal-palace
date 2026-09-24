@@ -25,7 +25,8 @@ VECTOR = $c100
 POSITION_VECTOR = $c140
 HIDDEN_VECTOR = $c700
 QUERY_VECTOR = $c740
-PROJECTION_SCRATCH = $c780
+KEY_VECTOR = $c780
+PROJECTION_SCRATCH = $c7c0
 pointer = $fb
 vector_base = $fd
 
@@ -103,6 +104,7 @@ position_scale_ready:
     jmp disk_error
 attention_input_loaded:
     jsr project_query
+    jsr project_key
     lda #<scale_result
     ldy #>scale_result
     jsr print
@@ -557,6 +559,73 @@ project_query_checksum_loop:
 project_query_done:
     rts
 
+; Project C9W02's next 32 rows (K) against the retained Q8.8 input.
+project_key:
+    lda #32
+    sta projection_row
+    lda #0
+    sta projection_offset
+project_key_row:
+    lda projection_row
+    sta row
+    jsr decode_scale
+    lda #$c9            ; C9W1 header (9) + 96 FP16 scales (192)
+    sta packed_offset
+    lda #<PROJECTION_SCRATCH
+    sta vector_base
+    lda #>PROJECTION_SCRATCH
+    sta vector_base+1
+    jsr materialize_row
+    lda #0
+    sta dot0
+    sta dot1
+    sta dot2
+    sta dot3
+    ldy #0
+project_key_dot:
+    lda HIDDEN_VECTOR,y
+    sta mul_a_lo
+    lda HIDDEN_VECTOR+1,y
+    sta mul_a_hi
+    lda PROJECTION_SCRATCH,y
+    sta mul_b_lo
+    lda PROJECTION_SCRATCH+1,y
+    sta mul_b_hi
+    jsr multiply_q8_8
+    clc
+    lda dot0
+    adc product0
+    sta dot0
+    lda dot1
+    adc product1
+    sta dot1
+    lda dot2
+    adc product2
+    sta dot2
+    lda dot3
+    adc product3
+    sta dot3
+    iny
+    iny
+    cpy #64
+    bne project_key_dot
+    jsr rounded_dot_to_q8_8
+    ldy projection_offset
+    lda result_lo
+    sta KEY_VECTOR,y
+    iny
+    lda result_hi
+    sta KEY_VECTOR,y
+    inc projection_row
+    inc projection_offset
+    inc projection_offset
+    lda projection_row
+    cmp #64
+    beq project_key_done
+    jmp project_key_row
+project_key_done:
+    rts
+
 ; Signed 16-bit Q8.8 operands become a signed 32-bit Q16.16 product.
 multiply_q8_8:
     lda mul_a_hi
@@ -817,7 +886,9 @@ scale_check_exp13:
     cmp #$34            ; binary16 exponent 13
     bne scale_check_exp12
     lda raw_scale_hi
-    bmi scale_invalid
+    bpl scale_exp13_positive
+    jmp scale_invalid
+scale_exp13_positive:
     lda raw_scale_lo     ; nearest rounding: (fraction + 8) >> 4
     clc
     adc #8
@@ -847,7 +918,7 @@ scale_check_exp13:
     rts
 scale_check_exp12:
     cmp #$30            ; binary16 exponent 12
-    bne scale_invalid
+    bne scale_check_exp11
     lda raw_scale_hi
     bmi scale_invalid
     lda raw_scale_lo     ; nearest rounding: (fraction + 16) >> 5
@@ -871,6 +942,38 @@ scale_check_exp12:
     clc
     adc scale_lo
     adc #$20            ; Q8.8 base for exponent 12 is 32
+    sta scale_lo
+    lda #0
+    adc #0
+    sta scale_hi
+    clc
+    rts
+scale_check_exp11:
+    cmp #$2c            ; binary16 exponent 11
+    bne scale_invalid
+    lda raw_scale_hi
+    bmi scale_invalid
+    lda raw_scale_lo     ; nearest rounding: (fraction + 32) >> 6
+    clc
+    adc #32
+    sta raw_scale_lo
+    lda raw_scale_hi
+    adc #0
+    sta raw_scale_hi
+    and #$03
+    asl
+    asl
+    sta scale_lo
+    lda raw_scale_lo
+    lsr
+    lsr
+    lsr
+    lsr
+    lsr
+    lsr
+    clc
+    adc scale_lo
+    adc #$10            ; Q8.8 base for exponent 11 is 16
     sta scale_lo
     lda #0
     adc #0
