@@ -73,6 +73,7 @@ accepted_key:
     ldy #>result
     jsr print
     lda selected
+    and #$df            ; normalize internal lowercase token for PETSCII display
     jsr CHROUT
     lda #' '
     jsr CHROUT
