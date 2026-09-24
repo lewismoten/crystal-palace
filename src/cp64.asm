@@ -78,6 +78,7 @@ accepted_key:
     bcc embedding_reloaded
     jmp disk_error
 embedding_reloaded:
+    lda selected
     sec
     sbc #'a'
     clc

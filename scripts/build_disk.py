@@ -10,8 +10,8 @@ from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 15
-CURRENT_DESCRIPTION = "fix-token-packet-reload"
+CURRENT_STAGE = 16
+CURRENT_DESCRIPTION = "fix-selected-token-after-load"
 
 
 def stage_image_path(number: int, description: str) -> Path:

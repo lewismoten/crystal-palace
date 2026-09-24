@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reloads_token_packet_before_each_position_page():
+def test_current_disk_stage_restores_selected_token_after_disk_load():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 15
-    assert builder.CURRENT_DESCRIPTION == "fix-token-packet-reload"
+    assert builder.CURRENT_STAGE == 16
+    assert builder.CURRENT_DESCRIPTION == "fix-selected-token-after-load"

@@ -97,6 +97,13 @@ def test_interactive_request_reloads_token_packet_before_decoding_selected_row()
     assert request.index("jsr load_embedding") < request.index("jsr decode_scale")
 
 
+def test_interactive_request_restores_selected_token_after_disk_load():
+    """KERNAL LOAD owns A, so the row calculation must reload the saved token."""
+    source = (ROOT / "src" / "cp64.asm").read_text()
+    resume = source[source.index("embedding_reloaded:") : source.index("scale_ready:")]
+    assert resume.index("lda selected") < resume.index("sbc #'a'")
+
+
 @pytest.mark.parametrize(
     ("token_row", "expected_checksum"),
     [(4, 0x20AD), (5, 0xD419), (6, 0xCCBC), (7, 0xA0DE), (8, 0x889C),
