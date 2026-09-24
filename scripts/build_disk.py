@@ -10,8 +10,8 @@ from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 23
-CURRENT_DESCRIPTION = "split-inference-progress-stages"
+CURRENT_STAGE = 24
+CURRENT_DESCRIPTION = "combine-two-attention-heads"
 
 
 def stage_image_path(number: int, description: str) -> Path:

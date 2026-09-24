@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_split_inference_progress():
+def test_current_disk_stage_reports_two_combined_attention_heads():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 23
-    assert builder.CURRENT_DESCRIPTION == "split-inference-progress-stages"
+    assert builder.CURRENT_STAGE == 24
+    assert builder.CURRENT_DESCRIPTION == "combine-two-attention-heads"

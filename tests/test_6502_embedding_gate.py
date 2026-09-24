@@ -110,11 +110,12 @@ def test_interactive_request_announces_input_and_each_long_work_stage():
     request = source[source.index("accepted_key:") : source.index("jmp read_key", source.index("accepted_key:"))]
 
     assert request.index("jsr print_thinking") < request.index("jsr load_embedding")
-    for step in ("step_token", "step_position", "step_query", "step_key", "step_value", "step_history", "step_scores", "step_softmax"):
+    for step in ("step_token", "step_position", "step_query", "step_key", "step_value", "step_history", "step_scores", "step_softmax", "step_head3"):
         assert step in source
     assert request.index("#<step_history") < request.index("jsr capture_two_key_sequence")
     assert request.index("#<step_scores") < request.index("jsr materialize_self_attention_scores")
     assert request.index("#<step_softmax") < request.index("jsr materialize_two_token_causal_scores")
+    assert request.index("#<step_head3") < request.index("jsr two_key_selected_head_softmax_attention_output")
 
 
 def test_final_display_uses_input_dependent_attention_query_checksum():
@@ -538,6 +539,36 @@ def test_6502_two_key_head3_softmax_uses_second_original_attention_head(tmp_path
     assert signed_vector(mpu, symbols["ATTENDED_VECTOR"])[12:16] == [1113, -2072, 191, -643]
     assert mpu.memory[symbols["softmax_weight_a_lo"]] | (mpu.memory[symbols["softmax_weight_a_hi"]] << 8) == 15553
     assert mpu.memory[symbols["softmax_weight_b_lo"]] | (mpu.memory[symbols["softmax_weight_b_hi"]] << 8) == 17215
+
+
+def test_6502_two_key_combines_two_original_attention_heads(tmp_path):
+    """Head 0 and head 3 occupy their original lanes in one attended vector."""
+    prg = tmp_path / "CP64.PRG"
+    labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    assert "two_key_head0_and_head3_attention_output" in symbols
+    mpu = MPU()
+    image = prg.read_bytes()
+    load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    for offset, value in ((0, 3), (16, 28), (6, -84), (22, -58)):
+        encoded = value & 0xFFFF
+        mpu.memory[symbols["CAUSAL_SCORES"] + offset] = encoded & 0xFF
+        mpu.memory[symbols["CAUSAL_SCORES"] + offset + 1] = encoded >> 8
+    for offset, values in ((0, [1387, 4499, 815, 3678]), (64, [2158, 1612, 1809, 1974]), (24, [3045, -173, 249, 1054]), (88, [-632, -3788, 139, -2177])):
+        for index, value in enumerate(values):
+            encoded = value & 0xFFFF
+            mpu.memory[symbols["VALUE_HISTORY"] + offset + index * 2] = encoded & 0xFF
+            mpu.memory[symbols["VALUE_HISTORY"] + offset + index * 2 + 1] = encoded >> 8
+
+    call(mpu, symbols["two_key_head0_and_head3_attention_output"], steps=4_000_000)
+    call(mpu, symbols["checksum_attended_output"])
+
+    attended = signed_vector(mpu, symbols["ATTENDED_VECTOR"])
+    assert attended[:4] == [1791, 2985, 1336, 2784]
+    assert attended[12:16] == [1113, -2072, 191, -643]
+    assert mpu.memory[symbols["attended_sumlo"]] | (mpu.memory[symbols["attended_sumhi"]] << 8) == 0x03AF
 
 
 def test_6502_causal_score_row_masks_the_future_original_key(tmp_path):
