@@ -42,10 +42,14 @@ Manual C64-emulator results match the packed Python reference for every playable
 
 To run it in VICE, attach/autostart the disk with a C64 ROM set supplied by your emulator installation. Enter `A` through `I` after the ready prompt to materialize the selected original token embedding.
 
+### Browser test target
+
+The manual acceptance target is [C64 Online Emulator](https://c64online.com/c64-online-emulator/). Use its **Load Program** control to select the numbered `.d64` artifact; it accepts D64 files directly. This project treats a user-reported matching result from that emulator as a separate browser-emulator confirmation in addition to the assembled-6502 regression suite.
+
 ## Next proof gates
 
-1. Implement 6502 fixed-point decoding of the original FP16 scales and packed signed INT4 codes.
-2. Implement the actual Crystal-9 forward path: embeddings, causal attention, LayerNorm, router top-2 selection, only the selected expert tensors, and output logits.
+1. Materialize original position-embedding rows and add them to the retained token vector.
+2. Implement the actual Crystal-9 forward path: causal attention, LayerNorm, router top-2 selection, only the selected expert tensors, and output logits.
 3. Feed legal move histories from the C64 game loop and compare every C64 prediction against the packed Python reference runtime.
 4. Run exhaustive legal-history parity before claiming the C64 can play tic-tac-toe with Crystal-9.
 
