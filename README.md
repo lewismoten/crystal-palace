@@ -64,7 +64,7 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 ### Stage 021 two-key softmax proof
 
-`cs64-021-test-two-key-softmax.d64` retains original Q/K/V vectors for the bounded sequence `A` at position 0 followed by `B` at position 1. For head 0 it materializes the two visible causal scores, derives normalized Q0.15 weights from their Q8.8 delta, and applies them to four original projected V lanes. Enter `A`, wait for completion, then enter `B`. The expected final attended-output checksum is `5979`; the independent 6502 reference also verifies scores `[3, 28]`, weights `[15585, 17183]`, and output `[1791, 2985, 1336, 2784]`. This is an explicitly bounded CP64 fixed-point contract, not a claim of source-FP32 bit parity.
+`cs64-021-test-two-key-softmax.d64` retains original Q/K/V vectors for the bounded sequence `A` at position 0 followed by `B` at position 1. For head 0 it materializes the two visible causal scores, derives normalized Q0.15 weights from their Q8.8 delta, and applies them to four original projected V lanes. Enter `A`, wait for completion, then enter `B`. The expected final attended-output checksum is `5979`; the user confirmed that C64 Online Emulator displayed `$5979`. The independent 6502 reference also verifies scores `[3, 28]`, weights `[15585, 17183]`, and output `[1791, 2985, 1336, 2784]`. This is an explicitly bounded CP64 fixed-point contract, not a claim of source-FP32 bit parity.
 
 ### Browser test target
 
