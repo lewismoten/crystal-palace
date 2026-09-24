@@ -110,13 +110,15 @@ def test_interactive_request_announces_input_and_each_long_work_stage():
     request = source[source.index("accepted_key:") : source.index("jmp read_key", source.index("accepted_key:"))]
 
     assert request.index("jsr print_thinking") < request.index("jsr load_embedding")
-    for step in ("step_token", "step_position", "step_query", "step_key", "step_value", "step_history", "step_scores", "step_two_key_scores", "step_head0", "step_head1", "step_head2", "step_head3", "step_head4", "step_head5", "step_head6", "step_head7"):
+    for step in ("step_token", "step_position", "step_query", "step_key", "step_value", "step_history", "step_scores", "step_two_key_scores", "step_head0", "step_head1", "step_head2", "step_head3", "step_head4", "step_head5", "step_head6", "step_head7", "step_residual_retain", "step_output_load", "step_output_project", "step_output_bias_load", "step_output_bias", "step_residual_add"):
         assert step in source
     assert request.index("#<step_history") < request.index("jsr capture_two_key_sequence")
     assert request.index("#<step_scores") < request.index("jsr materialize_self_attention_scores")
     assert request.index("#<step_two_key_scores") < request.index("jsr materialize_two_token_causal_scores")
     for step in ("step_head0", "step_head1", "step_head2", "step_head3", "step_head4", "step_head5", "step_head6", "step_head7"):
         assert request.find("jsr two_key_selected_head_softmax_attention_output", request.index(f"#<{step}")) != -1
+    assert request.index("#<step_residual_retain") < request.index("jsr retain_attention_residual") < request.index("jsr project_attention_output")
+    assert request.index("#<step_residual_add") < request.index("jsr add_attention_residual")
 
 
 def test_final_display_uses_input_dependent_attention_query_checksum():
@@ -665,6 +667,28 @@ def test_6502_adds_original_attention_output_bias_to_projected_vector(tmp_path):
     expected = [((value + offset + 0x8000) & 0xFFFF) - 0x8000 for value, offset in zip(projected, bias)]
     assert signed_vector(mpu, symbols["ATTENDED_VECTOR"]) == expected
     assert mpu.memory[symbols["attended_sumlo"]] | (mpu.memory[symbols["attended_sumhi"]] << 8) == 0xBEEE
+
+
+def test_6502_adds_original_attention_input_residual(tmp_path):
+    """The original post-position hidden vector is added after attention output."""
+    prg = tmp_path / "CP64.PRG"
+    labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    assert "add_attention_residual" in symbols
+    mpu = MPU()
+    image = prg.read_bytes()
+    load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    before_residual = [-20672, -8246, 18327, 3553, -5020, 13949, 1662, -1971, 10094, 11308, 5743, -6692, 1367, -2388, 39, -10971, -22470, 15380, 3870, 3959, -671, -8097, 10831, 1444, -6455, -8070, -2633, -23771, -8885, 14859, 10761, -11661]
+    residual = [-271, 0, -232, -271, -1, -271, -1, -464, 39, 39, 39, -1, 232, -117, -39, 155, 0, -38, -465, -1, 39, -38, 78, 232, 193, 504, -465, -39, 194, -349, 310, -272]
+    for base, values in ((symbols["ATTENDED_VECTOR"], before_residual), (symbols["RESIDUAL_VECTOR"], residual)):
+        for index, value in enumerate(values):
+            mpu.memory[base + index * 2 : base + index * 2 + 2] = (value & 0xFFFF).to_bytes(2, "little")
+    call(mpu, symbols["add_attention_residual"])
+    call(mpu, symbols["checksum_attended_output"])
+    assert signed_vector(mpu, symbols["ATTENDED_VECTOR"]) == [-20943, -8246, 18095, 3282, -5021, 13678, 1661, -2435, 10133, 11347, 5782, -6693, 1599, -2505, 0, -10816, -22470, 15342, 3405, 3958, -632, -8135, 10909, 1676, -6262, -7566, -3098, -23810, -8691, 14510, 11071, -11933]
+    assert mpu.memory[symbols["attended_sumlo"]] | (mpu.memory[symbols["attended_sumhi"]] << 8) == 0xAC1A
 
 
 def test_6502_causal_score_row_masks_the_future_original_key(tmp_path):

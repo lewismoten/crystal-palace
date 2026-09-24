@@ -30,6 +30,7 @@ PROJECTION_SCRATCH = $c7c0
 VALUE_VECTOR = $c800
 ATTENTION_SCORES = $c840
 KEY_HISTORY = $c880
+RESIDUAL_VECTOR = $c880 ; valid after two-key score materialization
 ATTENDED_VECTOR = $c900
 CAUSAL_SCORES = $c940
 VALUE_HISTORY = $c980
@@ -221,6 +222,10 @@ attended_two_key:
 attended_single_key:
     jsr single_token_attention_output
 attended_ready:
+    lda #<step_residual_retain
+    ldy #>step_residual_retain
+    jsr print
+    jsr retain_attention_residual
     lda #<step_output_load
     ldy #>step_output_load
     jsr print
@@ -243,6 +248,10 @@ attention_output_bias_loaded:
     ldy #>step_output_bias
     jsr print
     jsr add_attention_output_bias
+    lda #<step_residual_add
+    ldy #>step_residual_add
+    jsr print
+    jsr add_attention_residual
     jsr checksum_attended_output
     lda #<scale_result
     ldy #>scale_result
@@ -832,6 +841,34 @@ add_attention_output_bias_lane:
     iny
     cpy #64
     bne add_attention_output_bias_lane
+    rts
+
+; Preserve the pre-attention hidden state before C9W04 output projection.
+retain_attention_residual:
+    ldy #0
+retain_attention_residual_loop:
+    lda HIDDEN_VECTOR,y
+    sta RESIDUAL_VECTOR,y
+    iny
+    cpy #64
+    bne retain_attention_residual_loop
+    rts
+
+; Residual connection: output projection + bias + original hidden state.
+add_attention_residual:
+    ldy #0
+add_attention_residual_lane:
+    clc
+    lda ATTENDED_VECTOR,y
+    adc RESIDUAL_VECTOR,y
+    sta ATTENDED_VECTOR,y
+    iny
+    lda ATTENDED_VECTOR,y
+    adc RESIDUAL_VECTOR,y
+    sta ATTENDED_VECTOR,y
+    iny
+    cpy #64
+    bne add_attention_residual_lane
     rts
 
 ; Project C9W02's next 32 rows (K) against the retained Q8.8 input.
@@ -2106,26 +2143,28 @@ title:
 loading: .text "THINKING: READING C9W00 FROM DISK...",13,0
 loaded: .text "C9W00 READY. TYPE A THROUGH I.",13,13,0
 thinking: .text "THINKING TOKEN ",0
-step_token: .text "1/20 TOKEN EMBEDDING",13,0
-step_position: .text "2/20 POSITION EMBEDDING",13,0
-step_query: .text "3/20 ATTENTION Q",13,0
-step_key: .text "4/20 ATTENTION K",13,0
-step_value: .text "5/20 ATTENTION V",13,0
-step_history: .text "6/20 RETAIN K/V HISTORY",13,0
-step_scores: .text "7/20 SELF ATTENTION SCORES",13,0
-step_two_key_scores: .text "8/20 TWO-KEY CAUSAL SCORES",13,0
-step_head0: .text "9/20 CAUSAL SOFTMAX + V HEAD 0",13,0
-step_head1: .text "10/20 CAUSAL SOFTMAX + V HEAD 1",13,0
-step_head2: .text "11/20 CAUSAL SOFTMAX + V HEAD 2",13,0
-step_head3: .text "12/20 CAUSAL SOFTMAX + V HEAD 3",13,0
-step_head4: .text "13/20 CAUSAL SOFTMAX + V HEAD 4",13,0
-step_head5: .text "14/20 CAUSAL SOFTMAX + V HEAD 5",13,0
-step_head6: .text "15/20 CAUSAL SOFTMAX + V HEAD 6",13,0
-step_head7: .text "16/20 CAUSAL SOFTMAX + V HEAD 7",13,0
-step_output_load: .text "17/20 LOAD ATTENTION OUTPUT WEIGHT",13,0
-step_output_project: .text "18/20 ATTENTION OUTPUT PROJECTION",13,0
-step_output_bias_load: .text "19/20 LOAD ATTENTION OUTPUT BIAS",13,0
-step_output_bias: .text "20/20 ADD ATTENTION OUTPUT BIAS",13,0
+step_token: .text "1/22 TOKEN EMBEDDING",13,0
+step_position: .text "2/22 POSITION EMBEDDING",13,0
+step_query: .text "3/22 ATTENTION Q",13,0
+step_key: .text "4/22 ATTENTION K",13,0
+step_value: .text "5/22 ATTENTION V",13,0
+step_history: .text "6/22 RETAIN K/V HISTORY",13,0
+step_scores: .text "7/22 SELF ATTENTION SCORES",13,0
+step_two_key_scores: .text "8/22 TWO-KEY CAUSAL SCORES",13,0
+step_head0: .text "9/22 CAUSAL SOFTMAX + V HEAD 0",13,0
+step_head1: .text "10/22 CAUSAL SOFTMAX + V HEAD 1",13,0
+step_head2: .text "11/22 CAUSAL SOFTMAX + V HEAD 2",13,0
+step_head3: .text "12/22 CAUSAL SOFTMAX + V HEAD 3",13,0
+step_head4: .text "13/22 CAUSAL SOFTMAX + V HEAD 4",13,0
+step_head5: .text "14/22 CAUSAL SOFTMAX + V HEAD 5",13,0
+step_head6: .text "15/22 CAUSAL SOFTMAX + V HEAD 6",13,0
+step_head7: .text "16/22 CAUSAL SOFTMAX + V HEAD 7",13,0
+step_residual_retain: .text "17/22 RETAIN ATTENTION RESIDUAL",13,0
+step_output_load: .text "18/22 LOAD ATTENTION OUTPUT WEIGHT",13,0
+step_output_project: .text "19/22 ATTENTION OUTPUT PROJECTION",13,0
+step_output_bias_load: .text "20/22 LOAD ATTENTION OUTPUT BIAS",13,0
+step_output_bias: .text "21/22 ADD ATTENTION OUTPUT BIAS",13,0
+step_residual_add: .text "22/22 ADD ATTENTION RESIDUAL",13,0
 scale_result: .text "FP16 SCALE AS Q8.8 $",0
 result: .text "TOKEN ",0
 embedding_checksum: .text " EMBEDDING CHECKSUM $",0

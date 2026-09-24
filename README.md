@@ -50,6 +50,7 @@ build/cs64-024-combine-two-attention-heads.d64
 build/cs64-025-combine-all-attention-heads.d64
 build/cs64-026-attention-output-projection.d64
 build/cs64-027-attention-output-bias.d64
+build/cs64-028-attention-residual.d64
 ```
 
 `cp64.d64` is a compatibility copy of the current numbered gate. A number is reserved only after its gate builds and passes its reference tests.
@@ -94,7 +95,11 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 ### Stage 027 attention output bias
 
-`cs64-027-attention-output-bias.d64` preserves stage 026's all-head `A`→`B` output-projection result, then pages original `C9W05`. Its one FP16 scale and 32 packed INT4 bias codes are materialized as signed Q8.8 and added lane-wise to the projected output. The assembled-6502 regression compares all 32 final lanes with an independent calculation over the verbatim C9W05 packet. The expected final checksum is `BEEE`. This remains a bounded attention-block proof, not full model inference or a policy move.
+`cs64-027-attention-output-bias.d64` preserves stage 026's all-head `A`→`B` output-projection result, then pages original `C9W05`. Its one FP16 scale and 32 packed INT4 bias codes are materialized as signed Q8.8 and added lane-wise to the projected output. The assembled-6502 regression compares all 32 final lanes with an independent calculation over the verbatim C9W05 packet. The expected final checksum is `BEEE`; browser-emulator parity was confirmed. This remains a bounded attention-block proof, not full model inference or a policy move.
+
+### Stage 028 attention residual
+
+`cs64-028-attention-residual.d64` preserves the original token-plus-position hidden state before paging C9W04, then adds that retained state lane-wise after the C9W04 projection and C9W05 bias. For `A`→`B`, the expected residual-output checksum is `AC1A`. The two added messages distinguish residual retention from its later addition; no new tensor is introduced at this gate.
 
 ### Browser test target
 

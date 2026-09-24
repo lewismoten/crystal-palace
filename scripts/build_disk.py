@@ -10,8 +10,8 @@ from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 27
-CURRENT_DESCRIPTION = "attention-output-bias"
+CURRENT_STAGE = 28
+CURRENT_DESCRIPTION = "attention-residual"
 
 
 def stage_image_path(number: int, description: str) -> Path:
