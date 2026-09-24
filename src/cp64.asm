@@ -27,6 +27,7 @@ HIDDEN_VECTOR = $c700
 QUERY_VECTOR = $c740
 KEY_VECTOR = $c780
 PROJECTION_SCRATCH = $c7c0
+VALUE_VECTOR = $c800
 pointer = $fb
 vector_base = $fd
 
@@ -105,6 +106,7 @@ position_scale_ready:
 attention_input_loaded:
     jsr project_query
     jsr project_key
+    jsr project_value
     lda #<scale_result
     ldy #>scale_result
     jsr print
@@ -624,6 +626,73 @@ project_key_dot:
     beq project_key_done
     jmp project_key_row
 project_key_done:
+    rts
+
+; Project C9W02's final 32 rows (V) against the retained Q8.8 input.
+project_value:
+    lda #64
+    sta projection_row
+    lda #0
+    sta projection_offset
+project_value_row:
+    lda projection_row
+    sta row
+    jsr decode_scale
+    lda #$c9            ; C9W1 header (9) + 96 FP16 scales (192)
+    sta packed_offset
+    lda #<PROJECTION_SCRATCH
+    sta vector_base
+    lda #>PROJECTION_SCRATCH
+    sta vector_base+1
+    jsr materialize_row
+    lda #0
+    sta dot0
+    sta dot1
+    sta dot2
+    sta dot3
+    ldy #0
+project_value_dot:
+    lda HIDDEN_VECTOR,y
+    sta mul_a_lo
+    lda HIDDEN_VECTOR+1,y
+    sta mul_a_hi
+    lda PROJECTION_SCRATCH,y
+    sta mul_b_lo
+    lda PROJECTION_SCRATCH+1,y
+    sta mul_b_hi
+    jsr multiply_q8_8
+    clc
+    lda dot0
+    adc product0
+    sta dot0
+    lda dot1
+    adc product1
+    sta dot1
+    lda dot2
+    adc product2
+    sta dot2
+    lda dot3
+    adc product3
+    sta dot3
+    iny
+    iny
+    cpy #64
+    bne project_value_dot
+    jsr rounded_dot_to_q8_8
+    ldy projection_offset
+    lda result_lo
+    sta VALUE_VECTOR,y
+    iny
+    lda result_hi
+    sta VALUE_VECTOR,y
+    inc projection_row
+    inc projection_offset
+    inc projection_offset
+    lda projection_row
+    cmp #96
+    beq project_value_done
+    jmp project_value_row
+project_value_done:
     rts
 
 ; Signed 16-bit Q8.8 operands become a signed 32-bit Q16.16 product.

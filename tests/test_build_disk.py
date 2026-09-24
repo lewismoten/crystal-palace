@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_is_original_attention_key_gate():
+def test_current_disk_stage_is_original_attention_value_gate():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 10
-    assert builder.CURRENT_DESCRIPTION == "test-original-attention-key"
+    assert builder.CURRENT_STAGE == 11
+    assert builder.CURRENT_DESCRIPTION == "test-original-attention-value"

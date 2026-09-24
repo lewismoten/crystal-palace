@@ -310,3 +310,43 @@ def test_6502_projects_original_attention_key_for_every_playable_input(tmp_path,
         for row in range(32)
     ]
     assert signed_vector(mpu, symbols["KEY_VECTOR"]) == expected
+
+
+@pytest.mark.parametrize("position_row", range(9))
+def test_6502_projects_original_attention_value_for_every_playable_input(tmp_path, position_row):
+    prg = tmp_path / "CP64.PRG"
+    labels_path = tmp_path / "cp64.lbl"
+    subprocess.run(
+        [str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")],
+        check=True, capture_output=True, text=True,
+    )
+    symbols = labels(labels_path)
+    assert "project_value" in symbols
+    mpu = MPU()
+    image = prg.read_bytes()
+    load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    token_packet = ROOT / "build" / "layers" / "C9W00.PRG"
+    position_packet = ROOT / "build" / "layers" / "C9W01.PRG"
+    attention_packet = ROOT / "build" / "layers" / "C9W02.PRG"
+    mpu.memory[0xC000 : 0xC000 + len(token_packet.read_bytes()) - 2] = token_packet.read_bytes()[2:]
+    mpu.memory[symbols["row"]] = 4 + position_row
+    call(mpu, symbols["decode_scale"])
+    call(mpu, symbols["materialize_embedding"])
+    mpu.memory[0xC000 : 0xC000 + len(position_packet.read_bytes()) - 2] = position_packet.read_bytes()[2:]
+    mpu.memory[symbols["position_row"]] = position_row
+    call(mpu, symbols["decode_position_scale"])
+    call(mpu, symbols["materialize_position"])
+    call(mpu, symbols["add_position_to_vector"])
+    call(mpu, symbols["retain_hidden_vector"])
+    mpu.memory[0xC000 : 0xC000 + len(attention_packet.read_bytes()) - 2] = attention_packet.read_bytes()[2:]
+
+    call(mpu, symbols["project_value"], steps=20_000_000)
+
+    hidden = q8_8_vector_from_original_packet(token_packet, 4 + position_row)
+    position = q8_8_vector_from_original_packet(position_packet, position_row)
+    expected = [
+        q8_8_dot([a + b for a, b in zip(hidden, position)], q8_8_attention_row_from_original_packet(attention_packet, 64 + row))
+        for row in range(32)
+    ]
+    assert signed_vector(mpu, symbols["VALUE_VECTOR"]) == expected
