@@ -90,7 +90,7 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 ### Stage 026 attention output projection
 
-`cs64-026-attention-output-projection.d64` pages original `C9W04` after the all-head two-key attention vector is materialized, then applies its 32 original packed INT4 output-projection rows. This gate intentionally excludes the separate original `C9W05` output bias, which is the next mathematical component. For `A`→`B`, expected projected-output checksum is `CE3E`. Steps 17 and 18 respectively identify the actual C9W04 disk read and projection computation.
+`cs64-026-attention-output-projection.d64` pages original `C9W04` after the all-head two-key attention vector is materialized, then applies its 32 original packed INT4 output-projection rows. This gate intentionally excludes the separate original `C9W05` output bias, which is the next mathematical component. For `A`→`B`, expected projected-output checksum is `CE3E`; browser-emulator parity was confirmed with all eighteen displayed work stages.
 
 ### Stage 027 attention output bias
 
