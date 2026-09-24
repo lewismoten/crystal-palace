@@ -691,6 +691,44 @@ def test_6502_adds_original_attention_input_residual(tmp_path):
     assert mpu.memory[symbols["attended_sumlo"]] | (mpu.memory[symbols["attended_sumhi"]] << 8) == 0xAC1A
 
 
+def test_6502_a_then_b_residual_pipeline_uses_live_attention_state(tmp_path):
+    """The browser A→B path retains B's live state, not an isolated fixture."""
+    prg = tmp_path / "CP64.PRG"
+    labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    mpu = MPU()
+    image = prg.read_bytes()
+    load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+
+    def page(name: str):
+        packet = (ROOT / "build" / "layers" / name).read_bytes()
+        mpu.memory[0xC000 : 0xC000 + len(packet) - 2] = packet[2:]
+
+    def run(token: str):
+        mpu.memory[symbols["selected"]] = ord(token)
+        page("C9W00.PRG"); mpu.memory[symbols["row"]] = 4 + ord(token) - ord("a")
+        call(mpu, symbols["decode_scale"]); call(mpu, symbols["materialize_embedding"])
+        page("C9W01.PRG"); mpu.memory[symbols["position_row"]] = ord(token) - ord("a")
+        call(mpu, symbols["decode_position_scale"]); call(mpu, symbols["materialize_position"]); call(mpu, symbols["add_position_to_vector"]); call(mpu, symbols["retain_hidden_vector"])
+        page("C9W02.PRG"); mpu.memory[symbols["projection_packed_offset"]] = 0xC9
+        for routine in ("project_query", "project_key", "project_value"):
+            call(mpu, symbols[routine], steps=20_000_000)
+        call(mpu, symbols["capture_two_key_sequence"]); call(mpu, symbols["materialize_self_attention_scores"])
+        if mpu.memory[symbols["two_key_ready"]]:
+            mpu.memory[symbols["causal_query_position"]] = 1
+            call(mpu, symbols["materialize_two_token_causal_scores"]); call(mpu, symbols["two_key_all_heads_attention_output"], steps=16_000_000)
+        else:
+            call(mpu, symbols["single_token_attention_output"])
+        call(mpu, symbols["retain_attention_residual"])
+        page("C9W04.PRG"); call(mpu, symbols["project_attention_output"], steps=20_000_000)
+        page("C9W05.PRG"); call(mpu, symbols["add_attention_output_bias"]); call(mpu, symbols["add_attention_residual"]); call(mpu, symbols["checksum_attended_output"])
+
+    run("a"); run("b")
+    assert mpu.memory[symbols["attended_sumlo"]] | (mpu.memory[symbols["attended_sumhi"]] << 8) == 0xFF9E
+
+
 def test_6502_causal_score_row_masks_the_future_original_key(tmp_path):
     """Position zero sees its original key and encodes position one as -infinity."""
     prg = tmp_path / "CP64.PRG"

@@ -99,7 +99,7 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 ### Stage 028 attention residual
 
-`cs64-028-attention-residual.d64` preserves the original token-plus-position hidden state before paging C9W04, then adds that retained state lane-wise after the C9W04 projection and C9W05 bias. For `A`→`B`, the expected residual-output checksum is `AC1A`. The two added messages distinguish residual retention from its later addition; no new tensor is introduced at this gate.
+`cs64-028-attention-residual.d64` preserves the original token-plus-position hidden state before paging C9W04, then adds that retained state lane-wise after the C9W04 projection and C9W05 bias. For the live `A`→`B` sequence, the expected residual-output checksum is `FF9E`. The two added messages distinguish residual retention from its later addition; no new tensor is introduced at this gate.
 
 ### Browser test target
 
