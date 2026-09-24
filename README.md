@@ -44,6 +44,7 @@ build/cs64-017-show-inference-progress.d64
 build/cs64-018-show-attention-query-checksum.d64
 build/cs64-020-show-single-token-attention-output.d64
 build/cs64-021-test-two-key-softmax.d64
+build/cs64-022-test-two-key-second-attention-head.d64
 ```
 
 `cp64.d64` is a compatibility copy of the current numbered gate. A number is reserved only after its gate builds and passes its reference tests.
@@ -65,6 +66,10 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 ### Stage 021 two-key softmax proof
 
 `cs64-021-test-two-key-softmax.d64` retains original Q/K/V vectors for the bounded sequence `A` at position 0 followed by `B` at position 1. For head 0 it materializes the two visible causal scores, derives normalized Q0.15 weights from their Q8.8 delta, and applies them to four original projected V lanes. Enter `A`, wait for completion, then enter `B`. The expected final attended-output checksum is `5979`; the user confirmed that C64 Online Emulator displayed `$5979`. The independent 6502 reference also verifies scores `[3, 28]`, weights `[15585, 17183]`, and output `[1791, 2985, 1336, 2784]`. This is an explicitly bounded CP64 fixed-point contract, not a claim of source-FP32 bit parity.
+
+### Stage 022 second-head two-key softmax proof
+
+`cs64-022-test-two-key-second-attention-head.d64` repeats the accepted `A`, then `B` sequence but evaluates head 3 rather than head 0. It retains the original projected vectors, derives weights from head-3 causal scores `[-84, -58]`, and applies them to that head’s four original V lanes. The expected final attended-output checksum is `AA36`; the assembled-6502 reference gives output `[1113, -2072, 191, -643]` with Q0.15 weights `[15553, 17215]`.
 
 ### Browser test target
 

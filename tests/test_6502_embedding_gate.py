@@ -506,6 +506,37 @@ def test_6502_two_key_head0_softmax_uses_original_value_history(tmp_path):
     assert mpu.memory[symbols["softmax_weight_b_lo"]] | (mpu.memory[symbols["softmax_weight_b_hi"]] << 8) == 17183
 
 
+def test_6502_two_key_head3_softmax_uses_second_original_attention_head(tmp_path):
+    """A second original head uses its own causal scores and projected V lanes."""
+    prg = tmp_path / "CP64.PRG"
+    labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    assert "two_key_selected_head_softmax_attention_output" in symbols
+    mpu = MPU()
+    image = prg.read_bytes()
+    load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    # b@1 against a@0: head 3 scores [-84, -58], delta 26 Q8.8.
+    for address, value in ((symbols["CAUSAL_SCORES"] + 6, -84), (symbols["CAUSAL_SCORES"] + 22, -58)):
+        encoded = value & 0xFFFF
+        mpu.memory[address] = encoded & 0xFF
+        mpu.memory[address + 1] = encoded >> 8
+    for base, values in ((symbols["VALUE_HISTORY"] + 24, [3045, -173, 249, 1054]), (symbols["VALUE_HISTORY"] + 88, [-632, -3788, 139, -2177])):
+        for index, value in enumerate(values):
+            encoded = value & 0xFFFF
+            mpu.memory[base + index * 2] = encoded & 0xFF
+            mpu.memory[base + index * 2 + 1] = encoded >> 8
+    mpu.memory[symbols["softmax_head_offset"]] = 6
+    mpu.memory[symbols["softmax_vector_offset"]] = 24
+
+    call(mpu, symbols["two_key_selected_head_softmax_attention_output"], steps=2_000_000)
+
+    assert signed_vector(mpu, symbols["ATTENDED_VECTOR"])[12:16] == [1113, -2072, 191, -643]
+    assert mpu.memory[symbols["softmax_weight_a_lo"]] | (mpu.memory[symbols["softmax_weight_a_hi"]] << 8) == 15553
+    assert mpu.memory[symbols["softmax_weight_b_lo"]] | (mpu.memory[symbols["softmax_weight_b_hi"]] << 8) == 17215
+
+
 def test_6502_causal_score_row_masks_the_future_original_key(tmp_path):
     """Position zero sees its original key and encodes position one as -infinity."""
     prg = tmp_path / "CP64.PRG"

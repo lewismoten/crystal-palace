@@ -143,7 +143,11 @@ attention_input_loaded:
     lda #1
     sta causal_query_position
     jsr materialize_two_token_causal_scores
-    jsr two_key_head0_softmax_attention_output
+    lda #6              ; head 3 score-word offset
+    sta softmax_head_offset
+    lda #24             ; head 3 four-lane vector-byte offset
+    sta softmax_vector_offset
+    jsr two_key_selected_head_softmax_attention_output
     jmp attended_ready
 attended_single_key:
     jsr single_token_attention_output
@@ -850,9 +854,15 @@ checksum_attended_multiply:
     bne checksum_attended_component
     rts
 
-; Bounded two-key/head-0 causal-softmax gate. The score delta is Q8.8;
-; the 0..31 table holds round(sigmoid(delta/256)*32768) Q0.15 weights.
+; Bounded two-key causal-softmax gate. The score delta is Q8.8; the 0..31
+; table holds round(sigmoid(delta/256)*32768) Q0.15 weights.
 two_key_head0_softmax_attention_output:
+    lda #0
+    sta softmax_head_offset
+    sta softmax_vector_offset
+    jmp two_key_selected_head_softmax_attention_output
+
+two_key_selected_head_softmax_attention_output:
     ldy #0
     lda #0
 softmax_clear_output:
@@ -860,9 +870,10 @@ softmax_clear_output:
     iny
     cpy #64
     bne softmax_clear_output
+    ldx softmax_head_offset
     sec
-    lda CAUSAL_SCORES+16
-    sbc CAUSAL_SCORES
+    lda CAUSAL_SCORES+16,x
+    sbc CAUSAL_SCORES,x
     tay
     cpy #32
     bcc softmax_weight_ready
@@ -879,8 +890,12 @@ softmax_weight_ready:
     lda #$80
     sbc softmax_weight_b_hi
     sta softmax_weight_a_hi
-    ldy #0
+    ldy softmax_vector_offset
     sty softmax_offset
+    tya
+    clc
+    adc #8
+    sta softmax_component_limit
 softmax_component:
     lda VALUE_HISTORY,y
     sta mul_a_lo
@@ -934,7 +949,7 @@ softmax_component:
     sta ATTENDED_VECTOR,y
     iny
     sty softmax_offset
-    cpy #8
+    cpy softmax_component_limit
     beq softmax_done
     jmp softmax_component
 softmax_done:
@@ -1817,6 +1832,9 @@ softmax_weight_b_lo: .byte 0
 softmax_weight_b_hi: .byte 0
 softmax_offset: .byte 0
 softmax_bits: .byte 0
+softmax_head_offset: .byte 0
+softmax_vector_offset: .byte 0
+softmax_component_limit: .byte 0
 two_key_ready: .byte 0
 two_key_state: .byte 0
 history_offset: .byte 0
