@@ -52,6 +52,7 @@ build/cs64-026-attention-output-projection.d64
 build/cs64-027-attention-output-bias.d64
 build/cs64-028-attention-residual.d64
 build/cs64-029-norm-weight-paging.d64
+build/cs64-030-norm-bias-paging.d64
 ```
 
 `cp64.d64` is a compatibility copy of the current numbered gate. A number is reserved only after its gate builds and passes its reference tests.
@@ -104,7 +105,11 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 ### Stage 029 norm-weight paging
 
-`cs64-029-norm-weight-paging.d64` pages original `C9W06` and materializes its 32 norm-affine weights from 16 original FP16 scales and 16 packed INT4 bytes, with one scale assigned to each original pair of lanes. This is a source-byte and 6502-vector gate for the next LayerNorm tensor; it does **not** claim to execute LayerNorm yet. Its fixed Q8.8 norm-weight checksum is `E4D4`.
+`cs64-029-norm-weight-paging.d64` pages original `C9W06` and materializes its 32 norm-affine weights from 16 original FP16 scales and 16 packed INT4 bytes, with one scale assigned to each original pair of lanes. This is a source-byte and 6502-vector gate for the next LayerNorm tensor; it does **not** claim to execute LayerNorm yet. Its fixed Q8.8 norm-weight checksum is `E4D4`; browser-emulator parity was confirmed.
+
+### Stage 030 norm-bias paging
+
+`cs64-030-norm-bias-paging.d64` retains Stage 029's C9W06 norm-weight proof, then pages original `C9W07` and materializes its one-FP16-scale, 32-value packed-INT4 norm-bias vector. The fixed Q8.8 norm-bias checksum is `051C`. This completes paging and decoding the two original LayerNorm affine tensors; centering, variance, reciprocal-square-root, and affine application remain the next gate.
 
 ### Browser test target
 

@@ -10,8 +10,8 @@ from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 29
-CURRENT_DESCRIPTION = "norm-weight-paging"
+CURRENT_STAGE = 30
+CURRENT_DESCRIPTION = "norm-bias-paging"
 
 
 def stage_image_path(number: int, description: str) -> Path:

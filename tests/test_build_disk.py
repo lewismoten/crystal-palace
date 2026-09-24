@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_norm_weight_paging():
+def test_current_disk_stage_reports_norm_bias_paging():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 29
-    assert builder.CURRENT_DESCRIPTION == "norm-weight-paging"
+    assert builder.CURRENT_STAGE == 30
+    assert builder.CURRENT_DESCRIPTION == "norm-bias-paging"
