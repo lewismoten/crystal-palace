@@ -110,8 +110,11 @@ def test_interactive_request_announces_input_and_each_long_work_stage():
     request = source[source.index("accepted_key:") : source.index("jmp read_key", source.index("accepted_key:"))]
 
     assert request.index("jsr print_thinking") < request.index("jsr load_embedding")
-    for step in ("step_token", "step_position", "step_query", "step_key", "step_value", "step_scores"):
+    for step in ("step_token", "step_position", "step_query", "step_key", "step_value", "step_history", "step_scores", "step_softmax"):
         assert step in source
+    assert request.index("#<step_history") < request.index("jsr capture_two_key_sequence")
+    assert request.index("#<step_scores") < request.index("jsr materialize_self_attention_scores")
+    assert request.index("#<step_softmax") < request.index("jsr materialize_two_token_causal_scores")
 
 
 def test_final_display_uses_input_dependent_attention_query_checksum():

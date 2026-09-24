@@ -45,6 +45,7 @@ build/cs64-018-show-attention-query-checksum.d64
 build/cs64-020-show-single-token-attention-output.d64
 build/cs64-021-test-two-key-softmax.d64
 build/cs64-022-test-two-key-second-attention-head.d64
+build/cs64-023-split-inference-progress-stages.d64
 ```
 
 `cp64.d64` is a compatibility copy of the current numbered gate. A number is reserved only after its gate builds and passes its reference tests.
@@ -69,7 +70,11 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 ### Stage 022 second-head two-key softmax proof
 
-`cs64-022-test-two-key-second-attention-head.d64` repeats the accepted `A`, then `B` sequence but evaluates head 3 rather than head 0. It retains the original projected vectors, derives weights from head-3 causal scores `[-84, -58]`, and applies them to that head’s four original V lanes. The expected final attended-output checksum is `AA36`; the assembled-6502 reference gives output `[1113, -2072, 191, -643]` with Q0.15 weights `[15553, 17215]`.
+`cs64-022-test-two-key-second-attention-head.d64` repeats the accepted `A`, then `B` sequence but evaluates head 3 rather than head 0. It retains the original projected vectors, derives weights from head-3 causal scores `[-84, -58]`, and applies them to that head’s four original V lanes. The expected final attended-output checksum is `AA36`; the user confirmed that C64 Online Emulator displayed `$AA36`. The assembled-6502 reference gives output `[1113, -2072, 191, -643]` with Q0.15 weights `[15553, 17215]`.
+
+### Stage 023 split inference progress
+
+`cs64-023-split-inference-progress-stages.d64` keeps the accepted head-3 computation but replaces the misleading six-step display with eight real boundaries: token embedding, position embedding, Q, K, V, K/V-history retention, self-attention-score materialization, and causal softmax plus attended-V output.
 
 ### Browser test target
 

@@ -133,11 +133,17 @@ attention_input_loaded:
     ldy #>step_value
     jsr print
     jsr project_value
+    lda #<step_history
+    ldy #>step_history
+    jsr print
     jsr capture_two_key_sequence
     lda #<step_scores
     ldy #>step_scores
     jsr print
     jsr materialize_self_attention_scores
+    lda #<step_softmax
+    ldy #>step_softmax
+    jsr print
     lda two_key_ready
     beq attended_single_key
     lda #1
@@ -1850,12 +1856,14 @@ title:
 loading: .text "THINKING: READING C9W00 FROM DISK...",13,0
 loaded: .text "C9W00 READY. TYPE A THROUGH I.",13,13,0
 thinking: .text "THINKING TOKEN ",0
-step_token: .text "1/6 TOKEN EMBEDDING",13,0
-step_position: .text "2/6 POSITION EMBEDDING",13,0
-step_query: .text "3/6 ATTENTION Q",13,0
-step_key: .text "4/6 ATTENTION K",13,0
-step_value: .text "5/6 ATTENTION V",13,0
-step_scores: .text "6/6 ATTENTION SCORES",13,0
+step_token: .text "1/8 TOKEN EMBEDDING",13,0
+step_position: .text "2/8 POSITION EMBEDDING",13,0
+step_query: .text "3/8 ATTENTION Q",13,0
+step_key: .text "4/8 ATTENTION K",13,0
+step_value: .text "5/8 ATTENTION V",13,0
+step_history: .text "6/8 RETAIN K/V HISTORY",13,0
+step_scores: .text "7/8 SELF ATTENTION SCORES",13,0
+step_softmax: .text "8/8 CAUSAL SOFTMAX + V OUTPUT",13,0
 scale_result: .text "FP16 SCALE AS Q8.8 $",0
 result: .text "TOKEN ",0
 embedding_checksum: .text " EMBEDDING CHECKSUM $",0

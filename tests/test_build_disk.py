@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_two_key_second_attention_head():
+def test_current_disk_stage_reports_split_inference_progress():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 22
-    assert builder.CURRENT_DESCRIPTION == "test-two-key-second-attention-head"
+    assert builder.CURRENT_STAGE == 23
+    assert builder.CURRENT_DESCRIPTION == "split-inference-progress-stages"
