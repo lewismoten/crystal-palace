@@ -24,6 +24,14 @@ def sectors_on_track(track: int) -> int:
     raise ValueError(f"invalid track: {track}")
 
 
+def interleaved_sectors(track: int, count: int, interleave: int = 10) -> list[int]:
+    """Return a rotationally interleaved sector order for one D64 track."""
+    sectors = sectors_on_track(track)
+    if not 0 <= count <= sectors or math.gcd(interleave, sectors) != 1:
+        raise ValueError("invalid interleave or sector count")
+    return [(index * interleave) % sectors for index in range(count)]
+
+
 def sector_offset(track: int, sector: int) -> int:
     if not 1 <= track <= 35 or not 0 <= sector < sectors_on_track(track):
         raise ValueError(f"invalid sector address {track}/{sector}")
@@ -59,7 +67,12 @@ def build_d64_files(files: dict[str, Path], output_path: Path, disk_name: str = 
     if any(len(payload) < 3 for _, payload in payloads):
         raise ValueError("every PRG must contain a two-byte load address and code")
     needed = sum(math.ceil(len(payload) / 254) for _, payload in payloads)
-    available = [(track, sector) for track in range(1, 36) for sector in range(sectors_on_track(track)) if (track, sector) in free]
+    def rotational_order(track: int) -> list[tuple[int, int]]:
+        sectors = sectors_on_track(track)
+        interleave = 10 if math.gcd(10, sectors) == 1 else 7
+        return [(track, sector) for sector in interleaved_sectors(track, sectors, interleave) if (track, sector) in free]
+
+    available = [address for track in range(1, 36) for address in rotational_order(track)]
     if needed > len(available):
         raise ValueError("files do not fit on a standard 35-track D64")
 

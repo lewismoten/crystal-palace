@@ -37,17 +37,31 @@ color_screen:
     lda #<title
     ldy #>title
     jsr print
+    lda #<loading
+    ldy #>loading
+    jsr print
     jsr load_embedding
     bcc embedding_loaded
     jmp disk_error
 embedding_loaded:
+    lda #<loaded
+    ldy #>loaded
+    jsr print
 read_key:
     jsr GETIN
     beq read_key
+    cmp #'A'
+    bcc read_key
+    cmp #'J'
+    bcc uppercase_key
     cmp #'a'
     bcc read_key
     cmp #'j'
     bcs read_key
+    jmp accepted_key
+uppercase_key:
+    ora #$20
+accepted_key:
     sta selected
     sec
     sbc #'a'
@@ -239,5 +253,7 @@ title:
     .text "TYPE A THROUGH I",13
     .text "UNPACKS 32 WEIGHTS FROM C9W00",13
     .text "AND SHOWS WEIGHTED CODE CHECKSUM",13,13,0
+loading: .text "THINKING: READING C9W00 FROM DISK...",13,0
+loaded: .text "C9W00 READY. TYPE A THROUGH I.",13,13,0
 result: .text "TOKEN ",0
 error_message: .text "C9W00 LOAD OR HEADER ERROR",13,0
