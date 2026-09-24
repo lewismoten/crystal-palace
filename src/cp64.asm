@@ -30,7 +30,7 @@ PROJECTION_SCRATCH = $c7c0
 VALUE_VECTOR = $c800
 ATTENTION_SCORES = $c840
 KEY_HISTORY = $c880
-CAUSAL_SCORES = $c900
+CAUSAL_SCORES = $c940
 pointer = $fb
 vector_base = $fd
 
@@ -760,11 +760,17 @@ self_attention_component:
 self_attention_done:
     rts
 
-; Materialize one two-token causal score row. KEY_HISTORY holds two 32-value
-; Q8.8 key vectors; CAUSAL_SCORES holds eight head scores per key position.
+; Materialize a causal score row. KEY_HISTORY holds contiguous 32-value Q8.8
+; key vectors; CAUSAL_SCORES holds eight head scores per retained key position.
 ; A future key is represented by signed Q8.8 $8000, the fixed -infinity marker
 ; consumed by the later softmax gate.
 materialize_two_token_causal_scores:
+    lda #2
+    bne materialize_causal_scores
+materialize_three_token_causal_scores:
+    lda #3
+materialize_causal_scores:
+    sta causal_key_count
     lda #0
     sta causal_key_position
     sta causal_score_store_offset
@@ -790,13 +796,19 @@ causal_head:
     lda #>KEY_HISTORY
     sta pointer+1
     lda causal_key_position
+    sta causal_key_advance_count
+causal_key_base_advance:
+    lda causal_key_advance_count
     beq causal_key_base_ready
     clc
     lda pointer
     adc #64
     sta pointer
-    bcc causal_key_base_ready
+    bcc causal_key_base_advance_done
     inc pointer+1
+causal_key_base_advance_done:
+    dec causal_key_advance_count
+    jmp causal_key_base_advance
 causal_key_base_ready:
     clc
     lda pointer
@@ -875,7 +887,7 @@ causal_mask_head:
 causal_next_key:
     inc causal_key_position
     lda causal_key_position
-    cmp #2
+    cmp causal_key_count
     beq causal_scores_done
     jmp causal_key_row
 causal_scores_done:
@@ -1485,6 +1497,8 @@ score_high_bit: .byte 0
 causal_query_position: .byte 0
 causal_key_position: .byte 0
 causal_score_store_offset: .byte 0
+causal_key_count: .byte 0
+causal_key_advance_count: .byte 0
 
 title:
     .text "CP64 CRYSTAL-9",13
