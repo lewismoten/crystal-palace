@@ -23,6 +23,9 @@ COLOR  = $d800
 BUFFER = $c000
 VECTOR = $c100
 POSITION_VECTOR = $c140
+HIDDEN_VECTOR = $c700
+QUERY_VECTOR = $c740
+PROJECTION_SCRATCH = $c780
 pointer = $fb
 vector_base = $fd
 
@@ -94,6 +97,12 @@ position_loaded:
 position_scale_ready:
     jsr materialize_position
     jsr add_position_to_vector
+    jsr retain_hidden_vector
+    jsr load_attention_input
+    bcc attention_input_loaded
+    jmp disk_error
+attention_input_loaded:
+    jsr project_query
     lda #<scale_result
     ldy #>scale_result
     jsr print
@@ -198,6 +207,42 @@ load_position:
     clc
     rts
 position_load_failed:
+    sec
+    rts
+
+; Page C9W02 after preserving the assembled input outside its 1,737-byte window.
+load_attention_input:
+    lda #9
+    ldx #<attention_input_filename
+    ldy #>attention_input_filename
+    jsr SETNAM
+    lda #1
+    ldx #8
+    ldy #0
+    jsr SETLFS
+    lda #0
+    ldx #<BUFFER
+    ldy #>BUFFER
+    jsr LOAD
+    bcs attention_input_load_failed
+    lda BUFFER
+    cmp #'C'
+    bne attention_input_load_failed
+    lda BUFFER+1
+    cmp #'9'
+    bne attention_input_load_failed
+    lda BUFFER+2
+    cmp #'W'
+    bne attention_input_load_failed
+    lda BUFFER+3
+    cmp #'1'
+    bne attention_input_load_failed
+    lda BUFFER+4
+    cmp #2
+    bne attention_input_load_failed
+    clc
+    rts
+attention_input_load_failed:
     sec
     rts
 
@@ -419,6 +464,212 @@ add_position_checksum_loop:
     bne add_position_loop
     rts
 
+; C9W02 overwrites $C100-$C6C8; retain the assembled input before loading it.
+retain_hidden_vector:
+    ldy #0
+retain_hidden_loop:
+    lda VECTOR,y
+    sta HIDDEN_VECTOR,y
+    iny
+    cpy #64
+    bne retain_hidden_loop
+    rts
+
+; Project C9W02's first 32 rows (Q) against the retained Q8.8 input.
+project_query:
+    lda #0
+    sta projection_row
+    sta projection_offset
+project_query_row:
+    lda projection_row
+    sta row
+    jsr decode_scale
+    lda #$c9            ; C9W1 header (9) + 96 FP16 scales (192)
+    sta packed_offset
+    lda #<PROJECTION_SCRATCH
+    sta vector_base
+    lda #>PROJECTION_SCRATCH
+    sta vector_base+1
+    jsr materialize_row
+    lda #0
+    sta dot0
+    sta dot1
+    sta dot2
+    sta dot3
+    ldy #0
+project_query_dot:
+    lda HIDDEN_VECTOR,y
+    sta mul_a_lo
+    lda HIDDEN_VECTOR+1,y
+    sta mul_a_hi
+    lda PROJECTION_SCRATCH,y
+    sta mul_b_lo
+    lda PROJECTION_SCRATCH+1,y
+    sta mul_b_hi
+    jsr multiply_q8_8
+    clc
+    lda dot0
+    adc product0
+    sta dot0
+    lda dot1
+    adc product1
+    sta dot1
+    lda dot2
+    adc product2
+    sta dot2
+    lda dot3
+    adc product3
+    sta dot3
+    iny
+    iny
+    cpy #64
+    bne project_query_dot
+    jsr rounded_dot_to_q8_8
+    ldy projection_offset
+    lda result_lo
+    sta QUERY_VECTOR,y
+    iny
+    lda result_hi
+    sta QUERY_VECTOR,y
+    inc projection_row
+    inc projection_offset
+    inc projection_offset
+    lda projection_row
+    cmp #32
+    beq project_query_done
+    jmp project_query_row
+project_query_done:
+    rts
+
+; Signed 16-bit Q8.8 operands become a signed 32-bit Q16.16 product.
+multiply_q8_8:
+    lda mul_a_hi
+    eor mul_b_hi
+    and #$80
+    sta product_sign
+    lda mul_a_hi
+    bpl multiply_a_positive
+    lda #0
+    sec
+    sbc mul_a_lo
+    sta mul_a_lo
+    lda #0
+    sbc mul_a_hi
+    sta mul_a_hi
+multiply_a_positive:
+    lda mul_b_hi
+    bpl multiply_b_positive
+    lda #0
+    sec
+    sbc mul_b_lo
+    sta mul_b_lo
+    lda #0
+    sbc mul_b_hi
+    sta mul_b_hi
+multiply_b_positive:
+    lda #0
+    sta product0
+    sta product1
+    sta product2
+    sta product3
+    sta multiplicand2
+    sta multiplicand3
+    lda mul_a_lo
+    sta multiplicand0
+    lda mul_a_hi
+    sta multiplicand1
+    ldx #16
+multiply_bit:
+    lsr mul_b_hi
+    ror mul_b_lo
+    bcc multiply_skip_add
+    clc
+    lda product0
+    adc multiplicand0
+    sta product0
+    lda product1
+    adc multiplicand1
+    sta product1
+    lda product2
+    adc multiplicand2
+    sta product2
+    lda product3
+    adc multiplicand3
+    sta product3
+multiply_skip_add:
+    asl multiplicand0
+    rol multiplicand1
+    rol multiplicand2
+    rol multiplicand3
+    dex
+    bne multiply_bit
+    lda product_sign
+    beq multiply_done
+    lda #0
+    sec
+    sbc product0
+    sta product0
+    lda #0
+    sbc product1
+    sta product1
+    lda #0
+    sbc product2
+    sta product2
+    lda #0
+    sbc product3
+    sta product3
+multiply_done:
+    rts
+
+; Symmetrically round a signed Q16.16 accumulated dot back to Q8.8.
+rounded_dot_to_q8_8:
+    lda dot3
+    bpl rounded_dot_positive
+    lda #0
+    sec
+    sbc dot0
+    sta dot0
+    lda #0
+    sbc dot1
+    sta dot1
+    lda #0
+    sbc dot2
+    sta dot2
+    lda #0
+    sbc dot3
+    sta dot3
+    jsr rounded_dot_magnitude
+    lda #0
+    sec
+    sbc result_lo
+    sta result_lo
+    lda #0
+    sbc result_hi
+    sta result_hi
+    rts
+rounded_dot_positive:
+    jsr rounded_dot_magnitude
+    rts
+rounded_dot_magnitude:
+    clc
+    lda dot0
+    adc #$80
+    sta dot0
+    lda dot1
+    adc #0
+    sta dot1
+    lda dot2
+    adc #0
+    sta dot2
+    lda dot3
+    adc #0
+    sta dot3
+    lda dot1
+    sta result_lo
+    lda dot2
+    sta result_hi
+    rts
+
 ; Decode this embedding row's source FP16 scale to Q8.8.
 ; Crystal-9's checked embedding scales are positive normal binary16 exponents 15 or 16.
 decode_scale:
@@ -481,7 +732,9 @@ scale_check_exp16:
     cmp #$40            ; binary16 exponent 16
     bne scale_check_exp14
     lda raw_scale_hi
-    bmi scale_invalid
+    bpl scale_exp16_positive
+    jmp scale_invalid
+scale_exp16_positive:
     lda raw_scale_lo     ; nearest rounding: (fraction + 1) >> 1
     clc
     adc #1
@@ -512,9 +765,11 @@ scale_check_exp16:
     rts
 scale_check_exp14:
     cmp #$38            ; binary16 exponent 14
-    bne scale_invalid
+    bne scale_check_exp13
     lda raw_scale_hi
-    bmi scale_invalid
+    bpl scale_exp14_positive
+    jmp scale_invalid
+scale_exp14_positive:
     lda raw_scale_lo     ; nearest rounding: (fraction + 4) >> 3
     clc
     adc #4
@@ -536,6 +791,70 @@ scale_check_exp14:
     clc
     adc scale_lo
     adc #$80            ; Q8.8 base for exponent 14 is 128
+    sta scale_lo
+    lda #0
+    adc #0
+    sta scale_hi
+    clc
+    rts
+scale_check_exp13:
+    cmp #$34            ; binary16 exponent 13
+    bne scale_check_exp12
+    lda raw_scale_hi
+    bmi scale_invalid
+    lda raw_scale_lo     ; nearest rounding: (fraction + 8) >> 4
+    clc
+    adc #8
+    sta raw_scale_lo
+    lda raw_scale_hi
+    adc #0
+    sta raw_scale_hi
+    and #$03
+    asl
+    asl
+    asl
+    asl
+    sta scale_lo
+    lda raw_scale_lo
+    lsr
+    lsr
+    lsr
+    lsr
+    clc
+    adc scale_lo
+    adc #$40            ; Q8.8 base for exponent 13 is 64
+    sta scale_lo
+    lda #0
+    adc #0
+    sta scale_hi
+    clc
+    rts
+scale_check_exp12:
+    cmp #$30            ; binary16 exponent 12
+    bne scale_invalid
+    lda raw_scale_hi
+    bmi scale_invalid
+    lda raw_scale_lo     ; nearest rounding: (fraction + 16) >> 5
+    clc
+    adc #16
+    sta raw_scale_lo
+    lda raw_scale_hi
+    adc #0
+    sta raw_scale_hi
+    and #$03
+    asl
+    asl
+    asl
+    sta scale_lo
+    lda raw_scale_lo
+    lsr
+    lsr
+    lsr
+    lsr
+    lsr
+    clc
+    adc scale_lo
+    adc #$20            ; Q8.8 base for exponent 12 is 32
     sta scale_lo
     lda #0
     adc #0
@@ -684,9 +1003,31 @@ packed_index: .byte 0
 packed_offset: .byte 0
 filename: .text "C9W00.PRG"
 position_filename: .text "C9W01.PRG"
+attention_input_filename: .text "C9W02.PRG"
 position_row: .byte 0
 position_sumlo: .byte 0
 position_sumhi: .byte 0
+projection_row: .byte 0
+projection_offset: .byte 0
+dot0: .byte 0
+dot1: .byte 0
+dot2: .byte 0
+dot3: .byte 0
+mul_a_lo: .byte 0
+mul_a_hi: .byte 0
+mul_b_lo: .byte 0
+mul_b_hi: .byte 0
+product_sign: .byte 0
+product0: .byte 0
+product1: .byte 0
+product2: .byte 0
+product3: .byte 0
+multiplicand0: .byte 0
+multiplicand1: .byte 0
+multiplicand2: .byte 0
+multiplicand3: .byte 0
+result_lo: .byte 0
+result_hi: .byte 0
 
 title:
     .text "CP64 CRYSTAL-9",13

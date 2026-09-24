@@ -20,11 +20,11 @@ def labels(path: Path) -> dict[str, int]:
     return result
 
 
-def call(mpu: MPU, address: int) -> None:
+def call(mpu: MPU, address: int, steps: int = 1_000_000) -> None:
     mpu.sp = 0xFF
     mpu.stPushWord(0x01FF)  # RTS returns to $0200.
     mpu.pc = address
-    for _ in range(1_000_000):
+    for _ in range(steps):
         mpu.step()
         if mpu.pc == 0x0200:
             return
@@ -182,3 +182,50 @@ def test_6502_adds_original_position_to_retained_token_vector(tmp_path, position
     assert mpu.memory[symbols["sumlo"]] | (mpu.memory[symbols["sumhi"]] << 8) == sum(
         (index + 1) * value for index, value in enumerate(expected)
     ) & 0xFFFF
+
+
+def q8_8_attention_row_from_original_packet(packet_path: Path, row: int) -> list[int]:
+    """Independently decode one original INT4 attention-matrix row to Q8.8."""
+    return q8_8_vector_from_original_packet(packet_path, row)
+
+
+def q8_8_dot(left: list[int], right: list[int]) -> int:
+    """Symmetrically round a Q16.16 dot product back to Q8.8."""
+    total = sum(a * b for a, b in zip(left, right))
+    return (total + 128) // 256 if total >= 0 else -((-total + 128) // 256)
+
+
+def test_6502_projects_first_original_attention_query_for_token_a_at_position_zero(tmp_path):
+    prg = tmp_path / "CP64.PRG"
+    labels_path = tmp_path / "cp64.lbl"
+    subprocess.run(
+        [str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")],
+        check=True, capture_output=True, text=True,
+    )
+    symbols = labels(labels_path)
+    assert "project_query" in symbols
+    mpu = MPU()
+    image = prg.read_bytes()
+    load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    token_packet = ROOT / "build" / "layers" / "C9W00.PRG"
+    position_packet = ROOT / "build" / "layers" / "C9W01.PRG"
+    attention_packet = ROOT / "build" / "layers" / "C9W02.PRG"
+    mpu.memory[0xC000 : 0xC000 + len(token_packet.read_bytes()) - 2] = token_packet.read_bytes()[2:]
+    mpu.memory[symbols["row"]] = 4
+    call(mpu, symbols["decode_scale"])
+    call(mpu, symbols["materialize_embedding"])
+    mpu.memory[0xC000 : 0xC000 + len(position_packet.read_bytes()) - 2] = position_packet.read_bytes()[2:]
+    mpu.memory[symbols["position_row"]] = 0
+    call(mpu, symbols["decode_position_scale"])
+    call(mpu, symbols["materialize_position"])
+    call(mpu, symbols["add_position_to_vector"])
+    call(mpu, symbols["retain_hidden_vector"])
+    mpu.memory[0xC000 : 0xC000 + len(attention_packet.read_bytes()) - 2] = attention_packet.read_bytes()[2:]
+
+    call(mpu, symbols["project_query"], steps=20_000_000)
+
+    hidden = q8_8_vector_from_original_packet(token_packet, 4)
+    position = q8_8_vector_from_original_packet(position_packet, 0)
+    expected = [q8_8_dot([a + b for a, b in zip(hidden, position)], q8_8_attention_row_from_original_packet(attention_packet, row)) for row in range(32)]
+    assert signed_vector(mpu, symbols["QUERY_VECTOR"]) == expected
