@@ -124,6 +124,8 @@ position_scale_ready:
     bcc attention_input_loaded
     jmp disk_error
 attention_input_loaded:
+    lda #$c9
+    sta projection_packed_offset
     jsr project_query
     lda #<step_key
     ldy #>step_key
@@ -219,6 +221,17 @@ attended_two_key:
 attended_single_key:
     jsr single_token_attention_output
 attended_ready:
+    lda #<step_output_load
+    ldy #>step_output_load
+    jsr print
+    jsr load_attention_output
+    bcc attention_output_loaded
+    jmp disk_error
+attention_output_loaded:
+    lda #<step_output_project
+    ldy #>step_output_project
+    jsr print
+    jsr project_attention_output
     jsr checksum_attended_output
     lda #<scale_result
     ldy #>scale_result
@@ -369,6 +382,42 @@ load_attention_input:
     clc
     rts
 attention_input_load_failed:
+    sec
+    rts
+
+; Page the original attention output-projection weight packet C9W04.
+load_attention_output:
+    lda #9
+    ldx #<attention_output_filename
+    ldy #>attention_output_filename
+    jsr SETNAM
+    lda #1
+    ldx #8
+    ldy #0
+    jsr SETLFS
+    lda #0
+    ldx #<BUFFER
+    ldy #>BUFFER
+    jsr LOAD
+    bcs attention_output_load_failed
+    lda BUFFER
+    cmp #'C'
+    bne attention_output_load_failed
+    lda BUFFER+1
+    cmp #'9'
+    bne attention_output_load_failed
+    lda BUFFER+2
+    cmp #'W'
+    bne attention_output_load_failed
+    lda BUFFER+3
+    cmp #'1'
+    bne attention_output_load_failed
+    lda BUFFER+4
+    cmp #4
+    bne attention_output_load_failed
+    clc
+    rts
+attention_output_load_failed:
     sec
     rts
 
@@ -614,7 +663,7 @@ project_query_row:
     lda projection_row
     sta row
     jsr decode_scale
-    lda #$c9            ; C9W1 header (9) + 96 FP16 scales (192)
+    lda projection_packed_offset
     sta packed_offset
     lda #<PROJECTION_SCRATCH
     sta vector_base
@@ -683,6 +732,28 @@ project_query_checksum_loop:
 project_query_done:
     rts
 
+; C9W04 has 32 FP16 scales (64 bytes): packet data begins at $c049.
+; It applies the original output-projection weight to the attended 32-vector.
+project_attention_output:
+    ldy #0
+project_attention_copy:
+    lda ATTENDED_VECTOR,y
+    sta HIDDEN_VECTOR,y
+    iny
+    cpy #64
+    bne project_attention_copy
+    lda #$49
+    sta projection_packed_offset
+    jsr project_query
+    ldy #0
+project_attention_result:
+    lda QUERY_VECTOR,y
+    sta ATTENDED_VECTOR,y
+    iny
+    cpy #64
+    bne project_attention_result
+    rts
+
 ; Project C9W02's next 32 rows (K) against the retained Q8.8 input.
 project_key:
     lda #32
@@ -693,7 +764,7 @@ project_key_row:
     lda projection_row
     sta row
     jsr decode_scale
-    lda #$c9            ; C9W1 header (9) + 96 FP16 scales (192)
+    lda projection_packed_offset
     sta packed_offset
     lda #<PROJECTION_SCRATCH
     sta vector_base
@@ -760,7 +831,7 @@ project_value_row:
     lda projection_row
     sta row
     jsr decode_scale
-    lda #$c9            ; C9W1 header (9) + 96 FP16 scales (192)
+    lda projection_packed_offset
     sta packed_offset
     lda #<PROJECTION_SCRATCH
     sta vector_base
@@ -1891,11 +1962,13 @@ packed_offset: .byte 0
 filename: .text "C9W00.PRG"
 position_filename: .text "C9W01.PRG"
 attention_input_filename: .text "C9W02.PRG"
+attention_output_filename: .text "C9W04.PRG"
 position_row: .byte 0
 position_sumlo: .byte 0
 position_sumhi: .byte 0
 projection_row: .byte 0
 projection_offset: .byte 0
+projection_packed_offset: .byte $c9
 dot0: .byte 0
 dot1: .byte 0
 dot2: .byte 0
@@ -1952,22 +2025,24 @@ title:
 loading: .text "THINKING: READING C9W00 FROM DISK...",13,0
 loaded: .text "C9W00 READY. TYPE A THROUGH I.",13,13,0
 thinking: .text "THINKING TOKEN ",0
-step_token: .text "1/16 TOKEN EMBEDDING",13,0
-step_position: .text "2/16 POSITION EMBEDDING",13,0
-step_query: .text "3/16 ATTENTION Q",13,0
-step_key: .text "4/16 ATTENTION K",13,0
-step_value: .text "5/16 ATTENTION V",13,0
-step_history: .text "6/16 RETAIN K/V HISTORY",13,0
-step_scores: .text "7/16 SELF ATTENTION SCORES",13,0
-step_two_key_scores: .text "8/16 TWO-KEY CAUSAL SCORES",13,0
-step_head0: .text "9/16 CAUSAL SOFTMAX + V HEAD 0",13,0
-step_head1: .text "10/16 CAUSAL SOFTMAX + V HEAD 1",13,0
-step_head2: .text "11/16 CAUSAL SOFTMAX + V HEAD 2",13,0
-step_head3: .text "12/16 CAUSAL SOFTMAX + V HEAD 3",13,0
-step_head4: .text "13/16 CAUSAL SOFTMAX + V HEAD 4",13,0
-step_head5: .text "14/16 CAUSAL SOFTMAX + V HEAD 5",13,0
-step_head6: .text "15/16 CAUSAL SOFTMAX + V HEAD 6",13,0
-step_head7: .text "16/16 CAUSAL SOFTMAX + V HEAD 7",13,0
+step_token: .text "1/18 TOKEN EMBEDDING",13,0
+step_position: .text "2/18 POSITION EMBEDDING",13,0
+step_query: .text "3/18 ATTENTION Q",13,0
+step_key: .text "4/18 ATTENTION K",13,0
+step_value: .text "5/18 ATTENTION V",13,0
+step_history: .text "6/18 RETAIN K/V HISTORY",13,0
+step_scores: .text "7/18 SELF ATTENTION SCORES",13,0
+step_two_key_scores: .text "8/18 TWO-KEY CAUSAL SCORES",13,0
+step_head0: .text "9/18 CAUSAL SOFTMAX + V HEAD 0",13,0
+step_head1: .text "10/18 CAUSAL SOFTMAX + V HEAD 1",13,0
+step_head2: .text "11/18 CAUSAL SOFTMAX + V HEAD 2",13,0
+step_head3: .text "12/18 CAUSAL SOFTMAX + V HEAD 3",13,0
+step_head4: .text "13/18 CAUSAL SOFTMAX + V HEAD 4",13,0
+step_head5: .text "14/18 CAUSAL SOFTMAX + V HEAD 5",13,0
+step_head6: .text "15/18 CAUSAL SOFTMAX + V HEAD 6",13,0
+step_head7: .text "16/18 CAUSAL SOFTMAX + V HEAD 7",13,0
+step_output_load: .text "17/18 LOAD ATTENTION OUTPUT WEIGHT",13,0
+step_output_project: .text "18/18 ATTENTION OUTPUT PROJECTION",13,0
 scale_result: .text "FP16 SCALE AS Q8.8 $",0
 result: .text "TOKEN ",0
 embedding_checksum: .text " EMBEDDING CHECKSUM $",0
