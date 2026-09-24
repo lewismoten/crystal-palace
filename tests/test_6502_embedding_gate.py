@@ -775,7 +775,7 @@ def test_6502_centers_live_attention_residual_for_layer_norm(tmp_path):
     assert mpu.memory[symbols["norm_center_sumlo"]] | (mpu.memory[symbols["norm_center_sumhi"]] << 8) == checksum == 0x6AAA
 
 
-def test_6502_accumulates_live_layer_norm_variance_unsigned32(tmp_path):
+def test_6502_accumulates_isolated_layer_norm_variance_unsigned32(tmp_path):
     prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
     subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
     symbols = labels(labels_path); mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
@@ -825,6 +825,10 @@ def test_6502_a_then_b_residual_pipeline_uses_live_attention_state(tmp_path):
 
     run("a"); run("b")
     assert mpu.memory[symbols["attended_sumlo"]] | (mpu.memory[symbols["attended_sumhi"]] << 8) == 0xFF9E
+    call(mpu, symbols["center_layer_norm_input"])
+    call(mpu, symbols["layer_norm_variance32"], steps=5_000_000)
+    actual_variance = sum(mpu.memory[symbols[f"norm_variance{index}"]] << (8 * index) for index in range(4))
+    assert actual_variance == 0x06C97ECE
 
 
 def test_6502_causal_score_row_masks_the_future_original_key(tmp_path):
