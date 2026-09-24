@@ -256,6 +256,10 @@ attention_output_bias_loaded:
     ldy #>step_norm_center
     jsr print
     jsr center_layer_norm_input
+    lda #<step_norm_variance
+    ldy #>step_norm_variance
+    jsr print
+    jsr layer_norm_variance32
     jsr checksum_attended_output
     lda #<step_norm_load
     ldy #>step_norm_load
@@ -336,6 +340,19 @@ norm_bias_loaded:
     lda norm_center_sumhi
     jsr hexbyte
     lda norm_center_sumlo
+    jsr hexbyte
+    lda #13
+    jsr CHROUT
+    lda #<norm_variance_result
+    ldy #>norm_variance_result
+    jsr print
+    lda norm_variance3
+    jsr hexbyte
+    lda norm_variance2
+    jsr hexbyte
+    lda norm_variance1
+    jsr hexbyte
+    lda norm_variance0
     jsr hexbyte
     lda #13
     jsr CHROUT
@@ -1205,6 +1222,65 @@ norm_center_checksum_loop:
     bne norm_center_checksum_loop
     cpy #64
     bne norm_center_store_loop
+    rts
+
+; Sum the 32 centered Q8.8 squares as unsigned Q16.16, then nearest-divide by 32.
+; The running sum is unsigned: this live fixture exceeds signed 32-bit range.
+layer_norm_variance32:
+    lda #0
+    sta norm_variance0
+    sta norm_variance1
+    sta norm_variance2
+    sta norm_variance3
+    ldy #0
+norm_variance_loop:
+    lda HIDDEN_VECTOR,y
+    sta mul_a_lo
+    sta mul_b_lo
+    iny
+    lda HIDDEN_VECTOR,y
+    sta mul_a_hi
+    sta mul_b_hi
+    dey
+    jsr multiply_q8_8
+    clc
+    lda norm_variance0
+    adc product0
+    sta norm_variance0
+    lda norm_variance1
+    adc product1
+    sta norm_variance1
+    lda norm_variance2
+    adc product2
+    sta norm_variance2
+    lda norm_variance3
+    adc product3
+    sta norm_variance3
+    iny
+    iny
+    cpy #64
+    bne norm_variance_loop
+    clc
+    lda norm_variance0
+    adc #16
+    sta norm_variance0
+    lda norm_variance1
+    adc #0
+    sta norm_variance1
+    lda norm_variance2
+    adc #0
+    sta norm_variance2
+    lda norm_variance3
+    adc #0
+    sta norm_variance3
+    ldx #5
+norm_variance_divide:
+    lsr norm_variance3
+    ror norm_variance2
+    ror norm_variance1
+    ror norm_variance0
+    dex
+    bne norm_variance_divide
     rts
 
 ; Project C9W02's next 32 rows (K) against the retained Q8.8 input.
@@ -2409,6 +2485,10 @@ norm_total1: .byte 0
 norm_total2: .byte 0
 norm_total3: .byte 0
 norm_total_sign: .byte 0
+norm_variance0: .byte 0
+norm_variance1: .byte 0
+norm_variance2: .byte 0
+norm_variance3: .byte 0
 norm_group: .byte 0
 factor: .byte 0
 code: .byte 0
@@ -2495,33 +2575,34 @@ title:
 loading: .text "THINKING: READING C9W00 FROM DISK...",13,0
 loaded: .text "C9W00 READY. TYPE A THROUGH I.",13,13,0
 thinking: .text "THINKING TOKEN ",0
-step_token: .text "1/27 TOKEN EMBEDDING",13,0
-step_position: .text "2/27 POSITION EMBEDDING",13,0
-step_query: .text "3/27 ATTENTION Q",13,0
-step_key: .text "4/27 ATTENTION K",13,0
-step_value: .text "5/27 ATTENTION V",13,0
-step_history: .text "6/27 RETAIN K/V HISTORY",13,0
-step_scores: .text "7/27 SELF ATTENTION SCORES",13,0
-step_two_key_scores: .text "8/27 TWO-KEY CAUSAL SCORES",13,0
-step_head0: .text "9/27 CAUSAL SOFTMAX + V HEAD 0",13,0
-step_head1: .text "10/27 CAUSAL SOFTMAX + V HEAD 1",13,0
-step_head2: .text "11/27 CAUSAL SOFTMAX + V HEAD 2",13,0
-step_head3: .text "12/27 CAUSAL SOFTMAX + V HEAD 3",13,0
-step_head4: .text "13/27 CAUSAL SOFTMAX + V HEAD 4",13,0
-step_head5: .text "14/27 CAUSAL SOFTMAX + V HEAD 5",13,0
-step_head6: .text "15/27 CAUSAL SOFTMAX + V HEAD 6",13,0
-step_head7: .text "16/27 CAUSAL SOFTMAX + V HEAD 7",13,0
-step_residual_retain: .text "17/27 RETAIN ATTENTION RESIDUAL",13,0
-step_output_load: .text "18/27 LOAD ATTENTION OUTPUT WEIGHT",13,0
-step_output_project: .text "19/27 ATTENTION OUTPUT PROJECTION",13,0
-step_output_bias_load: .text "20/27 LOAD ATTENTION OUTPUT BIAS",13,0
-step_output_bias: .text "21/27 ADD ATTENTION OUTPUT BIAS",13,0
-step_residual_add: .text "22/27 ADD ATTENTION RESIDUAL",13,0
-step_norm_center: .text "23/27 CENTER LAYERNORM INPUT",13,0
-step_norm_load: .text "24/27 LOAD NORM WEIGHT",13,0
-step_norm_materialize: .text "25/27 MATERIALIZE NORM WEIGHT",13,0
-step_norm_bias_load: .text "26/27 LOAD NORM BIAS",13,0
-step_norm_bias_materialize: .text "27/27 MATERIALIZE NORM BIAS",13,0
+step_token: .text "1/28 TOKEN EMBEDDING",13,0
+step_position: .text "2/28 POSITION EMBEDDING",13,0
+step_query: .text "3/28 ATTENTION Q",13,0
+step_key: .text "4/28 ATTENTION K",13,0
+step_value: .text "5/28 ATTENTION V",13,0
+step_history: .text "6/28 RETAIN K/V HISTORY",13,0
+step_scores: .text "7/28 SELF ATTENTION SCORES",13,0
+step_two_key_scores: .text "8/28 TWO-KEY CAUSAL SCORES",13,0
+step_head0: .text "9/28 CAUSAL SOFTMAX + V HEAD 0",13,0
+step_head1: .text "10/28 CAUSAL SOFTMAX + V HEAD 1",13,0
+step_head2: .text "11/28 CAUSAL SOFTMAX + V HEAD 2",13,0
+step_head3: .text "12/28 CAUSAL SOFTMAX + V HEAD 3",13,0
+step_head4: .text "13/28 CAUSAL SOFTMAX + V HEAD 4",13,0
+step_head5: .text "14/28 CAUSAL SOFTMAX + V HEAD 5",13,0
+step_head6: .text "15/28 CAUSAL SOFTMAX + V HEAD 6",13,0
+step_head7: .text "16/28 CAUSAL SOFTMAX + V HEAD 7",13,0
+step_residual_retain: .text "17/28 RETAIN ATTENTION RESIDUAL",13,0
+step_output_load: .text "18/28 LOAD ATTENTION OUTPUT WEIGHT",13,0
+step_output_project: .text "19/28 ATTENTION OUTPUT PROJECTION",13,0
+step_output_bias_load: .text "20/28 LOAD ATTENTION OUTPUT BIAS",13,0
+step_output_bias: .text "21/28 ADD ATTENTION OUTPUT BIAS",13,0
+step_residual_add: .text "22/28 ADD ATTENTION RESIDUAL",13,0
+step_norm_center: .text "23/28 CENTER LAYERNORM INPUT",13,0
+step_norm_variance: .text "24/28 LAYERNORM VARIANCE",13,0
+step_norm_load: .text "25/28 LOAD NORM WEIGHT",13,0
+step_norm_materialize: .text "26/28 MATERIALIZE NORM WEIGHT",13,0
+step_norm_bias_load: .text "27/28 LOAD NORM BIAS",13,0
+step_norm_bias_materialize: .text "28/28 MATERIALIZE NORM BIAS",13,0
 scale_result: .text "FP16 SCALE AS Q8.8 $",0
 result: .text "TOKEN ",0
 embedding_checksum: .text " EMBEDDING CHECKSUM $",0
@@ -2530,5 +2611,6 @@ attended_checksum: .text " ATTENDED OUTPUT CHECKSUM $",0
 norm_checksum: .text " NORM WEIGHT CHECKSUM $",0
 norm_bias_checksum: .text " NORM BIAS CHECKSUM $",0
 norm_center_checksum: .text " NORM CENTER CHECKSUM $",0
+norm_variance_result: .text " NORM VARIANCE Q16.16 $",0
 error_message: .text "C9W00 LOAD OR HEADER ERROR",13,0
 scale_error_message: .text "UNSUPPORTED FP16 SCALE",13,0

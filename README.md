@@ -54,6 +54,7 @@ build/cs64-028-attention-residual.d64
 build/cs64-029-norm-weight-paging.d64
 build/cs64-030-norm-bias-paging.d64
 build/cs64-031-layer-norm-centering.d64
+build/cs64-032-layer-norm-variance.d64
 ```
 
 `cp64.d64` is a compatibility copy of the current numbered gate. A number is reserved only after its gate builds and passes its reference tests.
@@ -114,7 +115,11 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 ### Stage 031 LayerNorm centering
 
-`cs64-031-layer-norm-centering.d64` retains the Stage 030 source-tensor paging proofs and adds the first LayerNorm arithmetic slice. For the live bounded `A`→`B` attention-residual vector, its 6502 routine accumulates the signed Q8.8 total in 32 bits, symmetrically rounds the 32-lane mean to `-713`, and writes `x - mean` for all 32 lanes. The centered-vector checksum is `6AAA`. Variance, reciprocal-square-root, and C9W06/C9W07 affine application are deliberately not claimed by this gate.
+`cs64-031-layer-norm-centering.d64` retains the Stage 030 source-tensor paging proofs and adds the first LayerNorm arithmetic slice. For the live bounded `A`→`B` attention-residual vector, its 6502 routine accumulates the signed Q8.8 total in 32 bits, symmetrically rounds the 32-lane mean to `-713`, and writes `x - mean` for all 32 lanes. The centered-vector checksum is `6AAA`.
+
+### Stage 032 LayerNorm variance bundle
+
+`cs64-032-layer-norm-variance.d64` bundles Stage 031 centering with the next arithmetic step: every centered lane is squared as Q16.16, accumulated in an **unsigned** 32-bit sum, then nearest-divided by 32. For live `A`→`B`, it displays centered checksum `6AAA` and variance `06D39F3A` (Q16.16). Integer square root, normalization, and the already decoded C9W06/C9W07 affine application remain next.
 
 ### Browser test target
 
