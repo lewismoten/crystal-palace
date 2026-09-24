@@ -42,6 +42,7 @@ build/cs64-015-fix-token-packet-reload.d64
 build/cs64-016-fix-selected-token-after-load.d64
 build/cs64-017-show-inference-progress.d64
 build/cs64-018-show-attention-query-checksum.d64
+build/cs64-020-show-single-token-attention-output.d64
 ```
 
 `cp64.d64` is a compatibility copy of the current numbered gate. A number is reserved only after its gate builds and passes its reference tests.
@@ -56,13 +57,17 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 `cs64-018-show-attention-query-checksum.d64` reloads the original token packet for each request, preserves the selected token across KERNAL disk loads, and provides immediate six-step status output for the token, position, Q, K, V, and attention-score work. It reports an input-dependent attention-Q checksum after the work completes. On C64 Online Emulator, the user verified all A–I checksums against the independent packed-byte reference values: `0035`, `F758`, `03F3`, `E529`, `3E4C`, `2CBF`, `DD6C`, `E627`, and `E84F`.
 
+### Stage 020 browser-emulator acceptance
+
+`cs64-020-show-single-token-attention-output.d64` performs the exact degenerate causal-softmax case: one visible key has probability 1, so the attended vector is an exact copy of the original projected V vector. It displays a checksum over the retained attended Q8.8 vector. On C64 Online Emulator, the expected attended-output checksum matched.
+
 ### Browser test target
 
 The manual acceptance target is [C64 Online Emulator](https://c64online.com/c64-online-emulator/). Use its **Load Program** control to select the numbered `.d64` artifact; it accepts D64 files directly. This project treats a user-reported matching result from that emulator as a separate browser-emulator confirmation in addition to the assembled-6502 regression suite.
 
 ## Next proof gates
 
-1. Extend causal score materialization from the three-token mask gate, then implement fixed-point softmax and attention output from the original query, key, and value vectors.
+1. Implement the first nontrivial fixed-point softmax: two visible causal keys, normalized weights, and a four-lane attended-value slice from the original query, key, and value vectors.
 2. Implement LayerNorm, router top-2 selection, only the selected expert tensors, and output logits.
 3. Feed legal move histories from the C64 game loop and compare every C64 prediction against the packed Python reference runtime.
 4. Run exhaustive legal-history parity before claiming the C64 can play tic-tac-toe with Crystal-9.
