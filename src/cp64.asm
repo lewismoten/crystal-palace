@@ -320,6 +320,13 @@ scale_row_ready:
     bne scale_check_exp16
     lda raw_scale_hi
     bmi scale_invalid
+    lda raw_scale_lo     ; nearest rounding: (fraction + 2) >> 2
+    clc
+    adc #2
+    sta raw_scale_lo
+    lda raw_scale_hi
+    adc #0
+    sta raw_scale_hi
     and #$03            ; fraction bits 8-9
     asl
     asl
@@ -342,6 +349,13 @@ scale_check_exp16:
     bne scale_invalid
     lda raw_scale_hi
     bmi scale_invalid
+    lda raw_scale_lo     ; nearest rounding: (fraction + 1) >> 1
+    clc
+    adc #1
+    sta raw_scale_lo
+    lda raw_scale_hi
+    adc #0
+    sta raw_scale_hi
     and #$01            ; fraction bit 8 becomes Q8.8 low bit 7
     asl
     asl

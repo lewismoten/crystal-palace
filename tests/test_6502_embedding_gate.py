@@ -65,3 +65,31 @@ def test_6502_materializes_original_token_a_embedding(tmp_path):
         143, 0, -71, 0, -214, 214, 285, 285,
     ]
     assert mpu.memory[symbols["sumlo"]] | (mpu.memory[symbols["sumhi"]] << 8) == 0x20AD
+
+
+@pytest.mark.parametrize(
+    ("token_row", "expected_checksum"),
+    [(4, 0x20AD), (5, 0xD419), (6, 0xCCBC), (7, 0xA0DE), (8, 0x889C),
+     (9, 0xF8A2), (10, 0x4119), (11, 0x479C), (12, 0x3C6C)],
+)
+def test_6502_embedding_checksum_matches_reference_for_every_token(tmp_path, token_row, expected_checksum):
+    prg = tmp_path / "CP64.PRG"
+    labels_path = tmp_path / "cp64.lbl"
+    subprocess.run(
+        [str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")],
+        check=True, capture_output=True, text=True,
+    )
+    symbols = labels(labels_path)
+    mpu = MPU()
+    image = prg.read_bytes()
+    load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    packet = (ROOT / "build" / "layers" / "C9W00.PRG").read_bytes()[2:]
+    mpu.memory[0xC000 : 0xC000 + len(packet)] = packet
+    mpu.memory[symbols["row"]] = token_row
+
+    call(mpu, symbols["decode_scale"])
+    call(mpu, symbols["materialize_embedding"])
+
+    checksum = mpu.memory[symbols["sumlo"]] | (mpu.memory[symbols["sumhi"]] << 8)
+    assert checksum == expected_checksum
