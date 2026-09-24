@@ -59,6 +59,20 @@ def embedding_row(path: Path, token: str) -> list[int]:
     return unpack_int4(packed[row * 16 : (row + 1) * 16])
 
 
+def materialized_embedding_row(path: Path, token: str) -> list[int]:
+    """Return one original token-embedding row in signed Q8.8 fixed point."""
+    prg = path.read_bytes()
+    packet = prg[2:]
+    if packet[:4] != b"C9W1" or packet[4] != 0:
+        raise ValueError("expected original Crystal-9 embedding packet C9W00")
+    scale_size = int.from_bytes(packet[5:7], "little")
+    row = ord(token) - ord("a") + 4
+    if len(token) != 1 or token not in "abcdefghi":
+        raise ValueError("token must be a-i")
+    scale = fp16le_to_q8_8(packet[9 + row * 2 : 11 + row * 2])
+    return [scale_int4_code_q8_8(code, scale) for code in embedding_row(path, token)]
+
+
 if __name__ == "__main__":
     import argparse
 

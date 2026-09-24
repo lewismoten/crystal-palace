@@ -10,8 +10,8 @@ from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 6
-CURRENT_DESCRIPTION = "test-fp16-scale-decoder"
+CURRENT_STAGE = 7
+CURRENT_DESCRIPTION = "test-token-embedding"
 
 
 def stage_image_path(number: int, description: str) -> Path:

@@ -21,6 +21,7 @@ SETLFS = $ffba
 LOAD   = $ffd5
 COLOR  = $d800
 BUFFER = $c000
+VECTOR = $c100
 pointer = $fb
 
 start:
@@ -72,7 +73,7 @@ accepted_key:
     bcc scale_ready
     jmp scale_error
 scale_ready:
-    jsr checksum
+    jsr materialize_embedding
     lda #<scale_result
     ldy #>scale_result
     jsr print
@@ -88,10 +89,9 @@ scale_ready:
     lda selected
     and #$df            ; normalize internal lowercase token for PETSCII display
     jsr CHROUT
-    lda #' '
-    jsr CHROUT
-    lda #'$'
-    jsr CHROUT
+    lda #<embedding_checksum
+    ldy #>embedding_checksum
+    jsr print
     lda sumhi
     jsr hexbyte
     lda sumlo
@@ -138,6 +138,158 @@ load_embedding:
     rts
 load_failed:
     sec
+    rts
+
+; Materialize the selected original embedding row as 32 signed Q8.8 values.
+; The 64-byte vector lives at $C100, outside the $C000 packet window.
+materialize_embedding:
+    lda #<(BUFFER+$23) ; C9W1 header (9) + thirteen FP16 scales (26)
+    sta pointer
+    lda #>(BUFFER+$23)
+    sta pointer+1
+    ldx row
+advance_materialized_row:
+    cpx #0
+    beq materialized_row_ready
+    clc
+    lda pointer
+    adc #16
+    sta pointer
+    bcc materialized_pointer_no_carry
+    inc pointer+1
+materialized_pointer_no_carry:
+    dex
+    jmp advance_materialized_row
+materialized_row_ready:
+    lda #0
+    sta sumlo
+    sta sumhi
+    sta vector_index
+    lda #1
+    sta factor
+    ldy #0
+materialized_byte_loop:
+    lda (pointer),y
+    sta packed_byte
+    and #$0f
+    tya
+    pha
+    jsr materialize_nibble
+    pla
+    tay
+    lda packed_byte
+    lsr
+    lsr
+    lsr
+    lsr
+    tya
+    pha
+    jsr materialize_nibble
+    pla
+    tay
+    iny
+    cpy #16
+    bne materialized_byte_loop
+    rts
+
+; A is one unsigned nibble. Store code * original_scale / 7 in VECTOR,
+; symmetrically rounded to the nearest signed Q8.8 integer, then checksum it.
+materialize_nibble:
+    cmp #8
+    bcc materialized_code_ready
+    sec
+    sbc #16
+materialized_code_ready:
+    sta code
+    lda #0
+    sta sign
+    lda code
+    bpl materialized_magnitude_ready
+    dec sign
+    lda #0
+    sec
+    sbc code
+materialized_magnitude_ready:
+    sta magnitude
+    lda #0
+    sta act_lo
+    sta act_hi
+    ldx magnitude
+    beq materialized_divide
+materialized_multiply:
+    clc
+    lda act_lo
+    adc scale_lo
+    sta act_lo
+    lda act_hi
+    adc scale_hi
+    sta act_hi
+    dex
+    bne materialized_multiply
+materialized_divide:
+    clc                     ; nearest magnitude rounding: (product + 3) / 7
+    lda act_lo
+    adc #3
+    sta act_lo
+    lda act_hi
+    adc #0
+    sta act_hi
+    lda #0
+    sta quotient_lo
+    sta quotient_hi
+materialized_divide_loop:
+    lda act_hi
+    bne materialized_subtract_seven
+    lda act_lo
+    cmp #7
+    bcc materialized_divide_done
+materialized_subtract_seven:
+    sec
+    lda act_lo
+    sbc #7
+    sta act_lo
+    lda act_hi
+    sbc #0
+    sta act_hi
+    inc quotient_lo
+    bne materialized_divide_loop
+    inc quotient_hi
+    jmp materialized_divide_loop
+materialized_divide_done:
+    lda quotient_lo
+    sta act_lo
+    lda quotient_hi
+    sta act_hi
+    lda sign
+    beq materialized_store
+    lda #0
+    sec
+    sbc act_lo
+    sta act_lo
+    lda #0
+    sbc act_hi
+    sta act_hi
+materialized_store:
+    ldy vector_index
+    lda act_lo
+    sta VECTOR,y
+    iny
+    lda act_hi
+    sta VECTOR,y
+    iny
+    sty vector_index
+    ldx factor
+materialized_checksum_loop:
+    clc
+    lda sumlo
+    adc act_lo
+    sta sumlo
+    lda sumhi
+    adc act_hi
+    sta sumhi
+    dex
+    bne materialized_checksum_loop
+    inc factor
     rts
 
 ; Decode this embedding row's source FP16 scale to Q8.8.
@@ -347,17 +499,24 @@ raw_scale_lo: .byte 0
 raw_scale_hi: .byte 0
 scale_lo: .byte 0
 scale_hi: .byte 0
+magnitude: .byte 0
+act_lo: .byte 0
+act_hi: .byte 0
+quotient_lo: .byte 0
+quotient_hi: .byte 0
+vector_index: .byte 0
 filename: .text "C9W00.PRG"
 
 title:
     .text "CP64 CRYSTAL-9",13
     .text "ORIGINAL INT4 EMBEDDING GATE",13,13
     .text "TYPE A THROUGH I",13
-    .text "UNPACKS 32 WEIGHTS FROM C9W00",13
-    .text "AND SHOWS WEIGHTED CODE CHECKSUM",13,13,0
+    .text "UNPACKS AND MATERIALIZES 32 WEIGHTS",13
+    .text "AS Q8.8 EMBEDDING VALUES",13,13,0
 loading: .text "THINKING: READING C9W00 FROM DISK...",13,0
 loaded: .text "C9W00 READY. TYPE A THROUGH I.",13,13,0
 scale_result: .text "FP16 SCALE AS Q8.8 $",0
 result: .text "TOKEN ",0
+embedding_checksum: .text " EMBEDDING CHECKSUM $",0
 error_message: .text "C9W00 LOAD OR HEADER ERROR",13,0
 scale_error_message: .text "UNSUPPORTED FP16 SCALE",13,0

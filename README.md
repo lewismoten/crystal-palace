@@ -4,9 +4,9 @@ CP64 is a Commodore 64 feasibility project for **the original Crystal-9 packed I
 
 ## Current executable milestone
 
-`build/cp64.d64` is a runnable C64 disk with the first **real packed-neural computation gate**. It loads the original `embedding.weight` packet (`C9W00.PRG`) into `$c000`. When the user types `a`–`i`, the 6502 code selects that source embedding row, unpacks all 32 signed INT4 values, and computes the 16-bit checksum `Σ(position × INT4_code)`. The matching Python reference is `scripts/embedding_probe.py`.
+`build/cp64.d64` is a runnable C64 disk with a **materialized token-embedding proof gate**. It loads the original `embedding.weight` packet (`C9W00.PRG`) into `$c000`. When the user types `a`–`i`, the 6502 code selects that source row, decodes its original FP16 scale, unpacks all 32 signed INT4 values, and materializes 32 signed Q8.8 activations at `$c100` using symmetric rounding of `INT4 × scale / 7`. It displays a weighted vector checksum. The matching Python reference is `scripts/embedding_probe.py`.
 
-This is not yet a model move. The next gate is applying each row's original FP16 scale, then retaining the fixed-point embedding vector for the causal-attention path. It must not be represented as a tic-tac-toe-playing model until the 6502 evaluator is implemented and compared with Crystal-9's reference outputs.
+This is not yet a model move. The next gate is adding the original position embedding to the retained token vector, then advancing to the causal-attention path. It must not be represented as a tic-tac-toe-playing model until the 6502 evaluator is implemented and compared with Crystal-9's reference outputs.
 
 ## Model provenance
 
@@ -31,12 +31,12 @@ python3 -m pytest tests -q
 The result is `build/cp64.d64`. Each proof gate is also preserved under a sequentially numbered filename:
 
 ```text
-build/cs64-006-test-fp16-scale-decoder.d64
+build/cs64-007-test-token-embedding.d64
 ```
 
-`cp64.d64` is a compatibility copy of the current numbered gate. The next runnable embedding-vector gate will be `cs64-007-test-token-embedding.d64`; a number is reserved only after that gate builds and passes its reference tests.
+`cp64.d64` is a compatibility copy of the current numbered gate. A number is reserved only after its gate builds and passes its reference tests.
 
-To run it in VICE, attach/autostart the disk with a C64 ROM set supplied by your emulator installation. The program displays `48 PACKED TENSORS READ FROM DISK` after its paging pass.
+To run it in VICE, attach/autostart the disk with a C64 ROM set supplied by your emulator installation. Enter `A` through `I` after the ready prompt to materialize the selected original token embedding.
 
 ## Next proof gates
 
