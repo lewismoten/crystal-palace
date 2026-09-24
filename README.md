@@ -110,7 +110,7 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 ### Stage 030 norm-bias paging
 
-`cs64-030-norm-bias-paging.d64` retains Stage 029's C9W06 norm-weight proof, then pages original `C9W07` and materializes its one-FP16-scale, 32-value packed-INT4 norm-bias vector. The fixed Q8.8 norm-bias checksum is `051C`. This completes paging and decoding the two original LayerNorm affine tensors; centering, variance, reciprocal-square-root, and affine application remain the next gate.
+`cs64-030-norm-bias-paging.d64` retains Stage 029's C9W06 norm-weight proof, then pages original `C9W07` and materializes its one-FP16-scale, 32-value packed-INT4 norm-bias vector. The fixed Q8.8 norm-weight and norm-bias checksums are `E4D4` and `051C` for both `A` and `B`; browser-emulator parity was confirmed. The attended-output checksum is input-sequence-specific: the live `A`→`B` value is `FF9E`, and it is not an expected value for the initial `A`. This completes paging and decoding the two original LayerNorm affine tensors; centering, variance, reciprocal-square-root, and affine application remain the next gate.
 
 ### Stage 031 LayerNorm centering
 
