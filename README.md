@@ -4,9 +4,9 @@ CP64 is a Commodore 64 feasibility project for **the original Crystal-9 packed I
 
 ## Current executable milestone
 
-`build/cp64.d64` is a runnable C64 disk. Its `CP64` program reads all 48 original tensor packets from the disk, one at a time, into the `$c000` RAM window and rejects a packet whose `C9W1` header is absent. The status line is written directly to C64 screen RAM (`$0400`) and color RAM (`$d800`).
+`build/cp64.d64` is a runnable C64 disk with the first **real packed-neural computation gate**. It loads the original `embedding.weight` packet (`C9W00.PRG`) into `$c000`. When the user types `a`–`i`, the 6502 code selects that source embedding row, unpacks all 32 signed INT4 values, and computes the 16-bit checksum `Σ(position × INT4_code)`. The matching Python reference is `scripts/embedding_probe.py`.
 
-This verifies the storage/paging prerequisite, not full neural inference yet. It must not be represented as a tic-tac-toe-playing model until the 6502 evaluator is implemented and compared with Crystal-9's reference outputs.
+This is not yet a model move. The next gate is applying each row's original FP16 scale, then retaining the fixed-point embedding vector for the causal-attention path. It must not be represented as a tic-tac-toe-playing model until the 6502 evaluator is implemented and compared with Crystal-9's reference outputs.
 
 ## Model provenance
 
