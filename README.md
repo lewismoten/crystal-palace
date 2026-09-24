@@ -38,6 +38,10 @@ build/cs64-011-test-original-attention-value.d64
 build/cs64-012-test-original-self-attention-score.d64
 build/cs64-013-test-two-token-causal-attention-mask.d64
 build/cs64-014-test-three-token-causal-attention-mask.d64
+build/cs64-015-fix-token-packet-reload.d64
+build/cs64-016-fix-selected-token-after-load.d64
+build/cs64-017-show-inference-progress.d64
+build/cs64-018-show-attention-query-checksum.d64
 ```
 
 `cp64.d64` is a compatibility copy of the current numbered gate. A number is reserved only after its gate builds and passes its reference tests.
@@ -47,6 +51,10 @@ build/cs64-014-test-three-token-causal-attention-mask.d64
 Assembled-6502 Py65 regression tests compare all nine materialized position rows, all nine token-plus-position vectors, all 32 query, key, and value projection values, and all eight scaled Q·K self-attention scores for every mapped playable input against independent fixed-point reference calculations over verbatim `C9W00`, `C9W01`, and `C9W02` packet bytes. The stage-014 regression independently generates token `a` at position 0, `b` at position 1, and `c` at position 2 from those same packet bytes, retains all three key vectors, and verifies that the middle query row contains all eight original `b`→`a` and `b`→`b` scores while all eight `b`→`c` entries are the fixed `$8000` causal-mask marker.
 
 To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_embedding_gate.py::test_6502_three_token_causal_score_row_keeps_prior_original_keys -q`. To load the disk in VICE, attach/autostart `cs64-014-test-three-token-causal-attention-mask.d64` with a C64 ROM set supplied by your emulator installation; enter `A` through `I` for the preceding single-token materialization gate. The Py65 regression is the exact three-token causal-mask oracle.
+
+### Stage 018 browser-emulator acceptance
+
+`cs64-018-show-attention-query-checksum.d64` reloads the original token packet for each request, preserves the selected token across KERNAL disk loads, and provides immediate six-step status output for the token, position, Q, K, V, and attention-score work. It reports an input-dependent attention-Q checksum after the work completes. On C64 Online Emulator, the user verified all A–I checksums against the independent packed-byte reference values: `0035`, `F758`, `03F3`, `E529`, `3E4C`, `2CBF`, `DD6C`, `E627`, and `E84F`.
 
 ### Browser test target
 
