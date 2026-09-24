@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_is_three_token_causal_attention_mask_gate():
+def test_current_disk_stage_reloads_token_packet_before_each_position_page():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 14
-    assert builder.CURRENT_DESCRIPTION == "test-three-token-causal-attention-mask"
+    assert builder.CURRENT_STAGE == 15
+    assert builder.CURRENT_DESCRIPTION == "fix-token-packet-reload"

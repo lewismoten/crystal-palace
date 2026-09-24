@@ -74,6 +74,10 @@ uppercase_key:
     ora #$20
 accepted_key:
     sta selected
+    jsr load_embedding       ; C9W01 from the prior request occupied $C000.
+    bcc embedding_reloaded
+    jmp disk_error
+embedding_reloaded:
     sec
     sbc #'a'
     clc

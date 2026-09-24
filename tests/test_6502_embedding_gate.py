@@ -90,6 +90,13 @@ def test_6502_materializes_original_token_a_embedding(tmp_path):
     assert mpu.memory[symbols["sumlo"]] | (mpu.memory[symbols["sumhi"]] << 8) == 0x20AD
 
 
+def test_interactive_request_reloads_token_packet_before_decoding_selected_row():
+    """C9W01 overwrites $C000, so every next key request needs C9W00 again."""
+    source = (ROOT / "src" / "cp64.asm").read_text()
+    request = source[source.index("accepted_key:") : source.index("scale_ready:")]
+    assert request.index("jsr load_embedding") < request.index("jsr decode_scale")
+
+
 @pytest.mark.parametrize(
     ("token_row", "expected_checksum"),
     [(4, 0x20AD), (5, 0xD419), (6, 0xCCBC), (7, 0xA0DE), (8, 0x889C),
@@ -112,6 +119,7 @@ def test_6502_embedding_checksum_matches_reference_for_every_token(tmp_path, tok
     mpu.memory[symbols["row"]] = token_row
 
     call(mpu, symbols["decode_scale"])
+    assert not (mpu.p & mpu.CARRY), f"token row {token_row} decoder returned unsupported scale"
     call(mpu, symbols["materialize_embedding"])
 
     checksum = mpu.memory[symbols["sumlo"]] | (mpu.memory[symbols["sumhi"]] << 8)
