@@ -36,6 +36,10 @@ build/cs64-007-test-token-embedding.d64
 
 `cp64.d64` is a compatibility copy of the current numbered gate. A number is reserved only after its gate builds and passes its reference tests.
 
+### Stage 007 acceptance
+
+Manual C64-emulator results match the packed Python reference for every playable token: `A $20AD`, `B $D419`, `C $CCBC`, `D $A0DE`, `E $889C`, `F $F8A2`, `G $4119`, `H $479C`, and `I $3C6C`.
+
 To run it in VICE, attach/autostart the disk with a C64 ROM set supplied by your emulator installation. Enter `A` through `I` after the ready prompt to materialize the selected original token embedding.
 
 ## Next proof gates
