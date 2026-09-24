@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_displays_input_dependent_attention_checksum():
+def test_current_disk_stage_proves_single_token_causal_attention_output():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 18
-    assert builder.CURRENT_DESCRIPTION == "show-attention-query-checksum"
+    assert builder.CURRENT_STAGE == 19
+    assert builder.CURRENT_DESCRIPTION == "test-single-token-attention-output"

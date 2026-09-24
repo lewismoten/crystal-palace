@@ -30,6 +30,7 @@ PROJECTION_SCRATCH = $c7c0
 VALUE_VECTOR = $c800
 ATTENTION_SCORES = $c840
 KEY_HISTORY = $c880
+ATTENDED_VECTOR = $c900
 CAUSAL_SCORES = $c940
 pointer = $fb
 vector_base = $fd
@@ -135,6 +136,7 @@ attention_input_loaded:
     ldy #>step_scores
     jsr print
     jsr materialize_self_attention_scores
+    jsr single_token_attention_output
     lda #<scale_result
     ldy #>scale_result
     jsr print
@@ -782,6 +784,18 @@ self_attention_component:
     beq self_attention_done
     jmp self_attention_head
 self_attention_done:
+    rts
+
+; A one-token causal row has exactly one visible score. Its softmax is 1.0,
+; so the attended vector is the original projected V vector without a lookup.
+single_token_attention_output:
+    ldy #0
+single_token_attention_copy:
+    lda VALUE_VECTOR,y
+    sta ATTENDED_VECTOR,y
+    iny
+    cpy #64
+    bne single_token_attention_copy
     rts
 
 ; Materialize a causal score row. KEY_HISTORY holds contiguous 32-value Q8.8

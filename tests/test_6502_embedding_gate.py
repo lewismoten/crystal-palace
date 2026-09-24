@@ -428,6 +428,33 @@ def test_6502_materializes_scaled_self_attention_scores_for_every_playable_input
     assert signed_vector(mpu, symbols["ATTENTION_SCORES"])[:8] == expected
 
 
+def test_6502_single_token_causal_softmax_returns_the_original_value_vector(tmp_path):
+    """With one visible causal key, softmax(score) is exactly one."""
+    prg = tmp_path / "CP64.PRG"
+    labels_path = tmp_path / "cp64.lbl"
+    subprocess.run(
+        [str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")],
+        check=True, capture_output=True, text=True,
+    )
+    symbols = labels(labels_path)
+    assert "single_token_attention_output" in symbols
+    assert "ATTENDED_VECTOR" in symbols
+    mpu = MPU()
+    image = prg.read_bytes()
+    load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    source = [71, -71, -285, 428, 0, 143, -499, 214] * 4
+    for index, value in enumerate(source):
+        encoded = value & 0xFFFF
+        mpu.memory[symbols["VALUE_VECTOR"] + index * 2] = encoded & 0xFF
+        mpu.memory[symbols["VALUE_VECTOR"] + index * 2 + 1] = encoded >> 8
+
+    call(mpu, symbols["single_token_attention_output"])
+
+    assert signed_vector(mpu, symbols["ATTENDED_VECTOR"]) == source
+
+
+
 def test_6502_causal_score_row_masks_the_future_original_key(tmp_path):
     """Position zero sees its original key and encodes position one as -infinity."""
     prg = tmp_path / "CP64.PRG"
