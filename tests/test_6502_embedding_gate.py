@@ -180,6 +180,15 @@ def test_final_display_uses_input_dependent_attention_query_checksum():
     assert "lda query_sumlo" in display
 
 
+def test_final_display_reports_layer_norm_centering_checksum():
+    source = (ROOT / "src" / "cp64.asm").read_text()
+    display = source[source.index("lda #<norm_bias_checksum") : source.index("jmp read_key", source.index("lda #<norm_bias_checksum"))]
+
+    assert "lda #<norm_center_checksum" in display
+    assert "lda norm_center_sumhi" in display
+    assert "lda norm_center_sumlo" in display
+
+
 @pytest.mark.parametrize(
     ("token_row", "expected_checksum"),
     [(4, 0x20AD), (5, 0xD419), (6, 0xCCBC), (7, 0xA0DE), (8, 0x889C),

@@ -330,6 +330,15 @@ norm_bias_loaded:
     jsr hexbyte
     lda #13
     jsr CHROUT
+    lda #<norm_center_checksum
+    ldy #>norm_center_checksum
+    jsr print
+    lda norm_center_sumhi
+    jsr hexbyte
+    lda norm_center_sumlo
+    jsr hexbyte
+    lda #13
+    jsr CHROUT
     jmp read_key
 
 ; Load the original packed embedding tensor packet C9W00.PRG at $C000.
@@ -2520,5 +2529,6 @@ attention_checksum: .text " ATTENTION Q CHECKSUM $",0
 attended_checksum: .text " ATTENDED OUTPUT CHECKSUM $",0
 norm_checksum: .text " NORM WEIGHT CHECKSUM $",0
 norm_bias_checksum: .text " NORM BIAS CHECKSUM $",0
+norm_center_checksum: .text " NORM CENTER CHECKSUM $",0
 error_message: .text "C9W00 LOAD OR HEADER ERROR",13,0
 scale_error_message: .text "UNSUPPORTED FP16 SCALE",13,0
