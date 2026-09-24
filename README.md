@@ -4,7 +4,7 @@ CP64 is a Commodore 64 feasibility project for **the original Crystal-9 packed I
 
 ## Current executable milestone
 
-`build/cp64.d64` is a runnable C64 disk with a **token-plus-position embedding proof gate**. It loads the original `embedding.weight` packet (`C9W00.PRG`) into `$c000`; for a selected `a`–`i` token it materializes 32 signed Q8.8 values at `$c100`. It then pages the original `position.weight` packet (`C9W01.PRG`) into the same window, materializes the corresponding position row at `$c140`, and adds it to the retained token vector at `$c100`. Both packets retain their original FP16 scale bytes and packed signed INT4 payloads. The matching Python reference is `scripts/embedding_probe.py`.
+`build/cp64.d64` is a runnable C64 disk with an **original attention-query proof gate**. It loads the original `embedding.weight` packet (`C9W00.PRG`) into `$c000`; for a selected `a`–`i` token it materializes 32 signed Q8.8 values at `$c100`. It then pages the original `position.weight` packet (`C9W01.PRG`), adds the matching position row, retains that 32-value input, and pages the original first-attention input-projection packet (`C9W02.PRG`). The 6502 materializes each original query-projection row and writes the 32 Q8.8 query values at `$c740`. All packets retain their original FP16 scale bytes and packed signed INT4 payloads.
 
 This is not yet a model move. The next gate is the causal-attention path. It must not be represented as a tic-tac-toe-playing model until the 6502 evaluator is implemented and compared with Crystal-9's reference outputs.
 
@@ -32,15 +32,16 @@ The result is `build/cp64.d64`. Each proof gate is also preserved under a sequen
 
 ```text
 build/cs64-008-test-position-embedding.d64
+build/cs64-009-test-original-attention-query.d64
 ```
 
 `cp64.d64` is a compatibility copy of the current numbered gate. A number is reserved only after its gate builds and passes its reference tests.
 
-### Stage 008 acceptance
+### Stage 009 acceptance
 
-Assembled-6502 Py65 regression tests compare every materialized position row and every mapped playable token-plus-position vector against independent fixed-point reference calculations over the verbatim `C9W00` and `C9W01` packet bytes.
+Assembled-6502 Py65 regression tests compare all nine materialized position rows, all nine token-plus-position vectors, and all 32 query-projection values for every mapped playable input against independent fixed-point reference calculations over verbatim `C9W00`, `C9W01`, and `C9W02` packet bytes. A separate weighted query checksum is retained by the 6502 for every input.
 
-To run it in VICE, attach/autostart the disk with a C64 ROM set supplied by your emulator installation. Enter `A` through `I` after the ready prompt; the selected token is paired with position `0` through `8` respectively and its token-plus-position Q8.8 checksum is displayed.
+To run it in VICE, attach/autostart the disk with a C64 ROM set supplied by your emulator installation. Enter `A` through `I` after the ready prompt; the selected token is paired with position `0` through `8` respectively. This gate computes the corresponding original query vector; the Py65 suite is its exact parity oracle.
 
 ### Browser test target
 
@@ -48,8 +49,8 @@ The manual acceptance target is [C64 Online Emulator](https://c64online.com/c64-
 
 ## Next proof gates
 
-1. Materialize original position-embedding rows and add them to the retained token vector.
-2. Implement the actual Crystal-9 forward path: causal attention, LayerNorm, router top-2 selection, only the selected expert tensors, and output logits.
+1. Materialize the original attention key and value projections, then implement causal score, masking, softmax, and attention output.
+2. Implement LayerNorm, router top-2 selection, only the selected expert tensors, and output logits.
 3. Feed legal move histories from the C64 game loop and compare every C64 prediction against the packed Python reference runtime.
 4. Run exhaustive legal-history parity before claiming the C64 can play tic-tac-toe with Crystal-9.
 

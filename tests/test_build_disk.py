@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_is_position_embedding_gate():
+def test_current_disk_stage_is_original_attention_query_gate():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 8
-    assert builder.CURRENT_DESCRIPTION == "test-position-embedding"
+    assert builder.CURRENT_STAGE == 9
+    assert builder.CURRENT_DESCRIPTION == "test-original-attention-query"

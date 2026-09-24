@@ -480,6 +480,10 @@ project_query:
     lda #0
     sta projection_row
     sta projection_offset
+    sta query_sumlo
+    sta query_sumhi
+    lda #1
+    sta query_factor
 project_query_row:
     lda projection_row
     sta row
@@ -531,6 +535,18 @@ project_query_dot:
     iny
     lda result_hi
     sta QUERY_VECTOR,y
+    ldx query_factor
+project_query_checksum_loop:
+    clc
+    lda query_sumlo
+    adc result_lo
+    sta query_sumlo
+    lda query_sumhi
+    adc result_hi
+    sta query_sumhi
+    dex
+    bne project_query_checksum_loop
+    inc query_factor
     inc projection_row
     inc projection_offset
     inc projection_offset
@@ -1028,6 +1044,9 @@ multiplicand2: .byte 0
 multiplicand3: .byte 0
 result_lo: .byte 0
 result_hi: .byte 0
+query_sumlo: .byte 0
+query_sumhi: .byte 0
+query_factor: .byte 0
 
 title:
     .text "CP64 CRYSTAL-9",13
