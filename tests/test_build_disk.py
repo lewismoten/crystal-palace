@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_c64_inference_progress():
+def test_current_disk_stage_displays_input_dependent_attention_checksum():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 17
-    assert builder.CURRENT_DESCRIPTION == "show-inference-progress"
+    assert builder.CURRENT_STAGE == 18
+    assert builder.CURRENT_DESCRIPTION == "show-attention-query-checksum"

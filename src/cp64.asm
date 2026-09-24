@@ -150,12 +150,12 @@ attention_input_loaded:
     lda selected
     and #$df            ; normalize internal lowercase token for PETSCII display
     jsr CHROUT
-    lda #<embedding_checksum
-    ldy #>embedding_checksum
+    lda #<attention_checksum
+    ldy #>attention_checksum
     jsr print
-    lda sumhi
+    lda query_sumhi
     jsr hexbyte
-    lda sumlo
+    lda query_sumlo
     jsr hexbyte
     lda #13
     jsr CHROUT
@@ -1552,5 +1552,6 @@ step_scores: .text "6/6 ATTENTION SCORES",13,0
 scale_result: .text "FP16 SCALE AS Q8.8 $",0
 result: .text "TOKEN ",0
 embedding_checksum: .text " EMBEDDING CHECKSUM $",0
+attention_checksum: .text " ATTENTION Q CHECKSUM $",0
 error_message: .text "C9W00 LOAD OR HEADER ERROR",13,0
 scale_error_message: .text "UNSUPPORTED FP16 SCALE",13,0

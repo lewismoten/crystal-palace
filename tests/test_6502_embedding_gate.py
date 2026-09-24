@@ -113,6 +113,13 @@ def test_interactive_request_announces_input_and_each_long_work_stage():
         assert step in source
 
 
+def test_final_display_uses_input_dependent_attention_query_checksum():
+    source = (ROOT / "src" / "cp64.asm").read_text()
+    display = source[source.index("lda #<result") : source.index("jmp read_key", source.index("lda #<result"))]
+    assert "lda query_sumhi" in display
+    assert "lda query_sumlo" in display
+
+
 @pytest.mark.parametrize(
     ("token_row", "expected_checksum"),
     [(4, 0x20AD), (5, 0xD419), (6, 0xCCBC), (7, 0xA0DE), (8, 0x889C),
