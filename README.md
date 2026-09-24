@@ -84,7 +84,7 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 ### Stage 025 all-head attention output
 
-`cs64-025-combine-all-attention-heads.d64` uses the same original `A`→`B` two-key sequence but now emits the 32-lane attended vector from all eight original attention heads. The bounded Q0.15 two-key softmax remains an explicitly fixed-point proof approximation; the projected Q/K/V vectors and packed tensors remain original source data. The expected final checksum is `FFA0`. Sixteen progress messages expose self-attention scores, two-key causal scores, and each separate head output.
+`cs64-025-combine-all-attention-heads.d64` uses the same original `A`→`B` two-key sequence but now emits the 32-lane attended vector from all eight original attention heads. The bounded Q0.15 two-key softmax remains an explicitly fixed-point proof approximation; the projected Q/K/V vectors and packed tensors remain original source data. The expected final checksum is `FFA0`; browser-emulator parity was confirmed with all sixteen displayed work stages.
 
 ### Browser test target
 
