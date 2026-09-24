@@ -80,7 +80,7 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 ### Stage 024 combined two-head attention output
 
-`cs64-024-combine-two-attention-heads.d64` retains the same original `A`→`B` two-key sequence and combines both previously proved attention slices into one attended vector: head 0 occupies lanes 0–3 and head 3 occupies lanes 12–15; all other lanes remain zero in this bounded gate. The expected final checksum is `03AF`. Its nine progress messages separately identify the two actual head-output computations.
+`cs64-024-combine-two-attention-heads.d64` retains the same original `A`→`B` two-key sequence and combines both previously proved attention slices into one attended vector: head 0 occupies lanes 0–3 and head 3 occupies lanes 12–15; all other lanes remain zero in this bounded gate. The expected final checksum is `03AF`; browser-emulator parity was confirmed. Its nine progress messages separately identify the two actual head-output computations.
 
 ### Stage 025 all-head attention output
 
