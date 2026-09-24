@@ -104,6 +104,15 @@ def test_interactive_request_restores_selected_token_after_disk_load():
     assert resume.index("lda selected") < resume.index("sbc #'a'")
 
 
+def test_interactive_request_announces_input_and_each_long_work_stage():
+    source = (ROOT / "src" / "cp64.asm").read_text()
+    request = source[source.index("accepted_key:") : source.index("jmp read_key", source.index("accepted_key:"))]
+
+    assert request.index("jsr print_thinking") < request.index("jsr load_embedding")
+    for step in ("step_token", "step_position", "step_query", "step_key", "step_value", "step_scores"):
+        assert step in source
+
+
 @pytest.mark.parametrize(
     ("token_row", "expected_checksum"),
     [(4, 0x20AD), (5, 0xD419), (6, 0xCCBC), (7, 0xA0DE), (8, 0x889C),

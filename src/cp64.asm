@@ -74,6 +74,10 @@ uppercase_key:
     ora #$20
 accepted_key:
     sta selected
+    jsr print_thinking
+    lda #<step_token
+    ldy #>step_token
+    jsr print
     jsr load_embedding       ; C9W01 from the prior request occupied $C000.
     bcc embedding_reloaded
     jmp disk_error
@@ -93,6 +97,9 @@ scale_ready:
     lda #>VECTOR
     sta vector_base+1
     jsr materialize_embedding
+    lda #<step_position
+    ldy #>step_position
+    jsr print
     jsr load_position
     bcc position_loaded
     jmp disk_error
@@ -108,13 +115,25 @@ position_scale_ready:
     jsr materialize_position
     jsr add_position_to_vector
     jsr retain_hidden_vector
+    lda #<step_query
+    ldy #>step_query
+    jsr print
     jsr load_attention_input
     bcc attention_input_loaded
     jmp disk_error
 attention_input_loaded:
     jsr project_query
+    lda #<step_key
+    ldy #>step_key
+    jsr print
     jsr project_key
+    lda #<step_value
+    ldy #>step_value
+    jsr print
     jsr project_value
+    lda #<step_scores
+    ldy #>step_scores
+    jsr print
     jsr materialize_self_attention_scores
     lda #<scale_result
     ldy #>scale_result
@@ -1419,6 +1438,16 @@ decimal_nibble:
     adc #48
     jmp CHROUT
 
+print_thinking:
+    lda #<thinking
+    ldy #>thinking
+    jsr print
+    lda selected
+    and #$df
+    jsr CHROUT
+    lda #13
+    jmp CHROUT
+
 print:
     sta pointer
     sty pointer+1
@@ -1513,6 +1542,13 @@ title:
     .text "AS Q8.8 EMBEDDING VALUES",13,13,0
 loading: .text "THINKING: READING C9W00 FROM DISK...",13,0
 loaded: .text "C9W00 READY. TYPE A THROUGH I.",13,13,0
+thinking: .text "THINKING TOKEN ",0
+step_token: .text "1/6 TOKEN EMBEDDING",13,0
+step_position: .text "2/6 POSITION EMBEDDING",13,0
+step_query: .text "3/6 ATTENTION Q",13,0
+step_key: .text "4/6 ATTENTION K",13,0
+step_value: .text "5/6 ATTENTION V",13,0
+step_scores: .text "6/6 ATTENTION SCORES",13,0
 scale_result: .text "FP16 SCALE AS Q8.8 $",0
 result: .text "TOKEN ",0
 embedding_checksum: .text " EMBEDDING CHECKSUM $",0

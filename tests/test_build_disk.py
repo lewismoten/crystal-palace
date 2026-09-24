@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_restores_selected_token_after_disk_load():
+def test_current_disk_stage_reports_c64_inference_progress():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 16
-    assert builder.CURRENT_DESCRIPTION == "fix-selected-token-after-load"
+    assert builder.CURRENT_STAGE == 17
+    assert builder.CURRENT_DESCRIPTION == "show-inference-progress"
