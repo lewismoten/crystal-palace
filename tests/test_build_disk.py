@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_attention_residual():
+def test_current_disk_stage_reports_norm_weight_paging():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 28
-    assert builder.CURRENT_DESCRIPTION == "attention-residual"
+    assert builder.CURRENT_STAGE == 29
+    assert builder.CURRENT_DESCRIPTION == "norm-weight-paging"

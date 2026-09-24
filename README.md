@@ -4,9 +4,9 @@ CP64 is a Commodore 64 feasibility project for **the original Crystal-9 packed I
 
 ## Current executable milestone
 
-`build/cp64.d64` is a runnable C64 disk with a bounded **two-token all-head attention-output bias proof gate**. For `A`→`B`, it materializes all eight original C9W02 attention heads under the fixed-point two-key causal-softmax contract, applies original C9W04 output-projection weights, pages C9W05, materializes its original FP16-scaled packed INT4 bias vector, and adds it lane-wise. All packets retain their original FP16 scale bytes and packed INT4 payloads.
+`build/cp64.d64` is a runnable C64 disk with a bounded **two-token attention-residual plus original norm-weight paging gate**. For `A`→`B`, it materializes all eight original C9W02 attention heads under the fixed-point two-key causal-softmax contract, applies original C9W04/C9W05 output projection and bias, adds the retained input residual, then pages and decodes the original group-of-two C9W06 norm-affine weights. All packets retain their original FP16 scale bytes and packed INT4 payloads.
 
-This is not yet a model move. The next gate is the post-attention residual and normalization path. It must not be represented as a tic-tac-toe-playing model until the 6502 evaluator is implemented and compared with Crystal-9's reference outputs.
+This is not yet a model move. The next gate is LayerNorm centering, variance, and the original C9W06/C9W07 affine path. It must not be represented as a tic-tac-toe-playing model until the 6502 evaluator is implemented and compared with Crystal-9's reference outputs.
 
 ## Model provenance
 
@@ -51,6 +51,7 @@ build/cs64-025-combine-all-attention-heads.d64
 build/cs64-026-attention-output-projection.d64
 build/cs64-027-attention-output-bias.d64
 build/cs64-028-attention-residual.d64
+build/cs64-029-norm-weight-paging.d64
 ```
 
 `cp64.d64` is a compatibility copy of the current numbered gate. A number is reserved only after its gate builds and passes its reference tests.
@@ -100,6 +101,10 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 ### Stage 028 attention residual
 
 `cs64-028-attention-residual.d64` preserves the original token-plus-position hidden state before paging C9W04, then adds that retained state lane-wise after the C9W04 projection and C9W05 bias. For the live `A`→`B` sequence, the expected residual-output checksum is `FF9E`. The two added messages distinguish residual retention from its later addition; no new tensor is introduced at this gate.
+
+### Stage 029 norm-weight paging
+
+`cs64-029-norm-weight-paging.d64` pages original `C9W06` and materializes its 32 norm-affine weights from 16 original FP16 scales and 16 packed INT4 bytes, with one scale assigned to each original pair of lanes. This is a source-byte and 6502-vector gate for the next LayerNorm tensor; it does **not** claim to execute LayerNorm yet. Its fixed Q8.8 norm-weight checksum is `E4D4`.
 
 ### Browser test target
 

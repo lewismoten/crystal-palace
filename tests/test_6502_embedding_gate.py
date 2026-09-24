@@ -47,12 +47,47 @@ def q8_8_vector_from_original_packet(packet_path: Path, row: int) -> list[int]:
     return [(code * scale + 3) // 7 if code >= 0 else -((-code * scale + 3) // 7) for code in codes]
 
 
+def q8_8_group2_vector_from_original_packet(packet_path: Path) -> list[int]:
+    """Independent C9W06 group-of-two FP16/INT4 decode reference."""
+    packet = packet_path.read_bytes()[2:]
+    scale_bytes = int.from_bytes(packet[5:7], "little")
+    packed = packet[9 + scale_bytes :]
+    values = []
+    for group, byte in enumerate(packed):
+        raw = int.from_bytes(packet[9 + group * 2 : 11 + group * 2], "little")
+        exponent, fraction = (raw >> 10) & 0x1F, raw & 0x03FF
+        mantissa = fraction if exponent == 0 else 1024 + fraction
+        shift = exponent - 17 if exponent else -16
+        scale = mantissa << shift if shift >= 0 else (mantissa + (1 << -shift) // 2) // (1 << -shift)
+        for nibble in (byte & 0x0F, byte >> 4):
+            code = nibble - 16 if nibble >= 8 else nibble
+            values.append((code * scale + 3) // 7 if code >= 0 else -((-code * scale + 3) // 7))
+    return values
+
+
 def signed_vector(mpu: MPU, address: int) -> list[int]:
     values = []
     for index in range(32):
         value = mpu.memory[address + index * 2] | (mpu.memory[address + index * 2 + 1] << 8)
         values.append(value - 0x10000 if value & 0x8000 else value)
     return values
+
+
+def test_6502_materializes_original_group2_norm_weight(tmp_path):
+    prg = tmp_path / "CP64.PRG"
+    labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    mpu = MPU()
+    image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    packet = ROOT / "build" / "layers" / "C9W06.PRG"; payload = packet.read_bytes()
+    mpu.memory[0xC000 : 0xC000 + len(payload) - 2] = payload[2:]
+    call(mpu, symbols["materialize_norm_weight"])
+    expected = q8_8_group2_vector_from_original_packet(packet)
+    assert signed_vector(mpu, symbols["PROJECTION_SCRATCH"]) == expected
+    checksum = sum((index + 1) * value for index, value in enumerate(expected)) & 0xFFFF
+    assert mpu.memory[symbols["norm_sumlo"]] | (mpu.memory[symbols["norm_sumhi"]] << 8) == checksum == 0xE4D4
 
 
 def test_6502_materializes_original_token_a_embedding(tmp_path):
@@ -110,7 +145,7 @@ def test_interactive_request_announces_input_and_each_long_work_stage():
     request = source[source.index("accepted_key:") : source.index("jmp read_key", source.index("accepted_key:"))]
 
     assert request.index("jsr print_thinking") < request.index("jsr load_embedding")
-    for step in ("step_token", "step_position", "step_query", "step_key", "step_value", "step_history", "step_scores", "step_two_key_scores", "step_head0", "step_head1", "step_head2", "step_head3", "step_head4", "step_head5", "step_head6", "step_head7", "step_residual_retain", "step_output_load", "step_output_project", "step_output_bias_load", "step_output_bias", "step_residual_add"):
+    for step in ("step_token", "step_position", "step_query", "step_key", "step_value", "step_history", "step_scores", "step_two_key_scores", "step_head0", "step_head1", "step_head2", "step_head3", "step_head4", "step_head5", "step_head6", "step_head7", "step_residual_retain", "step_output_load", "step_output_project", "step_output_bias_load", "step_output_bias", "step_residual_add", "step_norm_load", "step_norm_materialize"):
         assert step in source
     assert request.index("#<step_history") < request.index("jsr capture_two_key_sequence")
     assert request.index("#<step_scores") < request.index("jsr materialize_self_attention_scores")
@@ -119,6 +154,8 @@ def test_interactive_request_announces_input_and_each_long_work_stage():
         assert request.find("jsr two_key_selected_head_softmax_attention_output", request.index(f"#<{step}")) != -1
     assert request.index("#<step_residual_retain") < request.index("jsr retain_attention_residual") < request.index("jsr project_attention_output")
     assert request.index("#<step_residual_add") < request.index("jsr add_attention_residual")
+    assert request.index("#<step_norm_load") < request.index("jsr load_norm_weight")
+    assert request.index("#<step_norm_materialize") < request.index("jsr materialize_norm_weight")
 
 
 def test_final_display_uses_input_dependent_attention_query_checksum():

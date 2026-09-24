@@ -253,6 +253,17 @@ attention_output_bias_loaded:
     jsr print
     jsr add_attention_residual
     jsr checksum_attended_output
+    lda #<step_norm_load
+    ldy #>step_norm_load
+    jsr print
+    jsr load_norm_weight
+    bcc norm_weight_loaded
+    jmp disk_error
+norm_weight_loaded:
+    lda #<step_norm_materialize
+    ldy #>step_norm_materialize
+    jsr print
+    jsr materialize_norm_weight
     lda #<scale_result
     ldy #>scale_result
     jsr print
@@ -283,6 +294,15 @@ attention_output_bias_loaded:
     lda attended_sumhi
     jsr hexbyte
     lda attended_sumlo
+    jsr hexbyte
+    lda #13
+    jsr CHROUT
+    lda #<norm_checksum
+    ldy #>norm_checksum
+    jsr print
+    lda norm_sumhi
+    jsr hexbyte
+    lda norm_sumlo
     jsr hexbyte
     lda #13
     jsr CHROUT
@@ -482,6 +502,47 @@ attention_output_bias_load_failed:
     sec
     rts
 
+; Page original C9W06 norm.weight: 16 FP16 scales, one per two INT4 lanes.
+load_norm_weight:
+    lda #9
+    ldx #<norm_weight_filename
+    ldy #>norm_weight_filename
+    jsr SETNAM
+    lda #1
+    ldx #8
+    ldy #0
+    jsr SETLFS
+    lda #0
+    ldx #<BUFFER
+    ldy #>BUFFER
+    jsr LOAD
+    bcs norm_weight_load_failed
+    lda BUFFER
+    cmp #'C'
+    bne norm_weight_load_failed
+    lda BUFFER+1
+    cmp #'9'
+    bne norm_weight_load_failed
+    lda BUFFER+2
+    cmp #'W'
+    bne norm_weight_load_failed
+    lda BUFFER+3
+    cmp #'1'
+    bne norm_weight_load_failed
+    lda BUFFER+4
+    cmp #6
+    bne norm_weight_load_failed
+    lda BUFFER+5
+    cmp #32
+    bne norm_weight_load_failed
+    lda BUFFER+6
+    bne norm_weight_load_failed
+    clc
+    rts
+norm_weight_load_failed:
+    sec
+    rts
+
 ; Materialize the selected original embedding row as 32 signed Q8.8 values.
 ; The 64-byte token vector lives at $C100, outside the $C000 packet window.
 materialize_embedding:
@@ -659,6 +720,60 @@ materialize_position:
     sta position_sumlo
     lda sumhi
     sta position_sumhi
+    rts
+
+; C9W06 norm.weight has 16 group-of-two FP16 scales and 16 packed bytes.
+; This proof pages and materializes the original affine-weight vector only.
+materialize_norm_weight:
+    lda #<PROJECTION_SCRATCH
+    sta vector_base
+    lda #>PROJECTION_SCRATCH
+    sta vector_base+1
+    lda #0
+    sta sumlo
+    sta sumhi
+    sta vector_index
+    sta norm_group
+    lda #1
+    sta factor
+norm_weight_group:
+    lda norm_group
+    sta row
+    jsr decode_scale
+    lda #<(BUFFER+$29)
+    sta pointer
+    lda #>(BUFFER+$29)
+    sta pointer+1
+    ldx norm_group
+norm_weight_pointer:
+    cpx #0
+    beq norm_weight_byte
+    inc pointer
+    bne norm_weight_pointer_no_carry
+    inc pointer+1
+norm_weight_pointer_no_carry:
+    dex
+    jmp norm_weight_pointer
+norm_weight_byte:
+    ldy #0
+    lda (pointer),y
+    sta packed_byte
+    and #$0f
+    jsr materialize_nibble
+    lda packed_byte
+    lsr
+    lsr
+    lsr
+    lsr
+    jsr materialize_nibble
+    inc norm_group
+    lda norm_group
+    cmp #16
+    bne norm_weight_group
+    lda sumlo
+    sta norm_sumlo
+    lda sumhi
+    sta norm_sumhi
     rts
 
 ; Add the materialized original position vector to the retained token vector.
@@ -2060,6 +2175,9 @@ sumlo: .byte 0
 sumhi: .byte 0
 attended_sumlo: .byte 0
 attended_sumhi: .byte 0
+norm_sumlo: .byte 0
+norm_sumhi: .byte 0
+norm_group: .byte 0
 factor: .byte 0
 code: .byte 0
 sign: .byte 0
@@ -2081,6 +2199,7 @@ position_filename: .text "C9W01.PRG"
 attention_input_filename: .text "C9W02.PRG"
 attention_output_filename: .text "C9W04.PRG"
 attention_output_bias_filename: .text "C9W05.PRG"
+norm_weight_filename: .text "C9W06.PRG"
 position_row: .byte 0
 position_sumlo: .byte 0
 position_sumhi: .byte 0
@@ -2143,32 +2262,35 @@ title:
 loading: .text "THINKING: READING C9W00 FROM DISK...",13,0
 loaded: .text "C9W00 READY. TYPE A THROUGH I.",13,13,0
 thinking: .text "THINKING TOKEN ",0
-step_token: .text "1/22 TOKEN EMBEDDING",13,0
-step_position: .text "2/22 POSITION EMBEDDING",13,0
-step_query: .text "3/22 ATTENTION Q",13,0
-step_key: .text "4/22 ATTENTION K",13,0
-step_value: .text "5/22 ATTENTION V",13,0
-step_history: .text "6/22 RETAIN K/V HISTORY",13,0
-step_scores: .text "7/22 SELF ATTENTION SCORES",13,0
-step_two_key_scores: .text "8/22 TWO-KEY CAUSAL SCORES",13,0
-step_head0: .text "9/22 CAUSAL SOFTMAX + V HEAD 0",13,0
-step_head1: .text "10/22 CAUSAL SOFTMAX + V HEAD 1",13,0
-step_head2: .text "11/22 CAUSAL SOFTMAX + V HEAD 2",13,0
-step_head3: .text "12/22 CAUSAL SOFTMAX + V HEAD 3",13,0
-step_head4: .text "13/22 CAUSAL SOFTMAX + V HEAD 4",13,0
-step_head5: .text "14/22 CAUSAL SOFTMAX + V HEAD 5",13,0
-step_head6: .text "15/22 CAUSAL SOFTMAX + V HEAD 6",13,0
-step_head7: .text "16/22 CAUSAL SOFTMAX + V HEAD 7",13,0
-step_residual_retain: .text "17/22 RETAIN ATTENTION RESIDUAL",13,0
-step_output_load: .text "18/22 LOAD ATTENTION OUTPUT WEIGHT",13,0
-step_output_project: .text "19/22 ATTENTION OUTPUT PROJECTION",13,0
-step_output_bias_load: .text "20/22 LOAD ATTENTION OUTPUT BIAS",13,0
-step_output_bias: .text "21/22 ADD ATTENTION OUTPUT BIAS",13,0
-step_residual_add: .text "22/22 ADD ATTENTION RESIDUAL",13,0
+step_token: .text "1/24 TOKEN EMBEDDING",13,0
+step_position: .text "2/24 POSITION EMBEDDING",13,0
+step_query: .text "3/24 ATTENTION Q",13,0
+step_key: .text "4/24 ATTENTION K",13,0
+step_value: .text "5/24 ATTENTION V",13,0
+step_history: .text "6/24 RETAIN K/V HISTORY",13,0
+step_scores: .text "7/24 SELF ATTENTION SCORES",13,0
+step_two_key_scores: .text "8/24 TWO-KEY CAUSAL SCORES",13,0
+step_head0: .text "9/24 CAUSAL SOFTMAX + V HEAD 0",13,0
+step_head1: .text "10/24 CAUSAL SOFTMAX + V HEAD 1",13,0
+step_head2: .text "11/24 CAUSAL SOFTMAX + V HEAD 2",13,0
+step_head3: .text "12/24 CAUSAL SOFTMAX + V HEAD 3",13,0
+step_head4: .text "13/24 CAUSAL SOFTMAX + V HEAD 4",13,0
+step_head5: .text "14/24 CAUSAL SOFTMAX + V HEAD 5",13,0
+step_head6: .text "15/24 CAUSAL SOFTMAX + V HEAD 6",13,0
+step_head7: .text "16/24 CAUSAL SOFTMAX + V HEAD 7",13,0
+step_residual_retain: .text "17/24 RETAIN ATTENTION RESIDUAL",13,0
+step_output_load: .text "18/24 LOAD ATTENTION OUTPUT WEIGHT",13,0
+step_output_project: .text "19/24 ATTENTION OUTPUT PROJECTION",13,0
+step_output_bias_load: .text "20/24 LOAD ATTENTION OUTPUT BIAS",13,0
+step_output_bias: .text "21/24 ADD ATTENTION OUTPUT BIAS",13,0
+step_residual_add: .text "22/24 ADD ATTENTION RESIDUAL",13,0
+step_norm_load: .text "23/24 LOAD NORM WEIGHT",13,0
+step_norm_materialize: .text "24/24 MATERIALIZE NORM WEIGHT",13,0
 scale_result: .text "FP16 SCALE AS Q8.8 $",0
 result: .text "TOKEN ",0
 embedding_checksum: .text " EMBEDDING CHECKSUM $",0
 attention_checksum: .text " ATTENTION Q CHECKSUM $",0
 attended_checksum: .text " ATTENDED OUTPUT CHECKSUM $",0
+norm_checksum: .text " NORM WEIGHT CHECKSUM $",0
 error_message: .text "C9W00 LOAD OR HEADER ERROR",13,0
 scale_error_message: .text "UNSUPPORTED FP16 SCALE",13,0
