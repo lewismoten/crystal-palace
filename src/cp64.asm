@@ -137,6 +137,7 @@ attention_input_loaded:
     jsr print
     jsr materialize_self_attention_scores
     jsr single_token_attention_output
+    jsr checksum_attended_output
     lda #<scale_result
     ldy #>scale_result
     jsr print
@@ -158,6 +159,15 @@ attention_input_loaded:
     lda query_sumhi
     jsr hexbyte
     lda query_sumlo
+    jsr hexbyte
+    lda #13
+    jsr CHROUT
+    lda #<attended_checksum
+    ldy #>attended_checksum
+    jsr print
+    lda attended_sumhi
+    jsr hexbyte
+    lda attended_sumlo
     jsr hexbyte
     lda #13
     jsr CHROUT
@@ -796,6 +806,37 @@ single_token_attention_copy:
     iny
     cpy #64
     bne single_token_attention_copy
+    rts
+
+; Reference-friendly weighted checksum over the 32 Q8.8 attended components.
+checksum_attended_output:
+    lda #0
+    sta attended_sumlo
+    sta attended_sumhi
+    lda #1
+    sta factor
+    ldy #0
+checksum_attended_component:
+    lda ATTENDED_VECTOR,y
+    sta act_lo
+    iny
+    lda ATTENDED_VECTOR,y
+    sta act_hi
+    iny
+    ldx factor
+checksum_attended_multiply:
+    clc
+    lda attended_sumlo
+    adc act_lo
+    sta attended_sumlo
+    lda attended_sumhi
+    adc act_hi
+    sta attended_sumhi
+    dex
+    bne checksum_attended_multiply
+    inc factor
+    cpy #64
+    bne checksum_attended_component
     rts
 
 ; Materialize a causal score row. KEY_HISTORY holds contiguous 32-value Q8.8
@@ -1492,6 +1533,8 @@ row: .byte 0
 selected: .byte 0
 sumlo: .byte 0
 sumhi: .byte 0
+attended_sumlo: .byte 0
+attended_sumhi: .byte 0
 factor: .byte 0
 code: .byte 0
 sign: .byte 0
@@ -1567,5 +1610,6 @@ scale_result: .text "FP16 SCALE AS Q8.8 $",0
 result: .text "TOKEN ",0
 embedding_checksum: .text " EMBEDDING CHECKSUM $",0
 attention_checksum: .text " ATTENTION Q CHECKSUM $",0
+attended_checksum: .text " ATTENDED OUTPUT CHECKSUM $",0
 error_message: .text "C9W00 LOAD OR HEADER ERROR",13,0
 scale_error_message: .text "UNSUPPORTED FP16 SCALE",13,0

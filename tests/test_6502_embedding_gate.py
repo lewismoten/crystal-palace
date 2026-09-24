@@ -454,6 +454,32 @@ def test_6502_single_token_causal_softmax_returns_the_original_value_vector(tmp_
     assert signed_vector(mpu, symbols["ATTENDED_VECTOR"]) == source
 
 
+def test_6502_checksums_single_token_attended_output(tmp_path):
+    prg = tmp_path / "CP64.PRG"
+    labels_path = tmp_path / "cp64.lbl"
+    subprocess.run(
+        [str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")],
+        check=True, capture_output=True, text=True,
+    )
+    symbols = labels(labels_path)
+    assert "checksum_attended_output" in symbols
+    mpu = MPU()
+    image = prg.read_bytes()
+    load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    source = [71, -71, -285, 428, 0, 143, -499, 214] * 4
+    for index, value in enumerate(source):
+        encoded = value & 0xFFFF
+        mpu.memory[symbols["ATTENDED_VECTOR"] + index * 2] = encoded & 0xFF
+        mpu.memory[symbols["ATTENDED_VECTOR"] + index * 2 + 1] = encoded >> 8
+
+    call(mpu, symbols["checksum_attended_output"])
+
+    expected = sum((index + 1) * value for index, value in enumerate(source)) & 0xFFFF
+    actual = mpu.memory[symbols["attended_sumlo"]] | (mpu.memory[symbols["attended_sumhi"]] << 8)
+    assert actual == expected
+
+
 
 def test_6502_causal_score_row_masks_the_future_original_key(tmp_path):
     """Position zero sees its original key and encodes position one as -infinity."""
