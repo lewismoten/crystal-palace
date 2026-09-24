@@ -141,7 +141,7 @@ load_failed:
     rts
 
 ; Decode this embedding row's source FP16 scale to Q8.8.
-; Crystal-9 embedding scales are positive normal binary16 values with exponent 15.
+; Crystal-9's checked embedding scales are positive normal binary16 exponents 15 or 16.
 decode_scale:
     lda #<(BUFFER+9)
     sta pointer
@@ -169,7 +169,7 @@ scale_row_ready:
     sta raw_scale_hi
     and #$7c
     cmp #$3c            ; binary16 exponent 15
-    bne scale_invalid
+    bne scale_check_exp16
     lda raw_scale_hi
     bmi scale_invalid
     and #$03            ; fraction bits 8-9
@@ -186,6 +186,32 @@ scale_row_ready:
     ora scale_lo
     sta scale_lo
     lda #1              ; Q8.8 = 256 + (fraction >> 2)
+    sta scale_hi
+    clc
+    rts
+scale_check_exp16:
+    cmp #$40            ; binary16 exponent 16
+    bne scale_invalid
+    lda raw_scale_hi
+    bmi scale_invalid
+    and #$01            ; fraction bit 8 becomes Q8.8 low bit 7
+    asl
+    asl
+    asl
+    asl
+    asl
+    asl
+    asl
+    sta scale_lo
+    lda raw_scale_lo
+    lsr
+    ora scale_lo
+    sta scale_lo
+    lda raw_scale_hi
+    and #$02            ; fraction bit 9 becomes Q8.8 high bit 0
+    lsr
+    clc
+    adc #2              ; Q8.8 base for exponent 16 is 512
     sta scale_hi
     clc
     rts

@@ -23,4 +23,5 @@ def test_weighted_checksum_uses_one_based_positions():
 def test_fp16_scale_and_int4_code_materialize_q8_8_activation():
     probe = load_probe()
     assert probe.fp16le_to_q8_8(bytes.fromhex("cc3f")) == 499
+    assert probe.fp16le_to_q8_8(bytes.fromhex("3c40")) == 542
     assert probe.scale_int4_code_q8_8(-4, 499) == -285
