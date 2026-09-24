@@ -29,6 +29,8 @@ KEY_VECTOR = $c780
 PROJECTION_SCRATCH = $c7c0
 VALUE_VECTOR = $c800
 ATTENTION_SCORES = $c840
+KEY_HISTORY = $c880
+CAUSAL_SCORES = $c900
 pointer = $fb
 vector_base = $fd
 
@@ -758,6 +760,127 @@ self_attention_component:
 self_attention_done:
     rts
 
+; Materialize one two-token causal score row. KEY_HISTORY holds two 32-value
+; Q8.8 key vectors; CAUSAL_SCORES holds eight head scores per key position.
+; A future key is represented by signed Q8.8 $8000, the fixed -infinity marker
+; consumed by the later softmax gate.
+materialize_two_token_causal_scores:
+    lda #0
+    sta causal_key_position
+    sta causal_score_store_offset
+causal_key_row:
+    lda causal_key_position
+    cmp causal_query_position
+    bcc causal_key_visible
+    beq causal_key_visible
+    jmp causal_mask_future_key
+causal_key_visible:
+    lda #0
+    sta score_offset
+causal_head:
+    lda #<QUERY_VECTOR
+    clc
+    adc score_offset
+    sta vector_base
+    lda #>QUERY_VECTOR
+    adc #0
+    sta vector_base+1
+    lda #<KEY_HISTORY
+    sta pointer
+    lda #>KEY_HISTORY
+    sta pointer+1
+    lda causal_key_position
+    beq causal_key_base_ready
+    clc
+    lda pointer
+    adc #64
+    sta pointer
+    bcc causal_key_base_ready
+    inc pointer+1
+causal_key_base_ready:
+    clc
+    lda pointer
+    adc score_offset
+    sta pointer
+    bcc causal_key_pointer_ready
+    inc pointer+1
+causal_key_pointer_ready:
+    lda #0
+    sta dot0
+    sta dot1
+    sta dot2
+    sta dot3
+    ldy #0
+    lda #4
+    sta head_components
+causal_component:
+    lda (vector_base),y
+    sta mul_a_lo
+    iny
+    lda (vector_base),y
+    sta mul_a_hi
+    dey
+    lda (pointer),y
+    sta mul_b_lo
+    iny
+    lda (pointer),y
+    sta mul_b_hi
+    jsr multiply_q8_8
+    clc
+    lda dot0
+    adc product0
+    sta dot0
+    lda dot1
+    adc product1
+    sta dot1
+    lda dot2
+    adc product2
+    sta dot2
+    lda dot3
+    adc product3
+    sta dot3
+    iny
+    dec head_components
+    bne causal_component
+    jsr rounded_score_to_q8_8
+    ldx causal_score_store_offset
+    lda result_lo
+    sta CAUSAL_SCORES,x
+    inx
+    lda result_hi
+    sta CAUSAL_SCORES,x
+    inc causal_score_store_offset
+    inc causal_score_store_offset
+    lda score_offset
+    clc
+    adc #8
+    sta score_offset
+    cmp #64
+    beq causal_scores_for_key_done
+    jmp causal_head
+causal_scores_for_key_done:
+    jmp causal_next_key
+causal_mask_future_key:
+    ldx causal_score_store_offset
+    ldy #8
+causal_mask_head:
+    lda #0
+    sta CAUSAL_SCORES,x
+    inx
+    lda #$80
+    sta CAUSAL_SCORES,x
+    inx
+    dey
+    bne causal_mask_head
+causal_next_key:
+    inc causal_key_position
+    lda causal_key_position
+    cmp #2
+    beq causal_scores_done
+    jmp causal_key_row
+causal_scores_done:
+    rts
+
 ; Symmetrically round a signed Q16.16 score after division by sqrt(4)=2.
 rounded_score_to_q8_8:
     lda dot3
@@ -1359,6 +1482,9 @@ score_offset: .byte 0
 score_store_offset: .byte 0
 head_components: .byte 0
 score_high_bit: .byte 0
+causal_query_position: .byte 0
+causal_key_position: .byte 0
+causal_score_store_offset: .byte 0
 
 title:
     .text "CP64 CRYSTAL-9",13

@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_is_original_self_attention_score_gate():
+def test_current_disk_stage_is_two_token_causal_attention_mask_gate():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 12
-    assert builder.CURRENT_DESCRIPTION == "test-original-self-attention-score"
+    assert builder.CURRENT_STAGE == 13
+    assert builder.CURRENT_DESCRIPTION == "test-two-token-causal-attention-mask"

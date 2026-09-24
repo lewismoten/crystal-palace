@@ -395,3 +395,57 @@ def test_6502_materializes_scaled_self_attention_scores_for_every_playable_input
     key = signed_vector(mpu, symbols["KEY_VECTOR"])
     expected = [q8_8_attention_score(query[offset : offset + 4], key[offset : offset + 4]) for offset in range(0, 32, 4)]
     assert signed_vector(mpu, symbols["ATTENTION_SCORES"])[:8] == expected
+
+
+def test_6502_causal_score_row_masks_the_future_original_key(tmp_path):
+    """Position zero sees its original key and encodes position one as -infinity."""
+    prg = tmp_path / "CP64.PRG"
+    labels_path = tmp_path / "cp64.lbl"
+    subprocess.run(
+        [str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")],
+        check=True, capture_output=True, text=True,
+    )
+    symbols = labels(labels_path)
+    assert "materialize_two_token_causal_scores" in symbols
+    assert "KEY_HISTORY" in symbols
+    mpu = MPU()
+    image = prg.read_bytes()
+    load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    token_packet = ROOT / "build" / "layers" / "C9W00.PRG"
+    position_packet = ROOT / "build" / "layers" / "C9W01.PRG"
+    attention_packet = ROOT / "build" / "layers" / "C9W02.PRG"
+
+    def project(token_row: int, position_row: int) -> tuple[list[int], list[int]]:
+        mpu.memory[0xC000 : 0xC000 + len(token_packet.read_bytes()) - 2] = token_packet.read_bytes()[2:]
+        mpu.memory[symbols["row"]] = token_row
+        call(mpu, symbols["decode_scale"])
+        call(mpu, symbols["materialize_embedding"])
+        mpu.memory[0xC000 : 0xC000 + len(position_packet.read_bytes()) - 2] = position_packet.read_bytes()[2:]
+        mpu.memory[symbols["position_row"]] = position_row
+        call(mpu, symbols["decode_position_scale"])
+        call(mpu, symbols["materialize_position"])
+        call(mpu, symbols["add_position_to_vector"])
+        call(mpu, symbols["retain_hidden_vector"])
+        mpu.memory[0xC000 : 0xC000 + len(attention_packet.read_bytes()) - 2] = attention_packet.read_bytes()[2:]
+        call(mpu, symbols["project_query"], steps=20_000_000)
+        call(mpu, symbols["project_key"], steps=20_000_000)
+        return signed_vector(mpu, symbols["QUERY_VECTOR"]), signed_vector(mpu, symbols["KEY_VECTOR"])
+
+    query_zero, key_zero = project(4, 0)
+    _, key_one = project(5, 1)
+    for offset, value in enumerate(key_zero + key_one):
+        encoded = value & 0xFFFF
+        mpu.memory[symbols["KEY_HISTORY"] + offset * 2] = encoded & 0xFF
+        mpu.memory[symbols["KEY_HISTORY"] + offset * 2 + 1] = encoded >> 8
+    for offset, value in enumerate(query_zero):
+        encoded = value & 0xFFFF
+        mpu.memory[symbols["QUERY_VECTOR"] + offset * 2] = encoded & 0xFF
+        mpu.memory[symbols["QUERY_VECTOR"] + offset * 2 + 1] = encoded >> 8
+    mpu.memory[symbols["causal_query_position"]] = 0
+
+    call(mpu, symbols["materialize_two_token_causal_scores"])
+
+    expected = [q8_8_attention_score(query_zero[offset : offset + 4], key_zero[offset : offset + 4]) for offset in range(0, 32, 4)]
+    assert signed_vector(mpu, symbols["CAUSAL_SCORES"])[:8] == expected
+    assert signed_vector(mpu, symbols["CAUSAL_SCORES"])[8:16] == [-32768] * 8
