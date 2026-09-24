@@ -232,6 +232,17 @@ attention_output_loaded:
     ldy #>step_output_project
     jsr print
     jsr project_attention_output
+    lda #<step_output_bias_load
+    ldy #>step_output_bias_load
+    jsr print
+    jsr load_attention_output_bias
+    bcc attention_output_bias_loaded
+    jmp disk_error
+attention_output_bias_loaded:
+    lda #<step_output_bias
+    ldy #>step_output_bias
+    jsr print
+    jsr add_attention_output_bias
     jsr checksum_attended_output
     lda #<scale_result
     ldy #>scale_result
@@ -418,6 +429,47 @@ load_attention_output:
     clc
     rts
 attention_output_load_failed:
+    sec
+    rts
+
+; Page the original attention output-projection bias packet C9W05.
+load_attention_output_bias:
+    lda #9
+    ldx #<attention_output_bias_filename
+    ldy #>attention_output_bias_filename
+    jsr SETNAM
+    lda #1
+    ldx #8
+    ldy #0
+    jsr SETLFS
+    lda #0
+    ldx #<BUFFER
+    ldy #>BUFFER
+    jsr LOAD
+    bcs attention_output_bias_load_failed
+    lda BUFFER
+    cmp #'C'
+    bne attention_output_bias_load_failed
+    lda BUFFER+1
+    cmp #'9'
+    bne attention_output_bias_load_failed
+    lda BUFFER+2
+    cmp #'W'
+    bne attention_output_bias_load_failed
+    lda BUFFER+3
+    cmp #'1'
+    bne attention_output_bias_load_failed
+    lda BUFFER+4
+    cmp #5
+    bne attention_output_bias_load_failed
+    lda BUFFER+5
+    cmp #2
+    bne attention_output_bias_load_failed
+    lda BUFFER+6
+    bne attention_output_bias_load_failed
+    clc
+    rts
+attention_output_bias_load_failed:
     sec
     rts
 
@@ -752,6 +804,34 @@ project_attention_result:
     iny
     cpy #64
     bne project_attention_result
+    rts
+
+; C9W05 contains one FP16 scale and 32 packed INT4 output-bias values.
+; Materialize it in a scratch vector, then add it lane-wise to the projection.
+add_attention_output_bias:
+    lda #0
+    sta row
+    jsr decode_scale
+    lda #$0b            ; C9W1 header (9) + one FP16 scale (2)
+    sta packed_offset
+    lda #<POSITION_VECTOR
+    sta vector_base
+    lda #>POSITION_VECTOR
+    sta vector_base+1
+    jsr materialize_row
+    ldy #0
+add_attention_output_bias_lane:
+    clc
+    lda ATTENDED_VECTOR,y
+    adc POSITION_VECTOR,y
+    sta ATTENDED_VECTOR,y
+    iny
+    lda ATTENDED_VECTOR,y
+    adc POSITION_VECTOR,y
+    sta ATTENDED_VECTOR,y
+    iny
+    cpy #64
+    bne add_attention_output_bias_lane
     rts
 
 ; Project C9W02's next 32 rows (K) against the retained Q8.8 input.
@@ -1963,6 +2043,7 @@ filename: .text "C9W00.PRG"
 position_filename: .text "C9W01.PRG"
 attention_input_filename: .text "C9W02.PRG"
 attention_output_filename: .text "C9W04.PRG"
+attention_output_bias_filename: .text "C9W05.PRG"
 position_row: .byte 0
 position_sumlo: .byte 0
 position_sumhi: .byte 0
@@ -2025,24 +2106,26 @@ title:
 loading: .text "THINKING: READING C9W00 FROM DISK...",13,0
 loaded: .text "C9W00 READY. TYPE A THROUGH I.",13,13,0
 thinking: .text "THINKING TOKEN ",0
-step_token: .text "1/18 TOKEN EMBEDDING",13,0
-step_position: .text "2/18 POSITION EMBEDDING",13,0
-step_query: .text "3/18 ATTENTION Q",13,0
-step_key: .text "4/18 ATTENTION K",13,0
-step_value: .text "5/18 ATTENTION V",13,0
-step_history: .text "6/18 RETAIN K/V HISTORY",13,0
-step_scores: .text "7/18 SELF ATTENTION SCORES",13,0
-step_two_key_scores: .text "8/18 TWO-KEY CAUSAL SCORES",13,0
-step_head0: .text "9/18 CAUSAL SOFTMAX + V HEAD 0",13,0
-step_head1: .text "10/18 CAUSAL SOFTMAX + V HEAD 1",13,0
-step_head2: .text "11/18 CAUSAL SOFTMAX + V HEAD 2",13,0
-step_head3: .text "12/18 CAUSAL SOFTMAX + V HEAD 3",13,0
-step_head4: .text "13/18 CAUSAL SOFTMAX + V HEAD 4",13,0
-step_head5: .text "14/18 CAUSAL SOFTMAX + V HEAD 5",13,0
-step_head6: .text "15/18 CAUSAL SOFTMAX + V HEAD 6",13,0
-step_head7: .text "16/18 CAUSAL SOFTMAX + V HEAD 7",13,0
-step_output_load: .text "17/18 LOAD ATTENTION OUTPUT WEIGHT",13,0
-step_output_project: .text "18/18 ATTENTION OUTPUT PROJECTION",13,0
+step_token: .text "1/20 TOKEN EMBEDDING",13,0
+step_position: .text "2/20 POSITION EMBEDDING",13,0
+step_query: .text "3/20 ATTENTION Q",13,0
+step_key: .text "4/20 ATTENTION K",13,0
+step_value: .text "5/20 ATTENTION V",13,0
+step_history: .text "6/20 RETAIN K/V HISTORY",13,0
+step_scores: .text "7/20 SELF ATTENTION SCORES",13,0
+step_two_key_scores: .text "8/20 TWO-KEY CAUSAL SCORES",13,0
+step_head0: .text "9/20 CAUSAL SOFTMAX + V HEAD 0",13,0
+step_head1: .text "10/20 CAUSAL SOFTMAX + V HEAD 1",13,0
+step_head2: .text "11/20 CAUSAL SOFTMAX + V HEAD 2",13,0
+step_head3: .text "12/20 CAUSAL SOFTMAX + V HEAD 3",13,0
+step_head4: .text "13/20 CAUSAL SOFTMAX + V HEAD 4",13,0
+step_head5: .text "14/20 CAUSAL SOFTMAX + V HEAD 5",13,0
+step_head6: .text "15/20 CAUSAL SOFTMAX + V HEAD 6",13,0
+step_head7: .text "16/20 CAUSAL SOFTMAX + V HEAD 7",13,0
+step_output_load: .text "17/20 LOAD ATTENTION OUTPUT WEIGHT",13,0
+step_output_project: .text "18/20 ATTENTION OUTPUT PROJECTION",13,0
+step_output_bias_load: .text "19/20 LOAD ATTENTION OUTPUT BIAS",13,0
+step_output_bias: .text "20/20 ADD ATTENTION OUTPUT BIAS",13,0
 scale_result: .text "FP16 SCALE AS Q8.8 $",0
 result: .text "TOKEN ",0
 embedding_checksum: .text " EMBEDDING CHECKSUM $",0

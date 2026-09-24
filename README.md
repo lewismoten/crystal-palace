@@ -4,9 +4,9 @@ CP64 is a Commodore 64 feasibility project for **the original Crystal-9 packed I
 
 ## Current executable milestone
 
-`build/cp64.d64` is a runnable C64 disk with a **three-token causal-attention mask proof gate**. It retains three original C9W02 key vectors at `$c880`, materializes the middle query's eight four-wide Q·K / sqrt(4) scores for each key at `$c940`, and writes signed Q8.8 `$8000` for all eight future-key entries. Its query and key vectors are materialized from the original `embedding.weight` (`C9W00.PRG`), `position.weight` (`C9W01.PRG`), and first-attention input-projection (`C9W02.PRG`) packets. All packets retain their original FP16 scale bytes and packed INT4 payloads.
+`build/cp64.d64` is a runnable C64 disk with a bounded **two-token all-head attention-output bias proof gate**. For `A`→`B`, it materializes all eight original C9W02 attention heads under the fixed-point two-key causal-softmax contract, applies original C9W04 output-projection weights, pages C9W05, materializes its original FP16-scaled packed INT4 bias vector, and adds it lane-wise. All packets retain their original FP16 scale bytes and packed INT4 payloads.
 
-This is not yet a model move. The next gate is the causal-attention path. It must not be represented as a tic-tac-toe-playing model until the 6502 evaluator is implemented and compared with Crystal-9's reference outputs.
+This is not yet a model move. The next gate is the post-attention residual and normalization path. It must not be represented as a tic-tac-toe-playing model until the 6502 evaluator is implemented and compared with Crystal-9's reference outputs.
 
 ## Model provenance
 
@@ -49,6 +49,7 @@ build/cs64-023-split-inference-progress-stages.d64
 build/cs64-024-combine-two-attention-heads.d64
 build/cs64-025-combine-all-attention-heads.d64
 build/cs64-026-attention-output-projection.d64
+build/cs64-027-attention-output-bias.d64
 ```
 
 `cp64.d64` is a compatibility copy of the current numbered gate. A number is reserved only after its gate builds and passes its reference tests.
@@ -90,6 +91,10 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 ### Stage 026 attention output projection
 
 `cs64-026-attention-output-projection.d64` pages original `C9W04` after the all-head two-key attention vector is materialized, then applies its 32 original packed INT4 output-projection rows. This gate intentionally excludes the separate original `C9W05` output bias, which is the next mathematical component. For `A`→`B`, expected projected-output checksum is `CE3E`. Steps 17 and 18 respectively identify the actual C9W04 disk read and projection computation.
+
+### Stage 027 attention output bias
+
+`cs64-027-attention-output-bias.d64` preserves stage 026's all-head `A`→`B` output-projection result, then pages original `C9W05`. Its one FP16 scale and 32 packed INT4 bias codes are materialized as signed Q8.8 and added lane-wise to the projected output. The assembled-6502 regression compares all 32 final lanes with an independent calculation over the verbatim C9W05 packet. The expected final checksum is `BEEE`. This remains a bounded attention-block proof, not full model inference or a policy move.
 
 ### Browser test target
 

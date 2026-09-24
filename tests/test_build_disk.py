@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_attention_output_projection():
+def test_current_disk_stage_reports_attention_output_bias():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 26
-    assert builder.CURRENT_DESCRIPTION == "attention-output-projection"
+    assert builder.CURRENT_STAGE == 27
+    assert builder.CURRENT_DESCRIPTION == "attention-output-bias"

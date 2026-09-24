@@ -638,6 +638,35 @@ def test_6502_projects_all_head_attention_through_original_output_weight(tmp_pat
     assert mpu.memory[symbols["attended_sumlo"]] | (mpu.memory[symbols["attended_sumhi"]] << 8) == 0xCE3E
 
 
+def test_6502_adds_original_attention_output_bias_to_projected_vector(tmp_path):
+    """C9W05's lone original FP16 scale and packed INT4 vector shift all 32 lanes."""
+    prg = tmp_path / "CP64.PRG"
+    labels_path = tmp_path / "cp64.lbl"
+    subprocess.run(
+        [str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")],
+        check=True, capture_output=True, text=True,
+    )
+    symbols = labels(labels_path)
+    assert "add_attention_output_bias" in symbols
+    mpu = MPU()
+    image = prg.read_bytes()
+    load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    projected = [-20509, -8328, 17756, 3716, -5183, 13949, 1662, -2053, 10094, 11390, 5825, -6610, 1449, -2225, -287, -10971, -22552, 15788, 3625, 3714, -426, -8505, 11076, 1362, -6373, -7581, -2633, -23689, -8967, 15104, 10679, -11987]
+    for index, value in enumerate(projected):
+        mpu.memory[symbols["ATTENDED_VECTOR"] + index * 2 : symbols["ATTENDED_VECTOR"] + index * 2 + 2] = (value & 0xFFFF).to_bytes(2, "little")
+    packet = (ROOT / "build" / "layers" / "C9W05.PRG").read_bytes()
+    mpu.memory[0xC000 : 0xC000 + len(packet) - 2] = packet[2:]
+
+    call(mpu, symbols["add_attention_output_bias"])
+    call(mpu, symbols["checksum_attended_output"])
+
+    bias = q8_8_vector_from_original_packet(ROOT / "build" / "layers" / "C9W05.PRG", 0)
+    expected = [((value + offset + 0x8000) & 0xFFFF) - 0x8000 for value, offset in zip(projected, bias)]
+    assert signed_vector(mpu, symbols["ATTENDED_VECTOR"]) == expected
+    assert mpu.memory[symbols["attended_sumlo"]] | (mpu.memory[symbols["attended_sumhi"]] << 8) == 0xBEEE
+
+
 def test_6502_causal_score_row_masks_the_future_original_key(tmp_path):
     """Position zero sees its original key and encodes position one as -infinity."""
     prg = tmp_path / "CP64.PRG"
