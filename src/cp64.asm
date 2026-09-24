@@ -68,7 +68,20 @@ accepted_key:
     clc
     adc #4
     sta row
+    jsr decode_scale
+    bcc scale_ready
+    jmp scale_error
+scale_ready:
     jsr checksum
+    lda #<scale_result
+    ldy #>scale_result
+    jsr print
+    lda scale_hi
+    jsr hexbyte
+    lda scale_lo
+    jsr hexbyte
+    lda #13
+    jsr CHROUT
     lda #<result
     ldy #>result
     jsr print
@@ -124,6 +137,59 @@ load_embedding:
     clc
     rts
 load_failed:
+    sec
+    rts
+
+; Decode this embedding row's source FP16 scale to Q8.8.
+; Crystal-9 embedding scales are positive normal binary16 values with exponent 15.
+decode_scale:
+    lda #<(BUFFER+9)
+    sta pointer
+    lda #>(BUFFER+9)
+    sta pointer+1
+    ldx row
+scale_row_loop:
+    cpx #0
+    beq scale_row_ready
+    clc
+    lda pointer
+    adc #2
+    sta pointer
+    bcc scale_no_carry
+    inc pointer+1
+scale_no_carry:
+    dex
+    jmp scale_row_loop
+scale_row_ready:
+    ldy #0
+    lda (pointer),y
+    sta raw_scale_lo
+    iny
+    lda (pointer),y
+    sta raw_scale_hi
+    and #$7c
+    cmp #$3c            ; binary16 exponent 15
+    bne scale_invalid
+    lda raw_scale_hi
+    bmi scale_invalid
+    and #$03            ; fraction bits 8-9
+    asl
+    asl
+    asl
+    asl
+    asl
+    asl
+    sta scale_lo
+    lda raw_scale_lo
+    lsr
+    lsr
+    ora scale_lo
+    sta scale_lo
+    lda #1              ; Q8.8 = 256 + (fraction >> 2)
+    sta scale_hi
+    clc
+    rts
+scale_invalid:
     sec
     rts
 
@@ -237,6 +303,11 @@ disk_error:
     ldy #>error_message
     jsr print
     jmp read_key
+scale_error:
+    lda #<scale_error_message
+    ldy #>scale_error_message
+    jsr print
+    jmp read_key
 
 row: .byte 0
 selected: .byte 0
@@ -246,6 +317,10 @@ factor: .byte 0
 code: .byte 0
 sign: .byte 0
 packed_byte: .byte 0
+raw_scale_lo: .byte 0
+raw_scale_hi: .byte 0
+scale_lo: .byte 0
+scale_hi: .byte 0
 filename: .text "C9W00.PRG"
 
 title:
@@ -256,5 +331,7 @@ title:
     .text "AND SHOWS WEIGHTED CODE CHECKSUM",13,13,0
 loading: .text "THINKING: READING C9W00 FROM DISK...",13,0
 loaded: .text "C9W00 READY. TYPE A THROUGH I.",13,13,0
+scale_result: .text "FP16 SCALE AS Q8.8 $",0
 result: .text "TOKEN ",0
 error_message: .text "C9W00 LOAD OR HEADER ERROR",13,0
+scale_error_message: .text "UNSUPPORTED FP16 SCALE",13,0
