@@ -23,3 +23,23 @@ def test_build_d64_creates_standard_35_track_image_with_prg(tmp_path):
     assert data[0x16590:0x165a0].rstrip(b"\xa0") == b"CP64 MODEL"
     assert b"CP64" in data[0x16600:0x16800]
     assert data[0x16600:0x16602] == bytes((0, 0xff))
+
+
+def test_build_d64_chains_directory_sectors_for_more_than_eight_files(tmp_path):
+    builder = load_builder()
+    files = {}
+    for number in range(9):
+        path = tmp_path / f"L{number}.PRG"
+        path.write_bytes(bytes((0x00, 0xc0, number)))
+        files[path.name] = path
+    image = tmp_path / "layers.d64"
+
+    builder.build_d64_files(files, image, disk_name="CP64 WEIGHTS")
+
+    data = image.read_bytes()
+    first = 0x16600
+    second = first + 256
+    assert data[first:first + 2] == bytes((18, 2))
+    assert data[second:second + 2] == bytes((0, 0xff))
+    assert b"L0" in data[first:first + 256]
+    assert b"L8" in data[second:second + 256]

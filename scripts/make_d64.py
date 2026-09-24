@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create a minimal standard 35-track CBM DOS D64 containing one PRG."""
+"""Create a standard 35-track CBM DOS D64 containing PRG files."""
 from __future__ import annotations
 
 import math
@@ -38,50 +38,64 @@ def petscii_name(text: str, width: int = 16) -> bytes:
 
 
 def build_d64(prg_path: Path, output_path: Path, disk_name: str = "CP64 MODEL") -> None:
-    payload = prg_path.read_bytes()
-    if len(payload) < 3:
-        raise ValueError("PRG must contain a two-byte load address and code")
+    build_d64_files({prg_path.name: prg_path}, output_path, disk_name)
+
+
+def build_d64_files(files: dict[str, Path], output_path: Path, disk_name: str = "CP64 MODEL") -> None:
+    """Write named PRGs to a D64, chaining directory sectors as required."""
+    if not files:
+        raise ValueError("D64 requires at least one file")
+    if any(len(name) > 16 for name in files):
+        raise ValueError("CBM DOS file names are limited to sixteen characters")
+    directory_sectors = math.ceil(len(files) / 8)
+    if directory_sectors >= sectors_on_track(DIRECTORY_TRACK):
+        raise ValueError("too many files for this minimal D64 writer")
 
     image = bytearray(174_848)
     free = {(track, sector) for track in range(1, 36) for sector in range(sectors_on_track(track))}
-    free.remove((BAM_TRACK, BAM_SECTOR))
-    free.remove((DIRECTORY_TRACK, DIRECTORY_SECTOR))
-    blocks = math.ceil(len(payload) / 254)
+    reserved = {(BAM_TRACK, BAM_SECTOR)} | {(DIRECTORY_TRACK, sector) for sector in range(DIRECTORY_SECTOR, DIRECTORY_SECTOR + directory_sectors)}
+    free -= reserved
+    payloads = [(name, path.read_bytes()) for name, path in files.items()]
+    if any(len(payload) < 3 for _, payload in payloads):
+        raise ValueError("every PRG must contain a two-byte load address and code")
+    needed = sum(math.ceil(len(payload) / 254) for _, payload in payloads)
     available = [(track, sector) for track in range(1, 36) for sector in range(sectors_on_track(track)) if (track, sector) in free]
-    if blocks > len(available):
-        raise ValueError("PRG does not fit on a standard 35-track D64")
-    chain = available[:blocks]
+    if needed > len(available):
+        raise ValueError("files do not fit on a standard 35-track D64")
 
-    for index, (track, sector) in enumerate(chain):
-        offset = sector_offset(track, sector)
-        chunk = payload[index * 254 : (index + 1) * 254]
-        if index + 1 < len(chain):
-            image[offset : offset + 2] = bytes(chain[index + 1])
-        else:
-            image[offset : offset + 2] = bytes((0, len(chunk) + 1))
-        image[offset + 2 : offset + 2 + len(chunk)] = chunk
-        free.remove((track, sector))
+    chains: list[tuple[str, list[tuple[int, int]]]] = []
+    cursor = 0
+    for name, payload in payloads:
+        block_count = math.ceil(len(payload) / 254)
+        chain = available[cursor : cursor + block_count]
+        cursor += block_count
+        for index, (track, sector) in enumerate(chain):
+            offset = sector_offset(track, sector)
+            chunk = payload[index * 254 : (index + 1) * 254]
+            image[offset : offset + 2] = bytes(chain[index + 1]) if index + 1 < len(chain) else bytes((0, len(chunk) + 1))
+            image[offset + 2 : offset + 2 + len(chunk)] = chunk
+            free.remove((track, sector))
+        chains.append((name, chain))
 
     bam = sector_offset(BAM_TRACK, BAM_SECTOR)
     image[bam : bam + 4] = bytes((DIRECTORY_TRACK, DIRECTORY_SECTOR, 0x41, 0))
     for track in range(1, 36):
-        bitmap = 0
-        count = 0
-        for sector in range(sectors_on_track(track)):
-            if (track, sector) in free:
-                count += 1
-                bitmap |= 1 << sector
+        bitmap = sum(1 << sector for sector in range(sectors_on_track(track)) if (track, sector) in free)
         entry = bam + 4 + (track - 1) * 4
-        image[entry : entry + 4] = bytes((count, bitmap & 0xff, (bitmap >> 8) & 0xff, (bitmap >> 16) & 0xff))
+        image[entry : entry + 4] = bytes((bitmap.bit_count(), bitmap & 0xff, (bitmap >> 8) & 0xff, (bitmap >> 16) & 0xff))
     image[bam + 0x90 : bam + 0xA0] = petscii_name(disk_name)
     image[bam + 0xA2 : bam + 0xA4] = b"2A"
 
-    directory = sector_offset(DIRECTORY_TRACK, DIRECTORY_SECTOR)
-    image[directory : directory + 2] = bytes((0, 0xFF))
-    entry = directory + 2
-    image[entry : entry + 4] = bytes((0x82, chain[0][0], chain[0][1], 0))
-    image[entry + 3 : entry + 19] = petscii_name(prg_path.stem)
-    image[entry + 28 : entry + 30] = blocks.to_bytes(2, "little")
+    for directory_index in range(directory_sectors):
+        directory = sector_offset(DIRECTORY_TRACK, DIRECTORY_SECTOR + directory_index)
+        next_sector = DIRECTORY_SECTOR + directory_index + 1
+        image[directory : directory + 2] = bytes((DIRECTORY_TRACK, next_sector)) if directory_index + 1 < directory_sectors else bytes((0, 0xff))
+    for index, (name, chain) in enumerate(chains):
+        directory = sector_offset(DIRECTORY_TRACK, DIRECTORY_SECTOR + index // 8)
+        entry = directory + 2 + (index % 8) * 32
+        image[entry : entry + 4] = bytes((0x82, chain[0][0], chain[0][1], 0))
+        image[entry + 3 : entry + 19] = petscii_name(name)
+        image[entry + 28 : entry + 30] = len(chain).to_bytes(2, "little")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_bytes(image)
