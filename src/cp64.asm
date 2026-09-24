@@ -22,7 +22,9 @@ LOAD   = $ffd5
 COLOR  = $d800
 BUFFER = $c000
 VECTOR = $c100
+POSITION_VECTOR = $c140
 pointer = $fb
+vector_base = $fd
 
 start:
     jsr $e544
@@ -73,7 +75,25 @@ accepted_key:
     bcc scale_ready
     jmp scale_error
 scale_ready:
+    lda #<VECTOR
+    sta vector_base
+    lda #>VECTOR
+    sta vector_base+1
     jsr materialize_embedding
+    jsr load_position
+    bcc position_loaded
+    jmp disk_error
+position_loaded:
+    lda row
+    sec
+    sbc #4
+    sta position_row
+    jsr decode_position_scale
+    bcc position_scale_ready
+    jmp scale_error
+position_scale_ready:
+    jsr materialize_position
+    jsr add_position_to_vector
     lda #<scale_result
     ldy #>scale_result
     jsr print
@@ -140,12 +160,63 @@ load_failed:
     sec
     rts
 
+; Load the original packed position tensor packet C9W01.PRG at $C000.
+load_position:
+    lda #9
+    ldx #<position_filename
+    ldy #>position_filename
+    jsr SETNAM
+    lda #1
+    ldx #8
+    ldy #0
+    jsr SETLFS
+    lda #0
+    ldx #<BUFFER
+    ldy #>BUFFER
+    jsr LOAD
+    bcs position_load_failed
+    lda BUFFER
+    cmp #'C'
+    bne position_load_failed
+    lda BUFFER+1
+    cmp #'9'
+    bne position_load_failed
+    lda BUFFER+2
+    cmp #'W'
+    bne position_load_failed
+    lda BUFFER+3
+    cmp #'1'
+    bne position_load_failed
+    lda BUFFER+4
+    cmp #1
+    bne position_load_failed
+    lda BUFFER+5
+    cmp #18
+    bne position_load_failed
+    lda BUFFER+6
+    bne position_load_failed
+    clc
+    rts
+position_load_failed:
+    sec
+    rts
+
 ; Materialize the selected original embedding row as 32 signed Q8.8 values.
-; The 64-byte vector lives at $C100, outside the $C000 packet window.
+; The 64-byte token vector lives at $C100, outside the $C000 packet window.
 materialize_embedding:
-    lda #<(BUFFER+$23) ; C9W1 header (9) + thirteen FP16 scales (26)
+    lda #$23            ; C9W1 header (9) + thirteen FP16 scales (26)
+    sta packed_offset
+    lda #<VECTOR
+    sta vector_base
+    lda #>VECTOR
+    sta vector_base+1
+materialize_row:
+    clc
+    lda #<BUFFER
+    adc packed_offset
     sta pointer
-    lda #>(BUFFER+$23)
+    lda #>BUFFER
+    adc #0
     sta pointer+1
     ldx row
 advance_materialized_row:
@@ -268,10 +339,10 @@ materialized_divide_done:
 materialized_store:
     ldy vector_index
     lda act_lo
-    sta VECTOR,y
+    sta (vector_base),y
     iny
     lda act_hi
-    sta VECTOR,y
+    sta (vector_base),y
     iny
     sty vector_index
     ldx factor
@@ -286,6 +357,66 @@ materialized_checksum_loop:
     dex
     bne materialized_checksum_loop
     inc factor
+    rts
+
+; The position packet uses the same row-wise FP16/INT4 format as C9W00.
+decode_position_scale:
+    lda position_row
+    sta row
+    jmp decode_scale
+
+; Materialize a 32-value original position row at $C140 and retain its checksum.
+materialize_position:
+    lda #$1b            ; C9W1 header (9) + nine FP16 scales (18)
+    sta packed_offset
+    lda #<POSITION_VECTOR
+    sta vector_base
+    lda #>POSITION_VECTOR
+    sta vector_base+1
+    jsr materialize_row
+    lda sumlo
+    sta position_sumlo
+    lda sumhi
+    sta position_sumhi
+    rts
+
+; Add the materialized original position vector to the retained token vector.
+add_position_to_vector:
+    lda #0
+    sta sumlo
+    sta sumhi
+    sta vector_index
+    lda #1
+    sta factor
+    ldy #0
+add_position_loop:
+    clc
+    lda VECTOR,y
+    adc POSITION_VECTOR,y
+    sta VECTOR,y
+    sta act_lo
+    iny
+    lda VECTOR,y
+    adc POSITION_VECTOR,y
+    sta VECTOR,y
+    sta act_hi
+    iny
+    sty vector_index
+    ldx factor
+add_position_checksum_loop:
+    clc
+    lda sumlo
+    adc act_lo
+    sta sumlo
+    lda sumhi
+    adc act_hi
+    sta sumhi
+    dex
+    bne add_position_checksum_loop
+    inc factor
+    ldy vector_index
+    cpy #64
+    bne add_position_loop
     rts
 
 ; Decode this embedding row's source FP16 scale to Q8.8.
@@ -319,7 +450,9 @@ scale_row_ready:
     cmp #$3c            ; binary16 exponent 15
     bne scale_check_exp16
     lda raw_scale_hi
-    bmi scale_invalid
+    bpl scale_exp15_positive
+    jmp scale_invalid
+scale_exp15_positive:
     lda raw_scale_lo     ; nearest rounding: (fraction + 2) >> 2
     clc
     adc #2
@@ -346,7 +479,7 @@ scale_row_ready:
     rts
 scale_check_exp16:
     cmp #$40            ; binary16 exponent 16
-    bne scale_invalid
+    bne scale_check_exp14
     lda raw_scale_hi
     bmi scale_invalid
     lda raw_scale_lo     ; nearest rounding: (fraction + 1) >> 1
@@ -374,6 +507,38 @@ scale_check_exp16:
     lsr
     clc
     adc #2              ; Q8.8 base for exponent 16 is 512
+    sta scale_hi
+    clc
+    rts
+scale_check_exp14:
+    cmp #$38            ; binary16 exponent 14
+    bne scale_invalid
+    lda raw_scale_hi
+    bmi scale_invalid
+    lda raw_scale_lo     ; nearest rounding: (fraction + 4) >> 3
+    clc
+    adc #4
+    sta raw_scale_lo
+    lda raw_scale_hi
+    adc #0
+    sta raw_scale_hi
+    and #$03            ; fraction bits 8-9
+    asl
+    asl
+    asl
+    asl
+    asl
+    sta scale_lo
+    lda raw_scale_lo
+    lsr
+    lsr
+    lsr
+    clc
+    adc scale_lo
+    adc #$80            ; Q8.8 base for exponent 14 is 128
+    sta scale_lo
+    lda #0
+    adc #0
     sta scale_hi
     clc
     rts
@@ -516,7 +681,12 @@ quotient_lo: .byte 0
 quotient_hi: .byte 0
 vector_index: .byte 0
 packed_index: .byte 0
+packed_offset: .byte 0
 filename: .text "C9W00.PRG"
+position_filename: .text "C9W01.PRG"
+position_row: .byte 0
+position_sumlo: .byte 0
+position_sumhi: .byte 0
 
 title:
     .text "CP64 CRYSTAL-9",13

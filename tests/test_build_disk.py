@@ -16,6 +16,13 @@ def load_builder():
 def test_stage_image_path_uses_zero_padded_sequence_and_description():
     builder = load_builder()
 
-    assert builder.stage_image_path(7, "test-token-embedding") == (
-        builder.BUILD / "cs64-007-test-token-embedding.d64"
+    assert builder.stage_image_path(8, "test-position-embedding") == (
+        builder.BUILD / "cs64-008-test-position-embedding.d64"
     )
+
+
+def test_current_disk_stage_is_position_embedding_gate():
+    builder = load_builder()
+
+    assert builder.CURRENT_STAGE == 8
+    assert builder.CURRENT_DESCRIPTION == "test-position-embedding"

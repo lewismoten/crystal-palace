@@ -4,9 +4,9 @@ CP64 is a Commodore 64 feasibility project for **the original Crystal-9 packed I
 
 ## Current executable milestone
 
-`build/cp64.d64` is a runnable C64 disk with a **materialized token-embedding proof gate**. It loads the original `embedding.weight` packet (`C9W00.PRG`) into `$c000`. When the user types `a`–`i`, the 6502 code selects that source row, decodes its original FP16 scale, unpacks all 32 signed INT4 values, and materializes 32 signed Q8.8 activations at `$c100` using symmetric rounding of `INT4 × scale / 7`. It displays a weighted vector checksum. The matching Python reference is `scripts/embedding_probe.py`.
+`build/cp64.d64` is a runnable C64 disk with a **token-plus-position embedding proof gate**. It loads the original `embedding.weight` packet (`C9W00.PRG`) into `$c000`; for a selected `a`–`i` token it materializes 32 signed Q8.8 values at `$c100`. It then pages the original `position.weight` packet (`C9W01.PRG`) into the same window, materializes the corresponding position row at `$c140`, and adds it to the retained token vector at `$c100`. Both packets retain their original FP16 scale bytes and packed signed INT4 payloads. The matching Python reference is `scripts/embedding_probe.py`.
 
-This is not yet a model move. The next gate is adding the original position embedding to the retained token vector, then advancing to the causal-attention path. It must not be represented as a tic-tac-toe-playing model until the 6502 evaluator is implemented and compared with Crystal-9's reference outputs.
+This is not yet a model move. The next gate is the causal-attention path. It must not be represented as a tic-tac-toe-playing model until the 6502 evaluator is implemented and compared with Crystal-9's reference outputs.
 
 ## Model provenance
 
@@ -31,16 +31,16 @@ python3 -m pytest tests -q
 The result is `build/cp64.d64`. Each proof gate is also preserved under a sequentially numbered filename:
 
 ```text
-build/cs64-007-test-token-embedding.d64
+build/cs64-008-test-position-embedding.d64
 ```
 
 `cp64.d64` is a compatibility copy of the current numbered gate. A number is reserved only after its gate builds and passes its reference tests.
 
-### Stage 007 acceptance
+### Stage 008 acceptance
 
-Manual C64-emulator results match the packed Python reference for every playable token: `A $20AD`, `B $D419`, `C $CCBC`, `D $A0DE`, `E $889C`, `F $F8A2`, `G $4119`, `H $479C`, and `I $3C6C`.
+Assembled-6502 Py65 regression tests compare every materialized position row and every mapped playable token-plus-position vector against independent fixed-point reference calculations over the verbatim `C9W00` and `C9W01` packet bytes.
 
-To run it in VICE, attach/autostart the disk with a C64 ROM set supplied by your emulator installation. Enter `A` through `I` after the ready prompt to materialize the selected original token embedding.
+To run it in VICE, attach/autostart the disk with a C64 ROM set supplied by your emulator installation. Enter `A` through `I` after the ready prompt; the selected token is paired with position `0` through `8` respectively and its token-plus-position Q8.8 checksum is displayed.
 
 ### Browser test target
 
