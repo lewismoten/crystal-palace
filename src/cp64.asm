@@ -252,6 +252,10 @@ attention_output_bias_loaded:
     ldy #>step_residual_add
     jsr print
     jsr add_attention_residual
+    lda #<step_norm_center
+    ldy #>step_norm_center
+    jsr print
+    jsr center_layer_norm_input
     jsr checksum_attended_output
     lda #<step_norm_load
     ldy #>step_norm_load
@@ -1063,6 +1067,135 @@ add_attention_residual_lane:
     iny
     cpy #64
     bne add_attention_residual_lane
+    rts
+
+; First LayerNorm gate: sum the live post-attention residual in signed Q8.8,
+; symmetrically round its 32-lane mean, and retain x - mean for every lane.
+; A 32-bit accumulator prevents the intermediate sum from overflowing.
+center_layer_norm_input:
+    lda #0
+    sta norm_total0
+    sta norm_total1
+    sta norm_total2
+    sta norm_total3
+    ldy #0
+norm_center_sum_loop:
+    clc
+    lda norm_total0
+    adc ATTENDED_VECTOR,y
+    sta norm_total0
+    lda norm_total1
+    adc ATTENDED_VECTOR+1,y
+    sta norm_total1
+    lda ATTENDED_VECTOR+1,y
+    bmi norm_center_add_negative_extension
+    lda norm_total2
+    adc #0
+    sta norm_total2
+    lda norm_total3
+    adc #0
+    sta norm_total3
+    jmp norm_center_next_lane
+norm_center_add_negative_extension:
+    lda norm_total2
+    adc #$ff
+    sta norm_total2
+    lda norm_total3
+    adc #$ff
+    sta norm_total3
+norm_center_next_lane:
+    iny
+    iny
+    cpy #64
+    bne norm_center_sum_loop
+    lda norm_total3
+    bmi norm_center_negative_total
+    lda #0
+    sta norm_total_sign
+    jmp norm_center_magnitude_ready
+norm_center_negative_total:
+    lda #1
+    sta norm_total_sign
+    sec
+    lda #0
+    sbc norm_total0
+    sta norm_total0
+    lda #0
+    sbc norm_total1
+    sta norm_total1
+    lda #0
+    sbc norm_total2
+    sta norm_total2
+    lda #0
+    sbc norm_total3
+    sta norm_total3
+norm_center_magnitude_ready:
+    clc                     ; symmetric nearest rounding before /32
+    lda norm_total0
+    adc #16
+    sta norm_total0
+    lda norm_total1
+    adc #0
+    sta norm_total1
+    lda norm_total2
+    adc #0
+    sta norm_total2
+    lda norm_total3
+    adc #0
+    sta norm_total3
+    ldx #5
+norm_center_divide_loop:
+    lsr norm_total3
+    ror norm_total2
+    ror norm_total1
+    ror norm_total0
+    dex
+    bne norm_center_divide_loop
+    lda norm_total0
+    sta norm_mean_lo
+    lda norm_total1
+    sta norm_mean_hi
+    lda norm_total_sign
+    beq norm_center_mean_ready
+    sec
+    lda #0
+    sbc norm_mean_lo
+    sta norm_mean_lo
+    lda #0
+    sbc norm_mean_hi
+    sta norm_mean_hi
+norm_center_mean_ready:
+    lda #0
+    sta norm_center_sumlo
+    sta norm_center_sumhi
+    sta factor
+    ldy #0
+norm_center_store_loop:
+    sec
+    lda ATTENDED_VECTOR,y
+    sbc norm_mean_lo
+    sta HIDDEN_VECTOR,y
+    sta act_lo
+    iny
+    lda ATTENDED_VECTOR,y
+    sbc norm_mean_hi
+    sta HIDDEN_VECTOR,y
+    sta act_hi
+    iny
+    inc factor
+    ldx factor
+norm_center_checksum_loop:
+    clc
+    lda norm_center_sumlo
+    adc act_lo
+    sta norm_center_sumlo
+    lda norm_center_sumhi
+    adc act_hi
+    sta norm_center_sumhi
+    dex
+    bne norm_center_checksum_loop
+    cpy #64
+    bne norm_center_store_loop
     rts
 
 ; Project C9W02's next 32 rows (K) against the retained Q8.8 input.
@@ -2258,6 +2391,15 @@ norm_sumlo: .byte 0
 norm_sumhi: .byte 0
 norm_bias_sumlo: .byte 0
 norm_bias_sumhi: .byte 0
+norm_center_sumlo: .byte 0
+norm_center_sumhi: .byte 0
+norm_mean_lo: .byte 0
+norm_mean_hi: .byte 0
+norm_total0: .byte 0
+norm_total1: .byte 0
+norm_total2: .byte 0
+norm_total3: .byte 0
+norm_total_sign: .byte 0
 norm_group: .byte 0
 factor: .byte 0
 code: .byte 0
@@ -2344,32 +2486,33 @@ title:
 loading: .text "THINKING: READING C9W00 FROM DISK...",13,0
 loaded: .text "C9W00 READY. TYPE A THROUGH I.",13,13,0
 thinking: .text "THINKING TOKEN ",0
-step_token: .text "1/26 TOKEN EMBEDDING",13,0
-step_position: .text "2/26 POSITION EMBEDDING",13,0
-step_query: .text "3/26 ATTENTION Q",13,0
-step_key: .text "4/26 ATTENTION K",13,0
-step_value: .text "5/26 ATTENTION V",13,0
-step_history: .text "6/26 RETAIN K/V HISTORY",13,0
-step_scores: .text "7/26 SELF ATTENTION SCORES",13,0
-step_two_key_scores: .text "8/26 TWO-KEY CAUSAL SCORES",13,0
-step_head0: .text "9/26 CAUSAL SOFTMAX + V HEAD 0",13,0
-step_head1: .text "10/26 CAUSAL SOFTMAX + V HEAD 1",13,0
-step_head2: .text "11/26 CAUSAL SOFTMAX + V HEAD 2",13,0
-step_head3: .text "12/26 CAUSAL SOFTMAX + V HEAD 3",13,0
-step_head4: .text "13/26 CAUSAL SOFTMAX + V HEAD 4",13,0
-step_head5: .text "14/26 CAUSAL SOFTMAX + V HEAD 5",13,0
-step_head6: .text "15/26 CAUSAL SOFTMAX + V HEAD 6",13,0
-step_head7: .text "16/26 CAUSAL SOFTMAX + V HEAD 7",13,0
-step_residual_retain: .text "17/26 RETAIN ATTENTION RESIDUAL",13,0
-step_output_load: .text "18/26 LOAD ATTENTION OUTPUT WEIGHT",13,0
-step_output_project: .text "19/26 ATTENTION OUTPUT PROJECTION",13,0
-step_output_bias_load: .text "20/26 LOAD ATTENTION OUTPUT BIAS",13,0
-step_output_bias: .text "21/26 ADD ATTENTION OUTPUT BIAS",13,0
-step_residual_add: .text "22/26 ADD ATTENTION RESIDUAL",13,0
-step_norm_load: .text "23/26 LOAD NORM WEIGHT",13,0
-step_norm_materialize: .text "24/26 MATERIALIZE NORM WEIGHT",13,0
-step_norm_bias_load: .text "25/26 LOAD NORM BIAS",13,0
-step_norm_bias_materialize: .text "26/26 MATERIALIZE NORM BIAS",13,0
+step_token: .text "1/27 TOKEN EMBEDDING",13,0
+step_position: .text "2/27 POSITION EMBEDDING",13,0
+step_query: .text "3/27 ATTENTION Q",13,0
+step_key: .text "4/27 ATTENTION K",13,0
+step_value: .text "5/27 ATTENTION V",13,0
+step_history: .text "6/27 RETAIN K/V HISTORY",13,0
+step_scores: .text "7/27 SELF ATTENTION SCORES",13,0
+step_two_key_scores: .text "8/27 TWO-KEY CAUSAL SCORES",13,0
+step_head0: .text "9/27 CAUSAL SOFTMAX + V HEAD 0",13,0
+step_head1: .text "10/27 CAUSAL SOFTMAX + V HEAD 1",13,0
+step_head2: .text "11/27 CAUSAL SOFTMAX + V HEAD 2",13,0
+step_head3: .text "12/27 CAUSAL SOFTMAX + V HEAD 3",13,0
+step_head4: .text "13/27 CAUSAL SOFTMAX + V HEAD 4",13,0
+step_head5: .text "14/27 CAUSAL SOFTMAX + V HEAD 5",13,0
+step_head6: .text "15/27 CAUSAL SOFTMAX + V HEAD 6",13,0
+step_head7: .text "16/27 CAUSAL SOFTMAX + V HEAD 7",13,0
+step_residual_retain: .text "17/27 RETAIN ATTENTION RESIDUAL",13,0
+step_output_load: .text "18/27 LOAD ATTENTION OUTPUT WEIGHT",13,0
+step_output_project: .text "19/27 ATTENTION OUTPUT PROJECTION",13,0
+step_output_bias_load: .text "20/27 LOAD ATTENTION OUTPUT BIAS",13,0
+step_output_bias: .text "21/27 ADD ATTENTION OUTPUT BIAS",13,0
+step_residual_add: .text "22/27 ADD ATTENTION RESIDUAL",13,0
+step_norm_center: .text "23/27 CENTER LAYERNORM INPUT",13,0
+step_norm_load: .text "24/27 LOAD NORM WEIGHT",13,0
+step_norm_materialize: .text "25/27 MATERIALIZE NORM WEIGHT",13,0
+step_norm_bias_load: .text "26/27 LOAD NORM BIAS",13,0
+step_norm_bias_materialize: .text "27/27 MATERIALIZE NORM BIAS",13,0
 scale_result: .text "FP16 SCALE AS Q8.8 $",0
 result: .text "TOKEN ",0
 embedding_checksum: .text " EMBEDDING CHECKSUM $",0

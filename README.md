@@ -4,9 +4,9 @@ CP64 is a Commodore 64 feasibility project for **the original Crystal-9 packed I
 
 ## Current executable milestone
 
-`build/cp64.d64` is a runnable C64 disk with a bounded **two-token attention-residual plus original norm-weight paging gate**. For `A`→`B`, it materializes all eight original C9W02 attention heads under the fixed-point two-key causal-softmax contract, applies original C9W04/C9W05 output projection and bias, adds the retained input residual, then pages and decodes the original group-of-two C9W06 norm-affine weights. All packets retain their original FP16 scale bytes and packed INT4 payloads.
+`build/cp64.d64` is a runnable C64 disk with a bounded **two-token attention-residual and LayerNorm-centering gate**. For `A`→`B`, it materializes all eight original C9W02 attention heads under the fixed-point two-key causal-softmax contract, applies original C9W04/C9W05 output projection and bias, adds the retained input residual, then computes and subtracts the symmetric Q8.8 32-lane mean. All packets retain their original FP16 scale bytes and packed INT4 payloads.
 
-This is not yet a model move. The next gate is LayerNorm centering, variance, and the original C9W06/C9W07 affine path. It must not be represented as a tic-tac-toe-playing model until the 6502 evaluator is implemented and compared with Crystal-9's reference outputs.
+This is not yet a model move. Variance, reciprocal-square-root, and application of the already-paged original C9W06/C9W07 affine tensors remain. It must not be represented as a tic-tac-toe-playing model until the 6502 evaluator is implemented and compared with Crystal-9's reference outputs.
 
 ## Model provenance
 
@@ -53,6 +53,7 @@ build/cs64-027-attention-output-bias.d64
 build/cs64-028-attention-residual.d64
 build/cs64-029-norm-weight-paging.d64
 build/cs64-030-norm-bias-paging.d64
+build/cs64-031-layer-norm-centering.d64
 ```
 
 `cp64.d64` is a compatibility copy of the current numbered gate. A number is reserved only after its gate builds and passes its reference tests.
@@ -110,6 +111,10 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 ### Stage 030 norm-bias paging
 
 `cs64-030-norm-bias-paging.d64` retains Stage 029's C9W06 norm-weight proof, then pages original `C9W07` and materializes its one-FP16-scale, 32-value packed-INT4 norm-bias vector. The fixed Q8.8 norm-bias checksum is `051C`. This completes paging and decoding the two original LayerNorm affine tensors; centering, variance, reciprocal-square-root, and affine application remain the next gate.
+
+### Stage 031 LayerNorm centering
+
+`cs64-031-layer-norm-centering.d64` retains the Stage 030 source-tensor paging proofs and adds the first LayerNorm arithmetic slice. For the live bounded `A`→`B` attention-residual vector, its 6502 routine accumulates the signed Q8.8 total in 32 bits, symmetrically rounds the 32-lane mean to `-713`, and writes `x - mean` for all 32 lanes. The centered-vector checksum is `6AAA`. Variance, reciprocal-square-root, and C9W06/C9W07 affine application are deliberately not claimed by this gate.
 
 ### Browser test target
 

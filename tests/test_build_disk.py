@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_norm_bias_paging():
+def test_current_disk_stage_reports_layer_norm_centering():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 30
-    assert builder.CURRENT_DESCRIPTION == "norm-bias-paging"
+    assert builder.CURRENT_STAGE == 31
+    assert builder.CURRENT_DESCRIPTION == "layer-norm-centering"
