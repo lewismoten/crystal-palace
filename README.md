@@ -28,7 +28,13 @@ python3 scripts/build_disk.py
 python3 -m pytest tests -q
 ```
 
-The result is `build/cp64.d64`.
+The result is `build/cp64.d64`. Each proof gate is also preserved under a sequentially numbered filename:
+
+```text
+build/cs64-006-test-fp16-scale-decoder.d64
+```
+
+`cp64.d64` is a compatibility copy of the current numbered gate. The next runnable embedding-vector gate will be `cs64-007-test-token-embedding.d64`; a number is reserved only after that gate builds and passes its reference tests.
 
 To run it in VICE, attach/autostart the disk with a C64 ROM set supplied by your emulator installation. The program displays `48 PACKED TENSORS READ FROM DISK` after its paging pass.
 
