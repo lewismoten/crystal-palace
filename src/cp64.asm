@@ -141,21 +141,78 @@ attention_input_loaded:
     ldy #>step_scores
     jsr print
     jsr materialize_self_attention_scores
-    lda #<step_softmax
-    ldy #>step_softmax
-    jsr print
     lda two_key_ready
-    beq attended_single_key
+    bne attended_two_key
+    jmp attended_single_key
+attended_two_key:
+    lda #<step_two_key_scores
+    ldy #>step_two_key_scores
+    jsr print
     lda #1
     sta causal_query_position
     jsr materialize_two_token_causal_scores
-    jsr two_key_head0_softmax_attention_output
+    lda #<step_head0
+    ldy #>step_head0
+    jsr print
+    jsr clear_attended_output
+    lda #0
+    sta softmax_head_offset
+    sta softmax_vector_offset
+    jsr two_key_selected_head_softmax_attention_output
+    lda #<step_head1
+    ldy #>step_head1
+    jsr print
+    lda #2
+    sta softmax_head_offset
+    lda #8
+    sta softmax_vector_offset
+    jsr two_key_selected_head_softmax_attention_output
+    lda #<step_head2
+    ldy #>step_head2
+    jsr print
+    lda #4
+    sta softmax_head_offset
+    lda #16
+    sta softmax_vector_offset
+    jsr two_key_selected_head_softmax_attention_output
     lda #<step_head3
     ldy #>step_head3
     jsr print
-    lda #6              ; head 3 score-word offset
+    lda #6
     sta softmax_head_offset
-    lda #24             ; head 3 four-lane vector-byte offset
+    lda #24
+    sta softmax_vector_offset
+    jsr two_key_selected_head_softmax_attention_output
+    lda #<step_head4
+    ldy #>step_head4
+    jsr print
+    lda #8
+    sta softmax_head_offset
+    lda #32
+    sta softmax_vector_offset
+    jsr two_key_selected_head_softmax_attention_output
+    lda #<step_head5
+    ldy #>step_head5
+    jsr print
+    lda #10
+    sta softmax_head_offset
+    lda #40
+    sta softmax_vector_offset
+    jsr two_key_selected_head_softmax_attention_output
+    lda #<step_head6
+    ldy #>step_head6
+    jsr print
+    lda #12
+    sta softmax_head_offset
+    lda #48
+    sta softmax_vector_offset
+    jsr two_key_selected_head_softmax_attention_output
+    lda #<step_head7
+    ldy #>step_head7
+    jsr print
+    lda #14
+    sta softmax_head_offset
+    lda #56
     sta softmax_vector_offset
     jsr two_key_selected_head_softmax_attention_output
     jmp attended_ready
@@ -872,6 +929,24 @@ two_key_head0_softmax_attention_output:
     sta softmax_vector_offset
     jsr clear_attended_output
     jmp two_key_selected_head_softmax_attention_output
+
+two_key_all_heads_attention_output:
+    jsr clear_attended_output
+    lda #0
+    sta all_heads_index
+all_heads_loop:
+    lda all_heads_index
+    asl a
+    sta softmax_head_offset
+    asl a
+    asl a
+    sta softmax_vector_offset
+    jsr two_key_selected_head_softmax_attention_output
+    inc all_heads_index
+    lda all_heads_index
+    cmp #8
+    bne all_heads_loop
+    rts
 
 two_key_head0_and_head3_attention_output:
     jsr clear_attended_output
@@ -1860,6 +1935,7 @@ softmax_offset: .byte 0
 softmax_bits: .byte 0
 softmax_head_offset: .byte 0
 softmax_vector_offset: .byte 0
+all_heads_index: .byte 0
 softmax_component_limit: .byte 0
 two_key_ready: .byte 0
 two_key_state: .byte 0
@@ -1876,15 +1952,22 @@ title:
 loading: .text "THINKING: READING C9W00 FROM DISK...",13,0
 loaded: .text "C9W00 READY. TYPE A THROUGH I.",13,13,0
 thinking: .text "THINKING TOKEN ",0
-step_token: .text "1/9 TOKEN EMBEDDING",13,0
-step_position: .text "2/9 POSITION EMBEDDING",13,0
-step_query: .text "3/9 ATTENTION Q",13,0
-step_key: .text "4/9 ATTENTION K",13,0
-step_value: .text "5/9 ATTENTION V",13,0
-step_history: .text "6/9 RETAIN K/V HISTORY",13,0
-step_scores: .text "7/9 SELF ATTENTION SCORES",13,0
-step_softmax: .text "8/9 CAUSAL SOFTMAX + V HEAD 0",13,0
-step_head3: .text "9/9 CAUSAL SOFTMAX + V HEAD 3",13,0
+step_token: .text "1/16 TOKEN EMBEDDING",13,0
+step_position: .text "2/16 POSITION EMBEDDING",13,0
+step_query: .text "3/16 ATTENTION Q",13,0
+step_key: .text "4/16 ATTENTION K",13,0
+step_value: .text "5/16 ATTENTION V",13,0
+step_history: .text "6/16 RETAIN K/V HISTORY",13,0
+step_scores: .text "7/16 SELF ATTENTION SCORES",13,0
+step_two_key_scores: .text "8/16 TWO-KEY CAUSAL SCORES",13,0
+step_head0: .text "9/16 CAUSAL SOFTMAX + V HEAD 0",13,0
+step_head1: .text "10/16 CAUSAL SOFTMAX + V HEAD 1",13,0
+step_head2: .text "11/16 CAUSAL SOFTMAX + V HEAD 2",13,0
+step_head3: .text "12/16 CAUSAL SOFTMAX + V HEAD 3",13,0
+step_head4: .text "13/16 CAUSAL SOFTMAX + V HEAD 4",13,0
+step_head5: .text "14/16 CAUSAL SOFTMAX + V HEAD 5",13,0
+step_head6: .text "15/16 CAUSAL SOFTMAX + V HEAD 6",13,0
+step_head7: .text "16/16 CAUSAL SOFTMAX + V HEAD 7",13,0
 scale_result: .text "FP16 SCALE AS Q8.8 $",0
 result: .text "TOKEN ",0
 embedding_checksum: .text " EMBEDDING CHECKSUM $",0

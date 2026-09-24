@@ -47,6 +47,7 @@ build/cs64-021-test-two-key-softmax.d64
 build/cs64-022-test-two-key-second-attention-head.d64
 build/cs64-023-split-inference-progress-stages.d64
 build/cs64-024-combine-two-attention-heads.d64
+build/cs64-025-combine-all-attention-heads.d64
 ```
 
 `cp64.d64` is a compatibility copy of the current numbered gate. A number is reserved only after its gate builds and passes its reference tests.
@@ -80,6 +81,10 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 ### Stage 024 combined two-head attention output
 
 `cs64-024-combine-two-attention-heads.d64` retains the same original `A`→`B` two-key sequence and combines both previously proved attention slices into one attended vector: head 0 occupies lanes 0–3 and head 3 occupies lanes 12–15; all other lanes remain zero in this bounded gate. The expected final checksum is `03AF`. Its nine progress messages separately identify the two actual head-output computations.
+
+### Stage 025 all-head attention output
+
+`cs64-025-combine-all-attention-heads.d64` uses the same original `A`→`B` two-key sequence but now emits the 32-lane attended vector from all eight original attention heads. The bounded Q0.15 two-key softmax remains an explicitly fixed-point proof approximation; the projected Q/K/V vectors and packed tensors remain original source data. The expected final checksum is `FFA0`. Sixteen progress messages expose self-attention scores, two-key causal scores, and each separate head output.
 
 ### Browser test target
 

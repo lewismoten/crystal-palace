@@ -110,12 +110,13 @@ def test_interactive_request_announces_input_and_each_long_work_stage():
     request = source[source.index("accepted_key:") : source.index("jmp read_key", source.index("accepted_key:"))]
 
     assert request.index("jsr print_thinking") < request.index("jsr load_embedding")
-    for step in ("step_token", "step_position", "step_query", "step_key", "step_value", "step_history", "step_scores", "step_softmax", "step_head3"):
+    for step in ("step_token", "step_position", "step_query", "step_key", "step_value", "step_history", "step_scores", "step_two_key_scores", "step_head0", "step_head1", "step_head2", "step_head3", "step_head4", "step_head5", "step_head6", "step_head7"):
         assert step in source
     assert request.index("#<step_history") < request.index("jsr capture_two_key_sequence")
     assert request.index("#<step_scores") < request.index("jsr materialize_self_attention_scores")
-    assert request.index("#<step_softmax") < request.index("jsr materialize_two_token_causal_scores")
-    assert request.index("#<step_head3") < request.index("jsr two_key_selected_head_softmax_attention_output")
+    assert request.index("#<step_two_key_scores") < request.index("jsr materialize_two_token_causal_scores")
+    for step in ("step_head0", "step_head1", "step_head2", "step_head3", "step_head4", "step_head5", "step_head6", "step_head7"):
+        assert request.find("jsr two_key_selected_head_softmax_attention_output", request.index(f"#<{step}")) != -1
 
 
 def test_final_display_uses_input_dependent_attention_query_checksum():
@@ -569,6 +570,50 @@ def test_6502_two_key_combines_two_original_attention_heads(tmp_path):
     assert attended[:4] == [1791, 2985, 1336, 2784]
     assert attended[12:16] == [1113, -2072, 191, -643]
     assert mpu.memory[symbols["attended_sumlo"]] | (mpu.memory[symbols["attended_sumhi"]] << 8) == 0x03AF
+
+
+def test_6502_two_key_all_heads_combine_original_attention_output(tmp_path):
+    """All eight original A→B attention heads fill the attended vector."""
+    prg = tmp_path / "CP64.PRG"
+    labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    assert "two_key_all_heads_attention_output" in symbols
+    mpu = MPU()
+    image = prg.read_bytes()
+    load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    packets = [ROOT / "build" / "layers" / name for name in ("C9W00.PRG", "C9W01.PRG", "C9W02.PRG")]
+
+    def project(token_row: int, position_row: int):
+        for packet, row_name, row_value, routine in (
+            (packets[0], "row", token_row, ("decode_scale", "materialize_embedding")),
+            (packets[1], "position_row", position_row, ("decode_position_scale", "materialize_position", "add_position_to_vector")),
+        ):
+            data = packet.read_bytes()
+            mpu.memory[0xC000 : 0xC000 + len(data) - 2] = data[2:]
+            mpu.memory[symbols[row_name]] = row_value
+            for entry in routine:
+                call(mpu, symbols[entry])
+        call(mpu, symbols["retain_hidden_vector"])
+        data = packets[2].read_bytes()
+        mpu.memory[0xC000 : 0xC000 + len(data) - 2] = data[2:]
+        for entry in ("project_query", "project_key", "project_value"):
+            call(mpu, symbols[entry], steps=20_000_000)
+        return tuple(signed_vector(mpu, symbols[name]) for name in ("QUERY_VECTOR", "KEY_VECTOR", "VALUE_VECTOR"))
+
+    _, key_a, value_a = project(4, 0)
+    query_b, key_b, value_b = project(5, 1)
+    for address, values in ((symbols["KEY_HISTORY"], key_a + key_b), (symbols["VALUE_HISTORY"], value_a + value_b), (symbols["QUERY_VECTOR"], query_b)):
+        for index, value in enumerate(values):
+            mpu.memory[address + index * 2 : address + index * 2 + 2] = (value & 0xFFFF).to_bytes(2, "little")
+    mpu.memory[symbols["causal_query_position"]] = 1
+    call(mpu, symbols["materialize_two_token_causal_scores"])
+    call(mpu, symbols["two_key_all_heads_attention_output"], steps=16_000_000)
+    call(mpu, symbols["checksum_attended_output"])
+
+    assert signed_vector(mpu, symbols["ATTENDED_VECTOR"]) == [1791, 2985, 1336, 2784, 535, -400, 145, 980, -277, -2341, 1273, 2298, 1113, -2072, 191, -643, 1105, 1219, 621, -157, -493, -3859, 1509, -2026, -1149, 981, -1594, 1866, 1358, 1053, -2574, -899]
+    assert mpu.memory[symbols["attended_sumlo"]] | (mpu.memory[symbols["attended_sumhi"]] << 8) == 0xFFA0
 
 
 def test_6502_causal_score_row_masks_the_future_original_key(tmp_path):
