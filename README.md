@@ -119,7 +119,7 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 ### Stage 032 LayerNorm variance bundle
 
-`cs64-032-layer-norm-variance.d64` bundles Stage 031 centering with the next arithmetic step: every centered lane is squared as Q16.16, accumulated in an **unsigned** 32-bit sum, then nearest-divided by 32. For live `A`→`B`, it displays centered checksum `6AAA` and variance `06D39F3A` (Q16.16). Integer square root, normalization, and the already decoded C9W06/C9W07 affine application remain next.
+`cs64-032-layer-norm-variance.d64` bundles Stage 031 centering with the next arithmetic step: every centered lane is squared as Q16.16, accumulated in an **unsigned** 32-bit sum, then nearest-divided by 32. For live `A`→`B`, it displays centered checksum `6AAA` and variance `06D395DA` (Q16.16). Integer square root, normalization, and the already decoded C9W06/C9W07 affine application remain next.
 
 ### Browser test target
 
