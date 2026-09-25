@@ -1203,3 +1203,37 @@ def test_interactive_pipeline_pages_both_selected_expert_second_affines_after_ro
         assert request.count(f"jsr {routine}") == 2
     for name in ("C9W14.PRG", "C9W15.PRG", "C9W16.PRG", "C9W17.PRG", "C9W26.PRG", "C9W27.PRG", "C9W28.PRG", "C9W29.PRG"):
         assert name in source
+
+
+def q8_8_weighted_q0_15(value: int, weight: int) -> int:
+    product = value * weight
+    return (product + 16384) // 32768 if product >= 0 else -((-product + 16384) // 32768)
+
+
+def test_6502_merges_selected_expert_outputs_with_live_q0_15_router_weights(tmp_path):
+    """Stage 039 forms every bounded MoE lane from E1/E4 and their live weights."""
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    expert1 = [-1024, -511, -257, -1, 0, 1, 255, 511] * 4
+    expert4 = [777, 333, 1, 0, -1, -255, -512, -1000] * 4
+    for base, values in ((symbols["EXPERT_ONE_VECTOR"], expert1), (symbols["ATTENDED_VECTOR"], expert4)):
+        for lane, value in enumerate(values):
+            mpu.memory[base + lane * 2 : base + lane * 2 + 2] = (value & 0xFFFF).to_bytes(2, "little")
+    mpu.memory[symbols["router_weight_top1_lo"]] = 0x0F
+    mpu.memory[symbols["router_weight_top1_hi"]] = 0x63
+    mpu.memory[symbols["router_weight_top2_lo"]] = 0xF1
+    mpu.memory[symbols["router_weight_top2_hi"]] = 0x1C
+    call(mpu, symbols["merge_selected_expert_outputs"])
+    expected = [q8_8_weighted_q0_15(one, 0x630F) + q8_8_weighted_q0_15(four, 0x1CF1) for one, four in zip(expert1, expert4)]
+    assert signed_vector(mpu, symbols["ATTENDED_VECTOR"]) == expected
+
+
+def test_interactive_pipeline_retains_e1_then_merges_after_e4():
+    """The live path must not overwrite E1 before applying its router weight."""
+    source = (ROOT / "src" / "cp64.asm").read_text()
+    request = source[source.index("expert1_bias2_loaded:") : source.index("lda #<scale_result")]
+    assert request.index("jsr add_selected_expert_second_bias") < request.index("jsr retain_expert_one_output")
+    assert request.index("jsr retain_expert_one_output") < request.index("jsr project_selected_expert_first", request.index("expert4_weight1_loaded:"))
+    assert request.index("expert4_bias2_loaded:") < request.index("jsr merge_selected_expert_outputs")

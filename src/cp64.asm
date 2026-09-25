@@ -26,6 +26,7 @@ POSITION_VECTOR = $c140
 HIDDEN_VECTOR = $c700
 QUERY_VECTOR = $c740
 KEY_VECTOR = $c780
+EXPERT_ONE_VECTOR = $c740 ; free after attention; preserves E1 until E4 completes
 PROJECTION_SCRATCH = $c7c0
 VALUE_VECTOR = $c800
 ATTENTION_SCORES = $c840
@@ -367,6 +368,7 @@ expert1_weight2_loaded:
     jmp disk_error
 expert1_bias2_loaded:
     jsr add_selected_expert_second_bias
+    jsr retain_expert_one_output
     ldx #<expert4_weight1_filename
     ldy #>expert4_weight1_filename
     lda #26
@@ -404,6 +406,7 @@ expert4_weight2_loaded:
     jmp disk_error
 expert4_bias2_loaded:
     jsr add_selected_expert_second_bias
+    jsr merge_selected_expert_outputs
     lda #<scale_result
     ldy #>scale_result
     jsr print
@@ -1635,6 +1638,59 @@ expert_second_bias_lane:
     iny
     cpy #64
     bne expert_second_bias_lane
+    rts
+
+; Preserve E1's completed second affine before E4 reuses ATTENDED_VECTOR.
+retain_expert_one_output:
+    ldy #0
+retain_expert_one_lane:
+    lda ATTENDED_VECTOR,y
+    sta EXPERT_ONE_VECTOR,y
+    iny
+    cpy #64
+    bne retain_expert_one_lane
+    rts
+
+; Bounded MoE: nearest-round each Q8.8 output times its Q0.15 route weight,
+; then add E1 and E4 in signed 16-bit Q8.8.
+merge_selected_expert_outputs:
+    ldy #0
+merge_expert_lane:
+    lda EXPERT_ONE_VECTOR,y
+    sta mul_a_lo
+    lda EXPERT_ONE_VECTOR+1,y
+    sta mul_a_hi
+    lda router_weight_top1_lo
+    sta mul_b_lo
+    lda router_weight_top1_hi
+    sta mul_b_hi
+    jsr multiply_q8_8
+    jsr rounded_product_q0_15_to_q8_8
+    lda result_lo
+    sta merge_lo
+    lda result_hi
+    sta merge_hi
+    lda ATTENDED_VECTOR,y
+    sta mul_a_lo
+    lda ATTENDED_VECTOR+1,y
+    sta mul_a_hi
+    lda router_weight_top2_lo
+    sta mul_b_lo
+    lda router_weight_top2_hi
+    sta mul_b_hi
+    jsr multiply_q8_8
+    jsr rounded_product_q0_15_to_q8_8
+    clc
+    lda result_lo
+    adc merge_lo
+    sta ATTENDED_VECTOR,y
+    iny
+    lda result_hi
+    adc merge_hi
+    sta ATTENDED_VECTOR,y
+    iny
+    cpy #64
+    bne merge_expert_lane
     rts
 
 ; C9W09 has one FP16 scale and nine packed INT4 router-bias values.
@@ -3900,6 +3956,8 @@ silu_abs_lo: .byte 0
 silu_abs_hi: .byte 0
 silu_negative: .byte 0
 silu_lane: .byte 0
+merge_lo: .byte 0
+merge_hi: .byte 0
 packet_name_lo: .byte 0
 packet_name_hi: .byte 0
 packet_expected_id: .byte 0
