@@ -329,6 +329,80 @@ router_bias_loaded:
     ldy #>step_router_normalize
     jsr print
     jsr normalize_router_top2
+    ldx #<expert1_weight1_filename
+    ldy #>expert1_weight1_filename
+    lda #14
+    jsr configure_expert_packet
+    jsr load_packet_checked
+    bcc expert1_weight1_loaded
+    jmp disk_error
+expert1_weight1_loaded:
+    jsr project_selected_expert_first
+    ldx #<expert1_bias1_filename
+    ldy #>expert1_bias1_filename
+    lda #15
+    jsr configure_expert_packet
+    jsr load_packet_checked
+    bcc expert1_bias1_loaded
+    jmp disk_error
+expert1_bias1_loaded:
+    jsr add_selected_expert_first_bias
+    jsr apply_selected_expert_silu
+    ldx #<expert1_weight2_filename
+    ldy #>expert1_weight2_filename
+    lda #16
+    jsr configure_expert_packet
+    jsr load_packet_checked
+    bcc expert1_weight2_loaded
+    jmp disk_error
+expert1_weight2_loaded:
+    jsr project_selected_expert_second
+    ldx #<expert1_bias2_filename
+    ldy #>expert1_bias2_filename
+    lda #17
+    jsr configure_expert_packet
+    jsr load_packet_checked
+    bcc expert1_bias2_loaded
+    jmp disk_error
+expert1_bias2_loaded:
+    jsr add_selected_expert_second_bias
+    ldx #<expert4_weight1_filename
+    ldy #>expert4_weight1_filename
+    lda #26
+    jsr configure_expert_packet
+    jsr load_packet_checked
+    bcc expert4_weight1_loaded
+    jmp disk_error
+expert4_weight1_loaded:
+    jsr project_selected_expert_first
+    ldx #<expert4_bias1_filename
+    ldy #>expert4_bias1_filename
+    lda #27
+    jsr configure_expert_packet
+    jsr load_packet_checked
+    bcc expert4_bias1_loaded
+    jmp disk_error
+expert4_bias1_loaded:
+    jsr add_selected_expert_first_bias
+    jsr apply_selected_expert_silu
+    ldx #<expert4_weight2_filename
+    ldy #>expert4_weight2_filename
+    lda #28
+    jsr configure_expert_packet
+    jsr load_packet_checked
+    bcc expert4_weight2_loaded
+    jmp disk_error
+expert4_weight2_loaded:
+    jsr project_selected_expert_second
+    ldx #<expert4_bias2_filename
+    ldy #>expert4_bias2_filename
+    lda #29
+    jsr configure_expert_packet
+    jsr load_packet_checked
+    bcc expert4_bias2_loaded
+    jmp disk_error
+expert4_bias2_loaded:
+    jsr add_selected_expert_second_bias
     lda #<scale_result
     ldy #>scale_result
     jsr print
@@ -824,6 +898,35 @@ load_router_bias:
     rts
 router_bias_load_failed:
     sec
+    rts
+
+; A is the expert packet ID and X/Y are the PETSCII filename pointer.  Selected
+; expert weights are 32x32 row packets; their following odd IDs are 32-lane
+; tensor-scaled biases.
+configure_expert_packet:
+    sta packet_expected_id
+    stx packet_name_lo
+    sty packet_name_hi
+    and #1
+    beq configure_expert_weight
+    lda #2
+    sta packet_scale_lo
+    lda #0
+    sta packet_scale_hi
+    lda #16
+    sta packet_packed_lo
+    lda #0
+    sta packet_packed_hi
+    rts
+configure_expert_weight:
+    lda #64
+    sta packet_scale_lo
+    lda #0
+    sta packet_scale_hi
+    lda #0
+    sta packet_packed_lo
+    lda #2
+    sta packet_packed_hi
     rts
 
 ; Page a packet selected by packet_name_{lo,hi}; check C9W1, ID, and lengths.
@@ -1334,6 +1437,191 @@ expert_first_bias_lane:
     iny
     cpy #64
     bne expert_first_bias_lane
+    rts
+
+; Bounded SiLU contract: sigmoid is the checked Q0.15 table at |x|, saturated
+; at 8.0 Q8.8; negative x uses 1-sigmoid(|x|).  The product is nearest-rounded
+; from signed Q8.8 times Q0.15 back to signed Q8.8 in place.
+apply_selected_expert_silu:
+    ldy #0
+expert_silu_lane:
+    lda EXPERT_FIRST_VECTOR,y
+    sta silu_value_lo
+    lda EXPERT_FIRST_VECTOR+1,y
+    sta silu_value_hi
+    bmi expert_silu_negative
+    lda silu_value_lo
+    sta silu_abs_lo
+    lda silu_value_hi
+    sta silu_abs_hi
+    lda #0
+    sta silu_negative
+    jmp expert_silu_bound
+expert_silu_negative:
+    sec
+    lda #0
+    sbc silu_value_lo
+    sta silu_abs_lo
+    lda #0
+    sbc silu_value_hi
+    sta silu_abs_hi
+    lda #1
+    sta silu_negative
+expert_silu_bound:
+    lda silu_abs_hi
+    cmp #8
+    bcc expert_silu_pointer
+    bne expert_silu_saturate
+    lda silu_abs_lo
+    beq expert_silu_pointer
+expert_silu_saturate:
+    lda #0
+    sta silu_abs_lo
+    lda #8
+    sta silu_abs_hi
+expert_silu_pointer:
+    sty silu_lane
+    clc
+    lda silu_abs_lo
+    asl
+    sta silu_abs_lo
+    lda silu_abs_hi
+    rol
+    sta silu_abs_hi
+    clc
+    lda silu_abs_lo
+    adc #<router_sigmoid_q0_15
+    sta pointer
+    lda silu_abs_hi
+    adc #>router_sigmoid_q0_15
+    sta pointer+1
+    ldy #0
+    lda (pointer),y
+    sta mul_b_lo
+    iny
+    lda (pointer),y
+    sta mul_b_hi
+    dey
+    lda silu_negative
+    beq expert_silu_weight_ready
+    sec
+    lda #0
+    sbc mul_b_lo
+    sta mul_b_lo
+    lda #$80
+    sbc mul_b_hi
+    sta mul_b_hi
+expert_silu_weight_ready:
+    ldy silu_lane
+    lda silu_value_lo
+    sta mul_a_lo
+    lda silu_value_hi
+    sta mul_a_hi
+    jsr multiply_q8_8
+    jsr rounded_product_q0_15_to_q8_8
+    lda result_lo
+    sta EXPERT_FIRST_VECTOR,y
+    iny
+    lda result_hi
+    sta EXPERT_FIRST_VECTOR,y
+    iny
+    cpy #64
+    beq expert_silu_done
+    jmp expert_silu_lane
+expert_silu_done:
+    rts
+
+; Project the SiLU result through an original selected expert's second affine.
+project_selected_expert_second:
+    lda #0
+    sta projection_row
+    sta projection_offset
+expert_second_row:
+    lda projection_row
+    sta row
+    jsr decode_scale
+    lda #$49
+    sta packed_offset
+    lda #<PROJECTION_SCRATCH
+    sta vector_base
+    lda #>PROJECTION_SCRATCH
+    sta vector_base+1
+    jsr materialize_row
+    lda #0
+    sta dot0
+    sta dot1
+    sta dot2
+    sta dot3
+    ldy #0
+expert_second_dot:
+    lda EXPERT_FIRST_VECTOR,y
+    sta mul_a_lo
+    lda EXPERT_FIRST_VECTOR+1,y
+    sta mul_a_hi
+    lda PROJECTION_SCRATCH,y
+    sta mul_b_lo
+    lda PROJECTION_SCRATCH+1,y
+    sta mul_b_hi
+    jsr multiply_q8_8
+    clc
+    lda dot0
+    adc product0
+    sta dot0
+    lda dot1
+    adc product1
+    sta dot1
+    lda dot2
+    adc product2
+    sta dot2
+    lda dot3
+    adc product3
+    sta dot3
+    iny
+    iny
+    cpy #64
+    bne expert_second_dot
+    jsr rounded_dot_to_q8_8
+    ldy projection_offset
+    lda result_lo
+    sta ATTENDED_VECTOR,y
+    iny
+    lda result_hi
+    sta ATTENDED_VECTOR,y
+    inc projection_row
+    inc projection_offset
+    inc projection_offset
+    lda projection_row
+    cmp #32
+    beq expert_second_done
+    jmp expert_second_row
+expert_second_done:
+    rts
+
+; Caller pages the selected expert's second tensor-scaled 32-lane bias packet.
+add_selected_expert_second_bias:
+    lda #0
+    sta row
+    jsr decode_scale
+    lda #$0b
+    sta packed_offset
+    lda #<POSITION_VECTOR
+    sta vector_base
+    lda #>POSITION_VECTOR
+    sta vector_base+1
+    jsr materialize_row
+    ldy #0
+expert_second_bias_lane:
+    clc
+    lda ATTENDED_VECTOR,y
+    adc POSITION_VECTOR,y
+    sta ATTENDED_VECTOR,y
+    iny
+    lda ATTENDED_VECTOR,y
+    adc POSITION_VECTOR,y
+    sta ATTENDED_VECTOR,y
+    iny
+    cpy #64
+    bne expert_second_bias_lane
     rts
 
 ; C9W09 has one FP16 scale and nine packed INT4 router-bias values.
@@ -3057,6 +3345,59 @@ rounded_dot_magnitude:
     sta result_hi
     rts
 
+; Symmetrically nearest-round the signed product from Q8.8 * Q0.15 to Q8.8.
+rounded_product_q0_15_to_q8_8:
+    lda product3
+    bpl rounded_q0_15_positive
+    lda #0
+    sec
+    sbc product0
+    sta product0
+    lda #0
+    sbc product1
+    sta product1
+    lda #0
+    sbc product2
+    sta product2
+    lda #0
+    sbc product3
+    sta product3
+    jsr rounded_q0_15_magnitude
+    lda #0
+    sec
+    sbc result_lo
+    sta result_lo
+    lda #0
+    sbc result_hi
+    sta result_hi
+    rts
+rounded_q0_15_positive:
+    jmp rounded_q0_15_magnitude
+rounded_q0_15_magnitude:
+    clc
+    lda product1
+    adc #$40             ; add 2^14 before the Q0.15 shift
+    sta product1
+    lda product2
+    adc #0
+    sta product2
+    lda product3
+    adc #0
+    sta product3
+    ldx #15
+rounded_q0_15_shift:
+    lsr product3
+    ror product2
+    ror product1
+    ror product0
+    dex
+    bne rounded_q0_15_shift
+    lda product0
+    sta result_lo
+    lda product1
+    sta result_hi
+    rts
+
 ; Decode this embedding row's source FP16 scale to Q8.8.
 ; Crystal-9's checked embedding scales are positive normal binary16 exponents 15 or 16.
 decode_scale:
@@ -3506,6 +3847,14 @@ norm_weight_filename: .text "C9W06.PRG"
 norm_bias_filename: .text "C9W07.PRG"
 router_filename: .text "C9W08.PRG"
 router_bias_filename: .text "C9W09.PRG"
+expert1_weight1_filename: .text "C9W14.PRG"
+expert1_bias1_filename: .text "C9W15.PRG"
+expert1_weight2_filename: .text "C9W16.PRG"
+expert1_bias2_filename: .text "C9W17.PRG"
+expert4_weight1_filename: .text "C9W26.PRG"
+expert4_bias1_filename: .text "C9W27.PRG"
+expert4_weight2_filename: .text "C9W28.PRG"
+expert4_bias2_filename: .text "C9W29.PRG"
 position_row: .byte 0
 position_sumlo: .byte 0
 position_sumhi: .byte 0
@@ -3532,6 +3881,12 @@ multiplicand3: .byte 0
 result_lo: .byte 0
 result_hi: .byte 0
 expert_index: .byte 0
+silu_value_lo: .byte 0
+silu_value_hi: .byte 0
+silu_abs_lo: .byte 0
+silu_abs_hi: .byte 0
+silu_negative: .byte 0
+silu_lane: .byte 0
 packet_name_lo: .byte 0
 packet_name_hi: .byte 0
 packet_expected_id: .byte 0

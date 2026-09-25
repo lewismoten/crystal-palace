@@ -1136,3 +1136,49 @@ def test_6502_selected_expert_first_affines_match_original_packets(tmp_path):
         mpu.memory[0xC000 : 0xC000 + len(payload)] = payload
         call(mpu, symbols["add_selected_expert_first_bias"], steps=5_000_000)
         assert signed_vector(mpu, symbols["EXPERT_FIRST_VECTOR"]) == expected
+
+
+def q8_8_bounded_silu(value: int) -> int:
+    """CP64 contract: nearest Q0.15 sigmoid table, |x| clamped to 8.0 Q8.8."""
+    magnitude = min(abs(value), 8 * 256)
+    table = (ROOT / "src" / "router_sigmoid_q0_15.bin").read_bytes()
+    sigmoid = int.from_bytes(table[magnitude * 2 : magnitude * 2 + 2], "little")
+    if value < 0:
+        sigmoid = 32768 - sigmoid
+    product = value * sigmoid
+    return (product + 16384) // 32768 if product >= 0 else -((-product + 16384) // 32768)
+
+
+def test_6502_selected_expert_second_affines_follow_bounded_silu(tmp_path):
+    """E1/E4 execute original 0/2 tensors after the declared Q8.8 SiLU contract."""
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    state = [-74, -134, 141, 98, -73, 305, 56, -14, 165, 155, 71, -146, 29, 33, -41, -120, -214, 210, 43, -47, 46, -149, 155, 30, -9, -9, -53, -258, -94, 228, 91, -101]
+    cases = ((1, "C9W14.PRG", "C9W15.PRG", "C9W16.PRG", "C9W17.PRG"), (4, "C9W26.PRG", "C9W27.PRG", "C9W28.PRG", "C9W29.PRG"))
+    for expert, first_weight, first_bias, second_weight, second_bias in cases:
+        for lane, value in enumerate(state):
+            mpu.memory[symbols["ATTENDED_VECTOR"] + lane * 2 : symbols["ATTENDED_VECTOR"] + lane * 2 + 2] = (value & 0xFFFF).to_bytes(2, "little")
+        for packet_name, routine in ((first_weight, "project_selected_expert_first"), (first_bias, "add_selected_expert_first_bias"), (None, "apply_selected_expert_silu"), (second_weight, "project_selected_expert_second"), (second_bias, "add_selected_expert_second_bias")):
+            if packet_name:
+                payload = (ROOT / "build" / "layers" / packet_name).read_bytes()[2:]
+                mpu.memory[0xC000 : 0xC000 + len(payload)] = payload
+            call(mpu, symbols[routine], steps=100_000_000)
+        first = [q8_8_dot(state, q8_8_vector_from_original_packet(ROOT / "build" / "layers" / first_weight, row)) for row in range(32)]
+        first_bias_values = q8_8_vector_from_original_packet(ROOT / "build" / "layers" / first_bias, 0)
+        activated = [q8_8_bounded_silu(value + bias) for value, bias in zip(first, first_bias_values)]
+        second = [q8_8_dot(activated, q8_8_vector_from_original_packet(ROOT / "build" / "layers" / second_weight, row)) for row in range(32)]
+        second_bias_values = q8_8_vector_from_original_packet(ROOT / "build" / "layers" / second_bias, 0)
+        expected = [((value + bias + 0x8000) & 0xFFFF) - 0x8000 for value, bias in zip(second, second_bias_values)]
+        assert signed_vector(mpu, symbols["ATTENDED_VECTOR"]) == expected
+
+
+def test_interactive_pipeline_pages_both_selected_expert_second_affines_after_router_normalization():
+    """The user path cannot claim the expert gate without paging all E1/E4 tensors."""
+    source = (ROOT / "src" / "cp64.asm").read_text()
+    request = source[source.index("jsr normalize_router_top2") : source.index("lda #<scale_result")]
+    for routine in ("project_selected_expert_first", "add_selected_expert_first_bias", "apply_selected_expert_silu", "project_selected_expert_second", "add_selected_expert_second_bias"):
+        assert request.count(f"jsr {routine}") == 2
+    for name in ("C9W14.PRG", "C9W15.PRG", "C9W16.PRG", "C9W17.PRG", "C9W26.PRG", "C9W27.PRG", "C9W28.PRG", "C9W29.PRG"):
+        assert name in source
