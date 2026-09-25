@@ -955,3 +955,44 @@ def test_6502_three_token_causal_score_row_keeps_prior_original_keys(tmp_path):
     assert scores[:8] == expected_zero
     assert scores[8:16] == expected_one
     assert scores[16:24] == [-32768] * 8
+
+
+def test_6502_projects_live_norm_output_through_all_original_router_rows(tmp_path):
+    """C9W08 maps the retained live LayerNorm affine vector to nine router logits."""
+    prg = tmp_path / "CP64.PRG"
+    labels_path = tmp_path / "cp64.lbl"
+    subprocess.run(
+        [str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")],
+        check=True, capture_output=True, text=True,
+    )
+    symbols = labels(labels_path)
+    assert "project_router" in symbols
+    assert "ROUTER_LOGITS" in symbols
+    mpu = MPU()
+    image = prg.read_bytes()
+    load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    live_norm_output = [-74, -134, 141, 98, -73, 305, 56, -14, 165, 155, 71, -146, 29, 33, -41, -120, -214, 210, 43, -47, 46, -149, 155, 30, -9, -9, -53, -258, -94, 228, 91, -101]
+    for index, value in enumerate(live_norm_output):
+        mpu.memory[symbols["ATTENDED_VECTOR"] + index * 2 : symbols["ATTENDED_VECTOR"] + index * 2 + 2] = (value & 0xFFFF).to_bytes(2, "little")
+    packet = ROOT / "build" / "layers" / "C9W08.PRG"
+    payload = packet.read_bytes()
+    mpu.memory[0xC000 : 0xC000 + len(payload) - 2] = payload[2:]
+
+    call(mpu, symbols["project_router"], steps=20_000_000)
+
+    expected = [q8_8_dot(live_norm_output, q8_8_vector_from_original_packet(packet, row)) for row in range(9)]
+    actual = []
+    for index in range(9):
+        value = mpu.memory[symbols["ROUTER_LOGITS"] + index * 2] | (mpu.memory[symbols["ROUTER_LOGITS"] + index * 2 + 1] << 8)
+        actual.append(value - 0x10000 if value & 0x8000 else value)
+    assert actual == expected
+
+
+def test_interactive_pipeline_pages_original_router_after_norm_affine():
+    """The executable gate must page C9W08 only after producing its live input."""
+    source = (ROOT / "src" / "cp64.asm").read_text()
+    request = source[source.index("norm_bias_loaded:") : source.index("lda #<scale_result")]
+    assert request.index("jsr apply_norm_affine") < request.index("jsr load_router")
+    assert request.index("jsr load_router") < request.index("jsr project_router")
+    assert 'router_filename: .text "C9W08.PRG"' in source

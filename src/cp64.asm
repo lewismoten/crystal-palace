@@ -33,6 +33,7 @@ KEY_HISTORY = $c880
 RESIDUAL_VECTOR = $c880 ; valid after two-key score materialization
 ATTENDED_VECTOR = $c900
 CAUSAL_SCORES = $c940
+ROUTER_LOGITS = $c940
 VALUE_HISTORY = $c980
 pointer = $fb
 vector_base = $fd
@@ -297,6 +298,11 @@ norm_bias_loaded:
     jsr print
     jsr apply_norm_affine
     jsr checksum_norm_affine
+    jsr load_router
+    bcc router_loaded
+    jmp disk_error
+router_loaded:
+    jsr project_router
     lda #<scale_result
     ldy #>scale_result
     jsr print
@@ -675,6 +681,47 @@ norm_bias_load_failed:
     sec
     rts
 
+; Page original C9W08 router.weight: nine row-scaled 32-lane INT4 rows.
+load_router:
+    lda #9
+    ldx #<router_filename
+    ldy #>router_filename
+    jsr SETNAM
+    lda #1
+    ldx #8
+    ldy #0
+    jsr SETLFS
+    lda #0
+    ldx #<BUFFER
+    ldy #>BUFFER
+    jsr LOAD
+    bcs router_load_failed
+    lda BUFFER
+    cmp #'C'
+    bne router_load_failed
+    lda BUFFER+1
+    cmp #'9'
+    bne router_load_failed
+    lda BUFFER+2
+    cmp #'W'
+    bne router_load_failed
+    lda BUFFER+3
+    cmp #'1'
+    bne router_load_failed
+    lda BUFFER+4
+    cmp #8
+    bne router_load_failed
+    lda BUFFER+5
+    cmp #18
+    bne router_load_failed
+    lda BUFFER+6
+    bne router_load_failed
+    clc
+    rts
+router_load_failed:
+    sec
+    rts
+
 ; Materialize the selected original embedding row as 32 signed Q8.8 values.
 ; The 64-byte token vector lives at $C100, outside the $C000 packet window.
 materialize_embedding:
@@ -977,6 +1024,72 @@ retain_hidden_loop:
     rts
 
 ; Project C9W02's first 32 rows (Q) against the retained Q8.8 input.
+; C9W08 has nine row-scaled router rows; its input is the affine norm output.
+project_router:
+    lda #0
+    sta projection_row
+    sta projection_offset
+project_router_row:
+    lda projection_row
+    sta row
+    jsr decode_scale
+    lda #$1b            ; C9W1 header (9) + nine FP16 scales (18)
+    sta packed_offset
+    lda #<PROJECTION_SCRATCH
+    sta vector_base
+    lda #>PROJECTION_SCRATCH
+    sta vector_base+1
+    jsr materialize_row
+    lda #0
+    sta dot0
+    sta dot1
+    sta dot2
+    sta dot3
+    ldy #0
+project_router_dot:
+    lda ATTENDED_VECTOR,y
+    sta mul_a_lo
+    lda ATTENDED_VECTOR+1,y
+    sta mul_a_hi
+    lda PROJECTION_SCRATCH,y
+    sta mul_b_lo
+    lda PROJECTION_SCRATCH+1,y
+    sta mul_b_hi
+    jsr multiply_q8_8
+    clc
+    lda dot0
+    adc product0
+    sta dot0
+    lda dot1
+    adc product1
+    sta dot1
+    lda dot2
+    adc product2
+    sta dot2
+    lda dot3
+    adc product3
+    sta dot3
+    iny
+    iny
+    cpy #64
+    bne project_router_dot
+    jsr rounded_dot_to_q8_8
+    ldy projection_offset
+    lda result_lo
+    sta ROUTER_LOGITS,y
+    iny
+    lda result_hi
+    sta ROUTER_LOGITS,y
+    inc projection_row
+    inc projection_offset
+    inc projection_offset
+    lda projection_row
+    cmp #9
+    beq project_router_done
+    jmp project_router_row
+project_router_done:
+    rts
+
 project_query:
     lda #0
     sta projection_row
@@ -2916,6 +3029,7 @@ attention_output_filename: .text "C9W04.PRG"
 attention_output_bias_filename: .text "C9W05.PRG"
 norm_weight_filename: .text "C9W06.PRG"
 norm_bias_filename: .text "C9W07.PRG"
+router_filename: .text "C9W08.PRG"
 position_row: .byte 0
 position_sumlo: .byte 0
 position_sumhi: .byte 0

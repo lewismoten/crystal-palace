@@ -4,9 +4,9 @@ CP64 is a Commodore 64 feasibility project for **the original Crystal-9 packed I
 
 ## Current executable milestone
 
-`build/cp64.d64` is a runnable C64 disk with a bounded **two-token attention-residual and LayerNorm-centering gate**. For `A`→`B`, it materializes all eight original C9W02 attention heads under the fixed-point two-key causal-softmax contract, applies original C9W04/C9W05 output projection and bias, adds the retained input residual, then computes and subtracts the symmetric Q8.8 32-lane mean. All packets retain their original FP16 scale bytes and packed INT4 payloads.
+`build/cp64.d64` is a runnable C64 disk with a bounded **two-token attention, LayerNorm-affine, and raw router-projection gate**. For `A`→`B`, it materializes all eight original C9W02 attention heads under the fixed-point two-key causal-softmax contract, applies original C9W04/C9W05 output projection and bias, adds the retained input residual, completes the fixed-point LayerNorm contract, then pages C9W08 and projects its nine original router-weight rows. All packets retain their original FP16 scale bytes and packed INT4 payloads.
 
-This is not yet a model move. Variance, reciprocal-square-root, and application of the already-paged original C9W06/C9W07 affine tensors remain. It must not be represented as a tic-tac-toe-playing model until the 6502 evaluator is implemented and compared with Crystal-9's reference outputs.
+This is not yet a model move. Original C9W09 router bias, top-2 selection and normalization, selected expert execution, residuals, and output logits remain. It must not be represented as a tic-tac-toe-playing model until the 6502 evaluator is implemented and compared with Crystal-9's reference outputs.
 
 ## Model provenance
 
@@ -56,6 +56,7 @@ build/cs64-030-norm-bias-paging.d64
 build/cs64-031-layer-norm-centering.d64
 build/cs64-032-layer-norm-variance.d64
 build/cs64-033-layer-norm-affine.d64
+build/cs64-034-router-projection.d64
 ```
 
 `cp64.d64` is a compatibility copy of the current numbered gate. A number is reserved only after its gate builds and passes its reference tests.
@@ -126,14 +127,18 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 `cs64-033-layer-norm-affine.d64` completes this bounded fixed-point LayerNorm contract for the live `A`→`B` sequence: 32-bit centering and variance, epsilon `$00000001` Q16.16, nearest integer square root, symmetric Q8.8 normalization, and original packed C9W06 gamma/C9W07 beta affine application. Its assembled-6502 live-path regression asserts residual `$FF9E`, mean `-711`, variance `$06C97ECE`, stddev `$29AF`, normalized checksum `$DF93`, static original gamma/beta checksums `$E4D4`/`$051C`, and final affine checksum `$FCBF`. Browser-emulator parity is confirmed for `$29AF`, `$DF93`, and `$FCBF`. This is LayerNorm only; routing and expert execution remain unimplemented.
 
+### Stage 034 router-weight projection
+
+`cs64-034-router-projection.d64` retains the Stage 033 `A`→`B` LayerNorm-affine output, pages original C9W08, and projects all nine original packed-INT4 router-weight rows. The assembled-6502 regression compares each Q8.8 logit with an independent calculation over verbatim C9W08 bytes: `[-839, 1559, 9, -228, 1324, -381, -613, -1574, 878]` (weighted checksum `$F34B`). This gate excludes C9W09 router bias and does not select an expert.
+
 ### Browser test target
 
 The manual acceptance target is [C64 Online Emulator](https://c64online.com/c64-online-emulator/). Use its **Load Program** control to select the numbered `.d64` artifact; it accepts D64 files directly. This project treats a user-reported matching result from that emulator as a separate browser-emulator confirmation in addition to the assembled-6502 regression suite.
 
 ## Next proof gates
 
-1. Implement the first nontrivial fixed-point softmax: two visible causal keys, normalized weights, and a four-lane attended-value slice from the original query, key, and value vectors.
-2. Implement LayerNorm, router top-2 selection, only the selected expert tensors, and output logits.
+1. Page C9W09, add its original router bias, and prove all nine final router logits.
+2. Implement router top-2 selection and normalization, only the selected expert tensors, and output logits.
 3. Feed legal move histories from the C64 game loop and compare every C64 prediction against the packed Python reference runtime.
 4. Run exhaustive legal-history parity before claiming the C64 can play tic-tac-toe with Crystal-9.
 
