@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_layer_norm_variance():
+def test_current_disk_stage_reports_layer_norm_affine():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 32
-    assert builder.CURRENT_DESCRIPTION == "layer-norm-variance"
+    assert builder.CURRENT_STAGE == 33
+    assert builder.CURRENT_DESCRIPTION == "layer-norm-affine"

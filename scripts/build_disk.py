@@ -10,8 +10,8 @@ from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 32
-CURRENT_DESCRIPTION = "layer-norm-variance"
+CURRENT_STAGE = 33
+CURRENT_DESCRIPTION = "layer-norm-affine"
 
 
 def stage_image_path(number: int, description: str) -> Path:

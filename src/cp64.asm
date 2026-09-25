@@ -260,6 +260,15 @@ attention_output_bias_loaded:
     ldy #>step_norm_variance
     jsr print
     jsr layer_norm_variance32
+    lda #<step_norm_isqrt
+    ldy #>step_norm_isqrt
+    jsr print
+    jsr sqrt_variance_to_q8_8
+    lda #<step_norm_normalize
+    ldy #>step_norm_normalize
+    jsr print
+    jsr normalize_layer_norm_input
+    jsr checksum_normalized_output
     jsr checksum_attended_output
     lda #<step_norm_load
     ldy #>step_norm_load
@@ -283,6 +292,11 @@ norm_bias_loaded:
     ldy #>step_norm_bias_materialize
     jsr print
     jsr materialize_norm_bias
+    lda #<step_norm_affine
+    ldy #>step_norm_affine
+    jsr print
+    jsr apply_norm_affine
+    jsr checksum_norm_affine
     lda #<scale_result
     ldy #>scale_result
     jsr print
@@ -353,6 +367,33 @@ norm_bias_loaded:
     lda norm_variance1
     jsr hexbyte
     lda norm_variance0
+    jsr hexbyte
+    lda #13
+    jsr CHROUT
+    lda #<norm_rms_result
+    ldy #>norm_rms_result
+    jsr print
+    lda norm_rms_hi
+    jsr hexbyte
+    lda norm_rms_lo
+    jsr hexbyte
+    lda #13
+    jsr CHROUT
+    lda #<norm_normalized_checksum
+    ldy #>norm_normalized_checksum
+    jsr print
+    lda norm_normalized_sumhi
+    jsr hexbyte
+    lda norm_normalized_sumlo
+    jsr hexbyte
+    lda #13
+    jsr CHROUT
+    lda #<norm_affine_checksum
+    ldy #>norm_affine_checksum
+    jsr print
+    lda norm_affine_sumhi
+    jsr hexbyte
+    lda norm_affine_sumlo
     jsr hexbyte
     lda #13
     jsr CHROUT
@@ -1281,6 +1322,338 @@ norm_variance_divide:
     ror norm_variance0
     dex
     bne norm_variance_divide
+    rts
+
+; Nearest integer sqrt of unsigned Q16.16 variance (plus 1-Q16.16 epsilon).
+; Returns the Q8.8 standard deviation in norm_rms_lo/hi.
+sqrt_variance_to_q8_8:
+    clc
+    lda norm_variance0
+    adc #1
+    sta sqrt_src0
+    lda norm_variance1
+    adc #0
+    sta sqrt_src1
+    lda norm_variance2
+    adc #0
+    sta sqrt_src2
+    lda norm_variance3
+    adc #0
+    sta sqrt_src3
+    lda #0
+    sta norm_rms_lo
+    sta norm_rms_hi
+    sta sqrt_rem0
+    sta sqrt_rem1
+    sta sqrt_rem2
+    ldx #16
+sqrt_q8_8_bit:
+    asl sqrt_src0
+    rol sqrt_src1
+    rol sqrt_src2
+    rol sqrt_src3
+    rol sqrt_rem0
+    rol sqrt_rem1
+    rol sqrt_rem2
+    asl sqrt_src0
+    rol sqrt_src1
+    rol sqrt_src2
+    rol sqrt_src3
+    rol sqrt_rem0
+    rol sqrt_rem1
+    rol sqrt_rem2
+    lda norm_rms_lo
+    sta sqrt_trial0
+    lda norm_rms_hi
+    sta sqrt_trial1
+    lda #0
+    sta sqrt_trial2
+    asl sqrt_trial0
+    rol sqrt_trial1
+    rol sqrt_trial2
+    asl sqrt_trial0
+    rol sqrt_trial1
+    rol sqrt_trial2
+    inc sqrt_trial0
+    asl norm_rms_lo
+    rol norm_rms_hi
+    lda sqrt_rem2
+    cmp sqrt_trial2
+    bcc sqrt_q8_8_no_bit
+    bne sqrt_q8_8_take_bit
+    lda sqrt_rem1
+    cmp sqrt_trial1
+    bcc sqrt_q8_8_no_bit
+    bne sqrt_q8_8_take_bit
+    lda sqrt_rem0
+    cmp sqrt_trial0
+    bcc sqrt_q8_8_no_bit
+sqrt_q8_8_take_bit:
+    sec
+    lda sqrt_rem0
+    sbc sqrt_trial0
+    sta sqrt_rem0
+    lda sqrt_rem1
+    sbc sqrt_trial1
+    sta sqrt_rem1
+    lda sqrt_rem2
+    sbc sqrt_trial2
+    sta sqrt_rem2
+    inc norm_rms_lo
+sqrt_q8_8_no_bit:
+    dex
+    beq sqrt_q8_8_after_bits
+    jmp sqrt_q8_8_bit
+sqrt_q8_8_after_bits:
+    lda sqrt_rem2
+    bne sqrt_q8_8_round_up
+    lda sqrt_rem1
+    cmp norm_rms_hi
+    bcc sqrt_q8_8_done
+    bne sqrt_q8_8_round_up
+    lda sqrt_rem0
+    cmp norm_rms_lo
+    bcc sqrt_q8_8_done
+    beq sqrt_q8_8_done
+sqrt_q8_8_round_up:
+    inc norm_rms_lo
+    bne sqrt_q8_8_done
+    inc norm_rms_hi
+sqrt_q8_8_done:
+    rts
+
+; Divide a signed Q8.8 numerator by the positive Q8.8 RMS, preserving Q8.8.
+; Input norm_in_lo/hi; result is returned in result_lo/hi. Y is preserved.
+normalize_divide_q8_8:
+    lda norm_rms_lo
+    ora norm_rms_hi
+    bne normalize_divide_nonzero
+    jmp normalize_divide_zero
+normalize_divide_nonzero:
+    lda #0
+    sta norm_div_sign
+    lda norm_in_hi
+    bpl normalize_divide_abs_ready
+    lda #1
+    sta norm_div_sign
+    sec
+    lda #0
+    sbc norm_in_lo
+    sta norm_num0
+    lda #0
+    sbc norm_in_hi
+    sta norm_num1
+    jmp normalize_divide_shift
+normalize_divide_abs_ready:
+    lda norm_in_lo
+    sta norm_num0
+    lda norm_in_hi
+    sta norm_num1
+normalize_divide_shift:
+    lda #0
+    sta norm_num2
+    ldx #8
+normalize_divide_scale:
+    asl norm_num0
+    rol norm_num1
+    rol norm_num2
+    dex
+    bne normalize_divide_scale
+    lda norm_rms_lo
+    sta norm_half_lo
+    lda norm_rms_hi
+    sta norm_half_hi
+    lsr norm_half_hi
+    ror norm_half_lo
+    clc
+    lda norm_num0
+    adc norm_half_lo
+    sta norm_num0
+    lda norm_num1
+    adc norm_half_hi
+    sta norm_num1
+    lda norm_num2
+    adc #0
+    sta norm_num2
+    lda #0
+    sta norm_rem0
+    sta norm_rem1
+    sta norm_rem2
+    sta norm_quot0
+    sta norm_quot1
+    sta norm_quot2
+    ldx #24
+normalize_divide_bit:
+    asl norm_num0
+    rol norm_num1
+    rol norm_num2
+    rol norm_rem0
+    rol norm_rem1
+    rol norm_rem2
+    asl norm_quot0
+    rol norm_quot1
+    rol norm_quot2
+    lda norm_rem2
+    bne normalize_divide_take
+    lda norm_rem1
+    cmp norm_rms_hi
+    bcc normalize_divide_next
+    bne normalize_divide_take
+    lda norm_rem0
+    cmp norm_rms_lo
+    bcc normalize_divide_next
+normalize_divide_take:
+    sec
+    lda norm_rem0
+    sbc norm_rms_lo
+    sta norm_rem0
+    lda norm_rem1
+    sbc norm_rms_hi
+    sta norm_rem1
+    lda norm_rem2
+    sbc #0
+    sta norm_rem2
+    inc norm_quot0
+normalize_divide_next:
+    dex
+    bne normalize_divide_bit
+    lda norm_div_sign
+    beq normalize_divide_positive
+    sec
+    lda #0
+    sbc norm_quot0
+    sta result_lo
+    lda #0
+    sbc norm_quot1
+    sta result_hi
+    clc
+    rts
+normalize_divide_positive:
+    lda norm_quot0
+    sta result_lo
+    lda norm_quot1
+    sta result_hi
+    clc
+    rts
+normalize_divide_zero:
+    sec
+    rts
+
+normalize_layer_norm_input:
+    ldy #0
+normalize_layer_norm_lane:
+    lda HIDDEN_VECTOR,y
+    sta norm_in_lo
+    iny
+    lda HIDDEN_VECTOR,y
+    sta norm_in_hi
+    dey
+    jsr normalize_divide_q8_8
+    lda result_lo
+    sta HIDDEN_VECTOR,y
+    iny
+    lda result_hi
+    sta HIDDEN_VECTOR,y
+    iny
+    cpy #64
+    bne normalize_layer_norm_lane
+    rts
+
+; Multiply normalized values by original C9W06 gamma and add original C9W07 beta.
+apply_norm_affine:
+    ldy #0
+apply_norm_affine_lane:
+    lda HIDDEN_VECTOR,y
+    sta mul_a_lo
+    lda PROJECTION_SCRATCH,y
+    sta mul_b_lo
+    iny
+    lda HIDDEN_VECTOR,y
+    sta mul_a_hi
+    lda PROJECTION_SCRATCH,y
+    sta mul_b_hi
+    dey
+    jsr multiply_q8_8
+    lda product0
+    sta dot0
+    lda product1
+    sta dot1
+    lda product2
+    sta dot2
+    lda product3
+    sta dot3
+    jsr rounded_dot_to_q8_8
+    clc
+    lda result_lo
+    adc POSITION_VECTOR,y
+    sta ATTENDED_VECTOR,y
+    iny
+    lda result_hi
+    adc POSITION_VECTOR,y
+    sta ATTENDED_VECTOR,y
+    iny
+    cpy #64
+    bne apply_norm_affine_lane
+    rts
+
+checksum_normalized_output:
+    lda #0
+    sta norm_normalized_sumlo
+    sta norm_normalized_sumhi
+    lda #1
+    sta factor
+    ldy #0
+checksum_normalized_lane:
+    lda HIDDEN_VECTOR,y
+    sta act_lo
+    iny
+    lda HIDDEN_VECTOR,y
+    sta act_hi
+    iny
+    ldx factor
+checksum_normalized_weight:
+    clc
+    lda norm_normalized_sumlo
+    adc act_lo
+    sta norm_normalized_sumlo
+    lda norm_normalized_sumhi
+    adc act_hi
+    sta norm_normalized_sumhi
+    dex
+    bne checksum_normalized_weight
+    inc factor
+    cpy #64
+    bne checksum_normalized_lane
+    rts
+
+checksum_norm_affine:
+    lda #0
+    sta norm_affine_sumlo
+    sta norm_affine_sumhi
+    lda #1
+    sta factor
+    ldy #0
+checksum_norm_affine_lane:
+    lda ATTENDED_VECTOR,y
+    sta act_lo
+    iny
+    lda ATTENDED_VECTOR,y
+    sta act_hi
+    iny
+    ldx factor
+checksum_norm_affine_weight:
+    clc
+    lda norm_affine_sumlo
+    adc act_lo
+    sta norm_affine_sumlo
+    lda norm_affine_sumhi
+    adc act_hi
+    sta norm_affine_sumhi
+    dex
+    bne checksum_norm_affine_weight
+    inc factor
+    cpy #64
+    bne checksum_norm_affine_lane
     rts
 
 ; Project C9W02's next 32 rows (K) against the retained Q8.8 input.
@@ -2489,6 +2862,36 @@ norm_variance0: .byte 0
 norm_variance1: .byte 0
 norm_variance2: .byte 0
 norm_variance3: .byte 0
+norm_normalized_sumlo: .byte 0
+norm_normalized_sumhi: .byte 0
+norm_affine_sumlo: .byte 0
+norm_affine_sumhi: .byte 0
+norm_rms_lo: .byte 0
+norm_rms_hi: .byte 0
+sqrt_src0: .byte 0
+sqrt_src1: .byte 0
+sqrt_src2: .byte 0
+sqrt_src3: .byte 0
+sqrt_rem0: .byte 0
+sqrt_rem1: .byte 0
+sqrt_rem2: .byte 0
+sqrt_trial0: .byte 0
+sqrt_trial1: .byte 0
+sqrt_trial2: .byte 0
+norm_in_lo: .byte 0
+norm_in_hi: .byte 0
+norm_div_sign: .byte 0
+norm_num0: .byte 0
+norm_num1: .byte 0
+norm_num2: .byte 0
+norm_half_lo: .byte 0
+norm_half_hi: .byte 0
+norm_rem0: .byte 0
+norm_rem1: .byte 0
+norm_rem2: .byte 0
+norm_quot0: .byte 0
+norm_quot1: .byte 0
+norm_quot2: .byte 0
 norm_group: .byte 0
 factor: .byte 0
 code: .byte 0
@@ -2575,34 +2978,37 @@ title:
 loading: .text "THINKING: READING C9W00 FROM DISK...",13,0
 loaded: .text "C9W00 READY. TYPE A THROUGH I.",13,13,0
 thinking: .text "THINKING TOKEN ",0
-step_token: .text "1/28 TOKEN EMBEDDING",13,0
-step_position: .text "2/28 POSITION EMBEDDING",13,0
-step_query: .text "3/28 ATTENTION Q",13,0
-step_key: .text "4/28 ATTENTION K",13,0
-step_value: .text "5/28 ATTENTION V",13,0
-step_history: .text "6/28 RETAIN K/V HISTORY",13,0
-step_scores: .text "7/28 SELF ATTENTION SCORES",13,0
-step_two_key_scores: .text "8/28 TWO-KEY CAUSAL SCORES",13,0
-step_head0: .text "9/28 CAUSAL SOFTMAX + V HEAD 0",13,0
-step_head1: .text "10/28 CAUSAL SOFTMAX + V HEAD 1",13,0
-step_head2: .text "11/28 CAUSAL SOFTMAX + V HEAD 2",13,0
-step_head3: .text "12/28 CAUSAL SOFTMAX + V HEAD 3",13,0
-step_head4: .text "13/28 CAUSAL SOFTMAX + V HEAD 4",13,0
-step_head5: .text "14/28 CAUSAL SOFTMAX + V HEAD 5",13,0
-step_head6: .text "15/28 CAUSAL SOFTMAX + V HEAD 6",13,0
-step_head7: .text "16/28 CAUSAL SOFTMAX + V HEAD 7",13,0
-step_residual_retain: .text "17/28 RETAIN ATTENTION RESIDUAL",13,0
-step_output_load: .text "18/28 LOAD ATTENTION OUTPUT WEIGHT",13,0
-step_output_project: .text "19/28 ATTENTION OUTPUT PROJECTION",13,0
-step_output_bias_load: .text "20/28 LOAD ATTENTION OUTPUT BIAS",13,0
-step_output_bias: .text "21/28 ADD ATTENTION OUTPUT BIAS",13,0
-step_residual_add: .text "22/28 ADD ATTENTION RESIDUAL",13,0
-step_norm_center: .text "23/28 CENTER LAYERNORM INPUT",13,0
-step_norm_variance: .text "24/28 LAYERNORM VARIANCE",13,0
-step_norm_load: .text "25/28 LOAD NORM WEIGHT",13,0
-step_norm_materialize: .text "26/28 MATERIALIZE NORM WEIGHT",13,0
-step_norm_bias_load: .text "27/28 LOAD NORM BIAS",13,0
-step_norm_bias_materialize: .text "28/28 MATERIALIZE NORM BIAS",13,0
+step_token: .text "1/31 TOKEN EMBEDDING",13,0
+step_position: .text "2/31 POSITION EMBEDDING",13,0
+step_query: .text "3/31 ATTENTION Q",13,0
+step_key: .text "4/31 ATTENTION K",13,0
+step_value: .text "5/31 ATTENTION V",13,0
+step_history: .text "6/31 RETAIN K/V HISTORY",13,0
+step_scores: .text "7/31 SELF ATTENTION SCORES",13,0
+step_two_key_scores: .text "8/31 TWO-KEY CAUSAL SCORES",13,0
+step_head0: .text "9/31 CAUSAL SOFTMAX + V HEAD 0",13,0
+step_head1: .text "10/31 CAUSAL SOFTMAX + V HEAD 1",13,0
+step_head2: .text "11/31 CAUSAL SOFTMAX + V HEAD 2",13,0
+step_head3: .text "12/31 CAUSAL SOFTMAX + V HEAD 3",13,0
+step_head4: .text "13/31 CAUSAL SOFTMAX + V HEAD 4",13,0
+step_head5: .text "14/31 CAUSAL SOFTMAX + V HEAD 5",13,0
+step_head6: .text "15/31 CAUSAL SOFTMAX + V HEAD 6",13,0
+step_head7: .text "16/31 CAUSAL SOFTMAX + V HEAD 7",13,0
+step_residual_retain: .text "17/31 RETAIN ATTENTION RESIDUAL",13,0
+step_output_load: .text "18/31 LOAD ATTENTION OUTPUT WEIGHT",13,0
+step_output_project: .text "19/31 ATTENTION OUTPUT PROJECTION",13,0
+step_output_bias_load: .text "20/31 LOAD ATTENTION OUTPUT BIAS",13,0
+step_output_bias: .text "21/31 ADD ATTENTION OUTPUT BIAS",13,0
+step_residual_add: .text "22/31 ADD ATTENTION RESIDUAL",13,0
+step_norm_center: .text "23/31 CENTER LAYERNORM INPUT",13,0
+step_norm_variance: .text "24/31 LAYERNORM VARIANCE",13,0
+step_norm_isqrt: .text "25/31 LAYERNORM NEAREST ISQRT",13,0
+step_norm_normalize: .text "26/31 NORMALIZE LAYERNORM",13,0
+step_norm_load: .text "27/31 LOAD NORM WEIGHT",13,0
+step_norm_materialize: .text "28/31 MATERIALIZE NORM WEIGHT",13,0
+step_norm_bias_load: .text "29/31 LOAD NORM BIAS",13,0
+step_norm_bias_materialize: .text "30/31 MATERIALIZE NORM BIAS",13,0
+step_norm_affine: .text "31/31 APPLY NORM AFFINE",13,0
 scale_result: .text "FP16 SCALE AS Q8.8 $",0
 result: .text "TOKEN ",0
 embedding_checksum: .text " EMBEDDING CHECKSUM $",0
@@ -2612,5 +3018,8 @@ norm_checksum: .text " NORM WEIGHT CHECKSUM $",0
 norm_bias_checksum: .text " NORM BIAS CHECKSUM $",0
 norm_center_checksum: .text " NORM CENTER CHECKSUM $",0
 norm_variance_result: .text " NORM VARIANCE Q16.16 $",0
+norm_rms_result: .text " NORM STDDEV Q8.8 $",0
+norm_normalized_checksum: .text " NORM NORMALIZED CHECKSUM $",0
+norm_affine_checksum: .text " NORM AFFINE CHECKSUM $",0
 error_message: .text "C9W00 LOAD OR HEADER ERROR",13,0
 scale_error_message: .text "UNSUPPORTED FP16 SCALE",13,0

@@ -55,6 +55,7 @@ build/cs64-029-norm-weight-paging.d64
 build/cs64-030-norm-bias-paging.d64
 build/cs64-031-layer-norm-centering.d64
 build/cs64-032-layer-norm-variance.d64
+build/cs64-033-layer-norm-affine.d64
 ```
 
 `cp64.d64` is a compatibility copy of the current numbered gate. A number is reserved only after its gate builds and passes its reference tests.
@@ -115,11 +116,15 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 ### Stage 031 LayerNorm centering
 
-`cs64-031-layer-norm-centering.d64` retains the Stage 030 source-tensor paging proofs and adds the first LayerNorm arithmetic slice. For the live bounded `A`→`B` attention-residual vector, its 6502 routine accumulates the signed Q8.8 total in 32 bits, symmetrically rounds the 32-lane mean to `-713`, and writes `x - mean` for all 32 lanes. The centered-vector checksum is `6AAA`.
+`cs64-031-layer-norm-centering.d64` introduced signed 32-bit mean accumulation and symmetric mean rounding, then retains `x - mean` for all 32 lanes. Its documented `6AAA` checksum belongs to the isolated arithmetic fixture retained in the regression suite; it is not a live A→B browser-sequence oracle.
 
 ### Stage 032 LayerNorm variance bundle
 
-`cs64-032-layer-norm-variance.d64` bundles Stage 031 centering with the next arithmetic step: every centered lane is squared as Q16.16, accumulated in an **unsigned** 32-bit sum, then nearest-divided by 32. For the actual browser/live `A`→`B` sequence, it displays centered checksum `6AAA` and variance `06C97ECE` (Q16.16). The separate isolated-vector arithmetic fixture produces `06D395DA`; it is not the browser sequence. Integer square root, normalization, and the already decoded C9W06/C9W07 affine application remain next.
+`cs64-032-layer-norm-variance.d64` adds unsigned 32-bit Q16.16 sum-of-squares and nearest division by 32. It preserves the original C9W06/C9W07 paging proofs but does not yet apply the affine transform.
+
+### Stage 033 LayerNorm affine bundle
+
+`cs64-033-layer-norm-affine.d64` completes this bounded fixed-point LayerNorm contract for the live `A`→`B` sequence: 32-bit centering and variance, epsilon `$00000001` Q16.16, nearest integer square root, symmetric Q8.8 normalization, and original packed C9W06 gamma/C9W07 beta affine application. Its assembled-6502 live-path regression asserts residual `$FF9E`, mean `-711`, variance `$06C97ECE`, stddev `$29AF`, normalized checksum `$DF93`, static original gamma/beta checksums `$E4D4`/`$051C`, and final affine checksum `$FCBF`. This is LayerNorm only; routing and expert execution remain unimplemented.
 
 ### Browser test target
 

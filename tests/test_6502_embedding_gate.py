@@ -829,6 +829,20 @@ def test_6502_a_then_b_residual_pipeline_uses_live_attention_state(tmp_path):
     call(mpu, symbols["layer_norm_variance32"], steps=5_000_000)
     actual_variance = sum(mpu.memory[symbols[f"norm_variance{index}"]] << (8 * index) for index in range(4))
     assert actual_variance == 0x06C97ECE
+    call(mpu, symbols["sqrt_variance_to_q8_8"])
+    assert mpu.memory[symbols["norm_rms_lo"]] | (mpu.memory[symbols["norm_rms_hi"]] << 8) == 0x29AF
+    call(mpu, symbols["normalize_layer_norm_input"], steps=5_000_000)
+    normalized = [-488, -190, 450, 98, -112, 336, 51, -34, 262, 284, 157, -139, 60, -46, 24, -238, -521, 380, 100, 119, 1, -180, 274, 61, -133, -163, -60, -544, -193, 371, 285, -272]
+    assert signed_vector(mpu, symbols["HIDDEN_VECTOR"]) == normalized
+    call(mpu, symbols["checksum_normalized_output"])
+    assert mpu.memory[symbols["norm_normalized_sumlo"]] | (mpu.memory[symbols["norm_normalized_sumhi"]] << 8) == 0xDF93
+    page("C9W06.PRG"); call(mpu, symbols["materialize_norm_weight"])
+    page("C9W07.PRG"); call(mpu, symbols["materialize_norm_bias"])
+    call(mpu, symbols["apply_norm_affine"], steps=5_000_000)
+    affine = [-74, -134, 141, 98, -73, 305, 56, -14, 165, 155, 71, -146, 29, 33, -41, -120, -214, 210, 43, -47, 46, -149, 155, 30, -9, -9, -53, -258, -94, 228, 91, -101]
+    assert signed_vector(mpu, symbols["ATTENDED_VECTOR"]) == affine
+    call(mpu, symbols["checksum_norm_affine"])
+    assert mpu.memory[symbols["norm_affine_sumlo"]] | (mpu.memory[symbols["norm_affine_sumhi"]] << 8) == 0xFCBF
 
 
 def test_6502_causal_score_row_masks_the_future_original_key(tmp_path):
