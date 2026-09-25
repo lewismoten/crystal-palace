@@ -1230,6 +1230,88 @@ def test_6502_merges_selected_expert_outputs_with_live_q0_15_router_weights(tmp_
     assert signed_vector(mpu, symbols["ATTENDED_VECTOR"]) == expected
 
 
+def test_6502_adds_retained_norm_input_after_selected_expert_merge(tmp_path):
+    """Stage 040 restores the live pre-MoE norm state after the weighted merge."""
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    merged = [-32768, -1024, -1, 0, 1, 1024, 32766, 30000] * 4
+    retained = [-1, -512, -1, 0, 1, 512, 1, 10000] * 4
+    for base, values in ((symbols["ATTENDED_VECTOR"], merged), (symbols["RESIDUAL_VECTOR"], retained)):
+        for lane, value in enumerate(values):
+            mpu.memory[base + lane * 2 : base + lane * 2 + 2] = (value & 0xFFFF).to_bytes(2, "little")
+    call(mpu, symbols["add_selected_expert_residual"])
+    expected = [((value + residual + 0x8000) & 0xFFFF) - 0x8000 for value, residual in zip(merged, retained)]
+    assert signed_vector(mpu, symbols["ATTENDED_VECTOR"]) == expected
+
+
+def test_6502_projects_original_output_head_rows_from_post_moe_residual(tmp_path):
+    """Stage 041 projects all 13 C9W46 token logits from the live residual."""
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    state = [-74, -134, 141, 98, -73, 305, 56, -14, 165, 155, 71, -146, 29, 33, -41, -120, -214, 210, 43, -47, 46, -149, 155, 30, -9, -9, -53, -258, -94, 228, 91, -101]
+    for lane, value in enumerate(state):
+        mpu.memory[symbols["ATTENDED_VECTOR"] + lane * 2 : symbols["ATTENDED_VECTOR"] + lane * 2 + 2] = (value & 0xFFFF).to_bytes(2, "little")
+    payload = (ROOT / "build" / "layers" / "C9W46.PRG").read_bytes()[2:]
+    mpu.memory[0xC000 : 0xC000 + len(payload)] = payload
+    call(mpu, symbols["project_output_head"], steps=100_000_000)
+    expected = [q8_8_dot(state, q8_8_vector_from_original_packet(ROOT / "build" / "layers" / "C9W46.PRG", row)) for row in range(13)]
+    actual = []
+    for row in range(13):
+        value = mpu.memory[symbols["OUTPUT_LOGITS"] + row * 2] | (mpu.memory[symbols["OUTPUT_LOGITS"] + row * 2 + 1] << 8)
+        actual.append(value - 0x10000 if value & 0x8000 else value)
+    assert actual == expected
+
+
+def test_6502_adds_original_output_head_bias_to_all_13_logits(tmp_path):
+    """Stage 042 adds only the 13 declared C9W47 bias lanes, not its pad nibble."""
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    logits = [-3000, -1024, -1, 0, 1, 1024, 3000, 77, -77, 255, -255, 8191, -8192]
+    for row, value in enumerate(logits):
+        mpu.memory[symbols["OUTPUT_LOGITS"] + row * 2 : symbols["OUTPUT_LOGITS"] + row * 2 + 2] = (value & 0xFFFF).to_bytes(2, "little")
+    packet_path = ROOT / "build" / "layers" / "C9W47.PRG"
+    payload = packet_path.read_bytes()[2:]
+    mpu.memory[0xC000 : 0xC000 + len(payload)] = payload
+    call(mpu, symbols["add_output_head_bias"])
+    packet = payload; raw_scale = int.from_bytes(packet[9:11], "little"); exponent = (raw_scale >> 10) & 0x1F; fraction = raw_scale & 0x03FF
+    scale = (1024 + fraction) << (exponent - 17) if exponent >= 17 else (1024 + fraction + (1 << (17 - exponent - 1))) >> (17 - exponent)
+    codes = [nibble - 16 if nibble >= 8 else nibble for byte in packet[11:] for nibble in (byte & 0x0F, byte >> 4)][:13]
+    bias = [(code * scale + 3) // 7 if code >= 0 else -((-code * scale + 3) // 7) for code in codes]
+    actual = [int.from_bytes(mpu.memory[symbols["OUTPUT_LOGITS"] + row * 2 : symbols["OUTPUT_LOGITS"] + row * 2 + 2], "little", signed=True) for row in range(13)]
+    assert actual == [((value + offset + 0x8000) & 0xFFFF) - 0x8000 for value, offset in zip(logits, bias)]
+
+
+def test_6502_selects_lowest_index_for_equal_maximum_output_logit(tmp_path):
+    """Stage 043 raw argmax covers all 13 logits with a declared low-index tie rule."""
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    logits = [-32768, 10, 99, 32767, 4, 32767, -1, 200, 0, -99, 1, 2, 3]
+    for row, value in enumerate(logits):
+        mpu.memory[symbols["OUTPUT_LOGITS"] + row * 2 : symbols["OUTPUT_LOGITS"] + row * 2 + 2] = (value & 0xFFFF).to_bytes(2, "little")
+    call(mpu, symbols["select_output_argmax"])
+    assert mpu.memory[symbols["output_argmax_index"]] == 3
+    assert int.from_bytes(mpu.memory[symbols["output_argmax_lo"] : symbols["output_argmax_lo"] + 2], "little", signed=True) == 32767
+
+
+def test_interactive_pipeline_pages_output_head_then_displays_raw_bounded_argmax():
+    """The browser path visibly executes both original head packets after MoE residual."""
+    source = (ROOT / "src" / "cp64.asm").read_text()
+    request = source[source.index("expert4_bias2_loaded:") : source.index("lda #<scale_result")]
+    assert request.index("jsr add_selected_expert_residual") < request.index("jsr load_packet_checked")
+    assert request.count("jsr load_packet_checked") == 2
+    assert request.index("jsr project_output_head") < request.index("jsr add_output_head_bias") < request.index("jsr select_output_argmax")
+    for text in ("38/43 ADD SELECTED-EXPERT RESIDUAL", "39/43 LOAD OUTPUT HEAD C9W46", "40/43 OUTPUT HEAD AFFINE", "41/43 LOAD OUTPUT BIAS C9W47", "42/43 ADD OUTPUT HEAD BIAS", "43/43 RAW NEXT-TOKEN ARGMAX", "RAW BOUNDED NEXT-TOKEN INDEX $"):
+        assert text in source
+
+
 def test_interactive_pipeline_retains_e1_then_merges_after_e4():
     """The live path must not overwrite E1 before applying its router weight."""
     source = (ROOT / "src" / "cp64.asm").read_text()

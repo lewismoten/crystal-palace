@@ -35,6 +35,7 @@ RESIDUAL_VECTOR = $c880 ; valid after two-key score materialization
 ATTENDED_VECTOR = $c900
 CAUSAL_SCORES = $c940
 ROUTER_LOGITS = $c940
+OUTPUT_LOGITS = $c940 ; router logits are no longer needed after expert routing
 EXPERT_FIRST_VECTOR = $c700
 VALUE_HISTORY = $c980
 pointer = $fb
@@ -407,6 +408,44 @@ expert4_weight2_loaded:
 expert4_bias2_loaded:
     jsr add_selected_expert_second_bias
     jsr merge_selected_expert_outputs
+    lda #<step_expert_residual
+    ldy #>step_expert_residual
+    jsr print
+    jsr add_selected_expert_residual
+    lda #<step_output_head_load
+    ldy #>step_output_head_load
+    jsr print
+    ldx #<output_head_filename
+    ldy #>output_head_filename
+    lda #46
+    jsr configure_expert_packet
+    jsr load_packet_checked
+    bcc output_head_loaded
+    jmp disk_error
+output_head_loaded:
+    lda #<step_output_head_project
+    ldy #>step_output_head_project
+    jsr print
+    jsr project_output_head
+    lda #<step_head_bias_load
+    ldy #>step_head_bias_load
+    jsr print
+    ldx #<output_bias_filename
+    ldy #>output_bias_filename
+    lda #47
+    jsr configure_expert_packet
+    jsr load_packet_checked
+    bcc output_bias_loaded
+    jmp disk_error
+output_bias_loaded:
+    lda #<step_output_head_bias
+    ldy #>step_output_head_bias
+    jsr print
+    jsr add_output_head_bias
+    lda #<step_output_argmax
+    ldy #>step_output_argmax
+    jsr print
+    jsr select_output_argmax
     lda #<scale_result
     ldy #>scale_result
     jsr print
@@ -536,6 +575,13 @@ expert4_bias2_loaded:
     lda router_weight_top2_hi
     jsr hexbyte
     lda router_weight_top2_lo
+    jsr hexbyte
+    lda #13
+    jsr CHROUT
+    lda #<output_argmax_result
+    ldy #>output_argmax_result
+    jsr print
+    lda output_argmax_index
     jsr hexbyte
     lda #13
     jsr CHROUT
@@ -1691,6 +1737,186 @@ merge_expert_lane:
     iny
     cpy #64
     bne merge_expert_lane
+    rts
+
+; The live norm-affine input was retained before either expert reused
+; ATTENDED_VECTOR.  Restore it after the weighted selected-expert merge.
+add_selected_expert_residual:
+    ldy #0
+selected_expert_residual_lane:
+    clc
+    lda ATTENDED_VECTOR,y
+    adc RESIDUAL_VECTOR,y
+    sta ATTENDED_VECTOR,y
+    iny
+    lda ATTENDED_VECTOR,y
+    adc RESIDUAL_VECTOR,y
+    sta ATTENDED_VECTOR,y
+    iny
+    cpy #64
+    bne selected_expert_residual_lane
+    rts
+
+; C9W46 is a 13-by-32 row-scaled output head.  The post-MoE residual stays
+; in ATTENDED_VECTOR while each original row is decoded from the page window.
+project_output_head:
+    lda #0
+    sta projection_row
+    sta projection_offset
+output_head_row:
+    lda projection_row
+    sta row
+    jsr decode_scale
+    lda #$23            ; C9W1 header (9) + thirteen FP16 scales (26)
+    sta packed_offset
+    lda #<PROJECTION_SCRATCH
+    sta vector_base
+    lda #>PROJECTION_SCRATCH
+    sta vector_base+1
+    jsr materialize_row
+    lda #0
+    sta dot0
+    sta dot1
+    sta dot2
+    sta dot3
+    ldy #0
+output_head_dot:
+    lda ATTENDED_VECTOR,y
+    sta mul_a_lo
+    lda ATTENDED_VECTOR+1,y
+    sta mul_a_hi
+    lda PROJECTION_SCRATCH,y
+    sta mul_b_lo
+    lda PROJECTION_SCRATCH+1,y
+    sta mul_b_hi
+    jsr multiply_q8_8
+    clc
+    lda dot0
+    adc product0
+    sta dot0
+    lda dot1
+    adc product1
+    sta dot1
+    lda dot2
+    adc product2
+    sta dot2
+    lda dot3
+    adc product3
+    sta dot3
+    iny
+    iny
+    cpy #64
+    bne output_head_dot
+    jsr rounded_dot_to_q8_8
+    ldy projection_offset
+    lda result_lo
+    sta OUTPUT_LOGITS,y
+    iny
+    lda result_hi
+    sta OUTPUT_LOGITS,y
+    inc projection_row
+    inc projection_offset
+    inc projection_offset
+    lda projection_row
+    cmp #13
+    beq output_head_done
+    jmp output_head_row
+output_head_done:
+    rts
+
+; C9W47 has one FP16 scale and thirteen declared INT4 bias lanes (seven packed
+; bytes, with only the final high nibble unused).  Decode exactly those bytes,
+; then add lanes 0 through 12; no padding nibble can become a token logit.
+add_output_head_bias:
+    lda #0
+    sta row
+    jsr decode_scale
+    lda #<(BUFFER+$0b)
+    sta pointer
+    lda #>(BUFFER+$0b)
+    sta pointer+1
+    lda #<POSITION_VECTOR
+    sta vector_base
+    lda #>POSITION_VECTOR
+    sta vector_base+1
+    lda #0
+    sta vector_index
+    sta sumlo
+    sta sumhi
+    lda #1
+    sta factor
+    ldy #0
+output_bias_byte:
+    lda (pointer),y
+    sta packed_byte
+    sty packed_index
+    and #$0f
+    jsr materialize_nibble
+    ldy packed_index
+    lda packed_byte
+    lsr
+    lsr
+    lsr
+    lsr
+    sty packed_index
+    jsr materialize_nibble
+    ldy packed_index
+    iny
+    cpy #7
+    bne output_bias_byte
+    ldy #0
+output_bias_add_lane:
+    clc
+    lda OUTPUT_LOGITS,y
+    adc POSITION_VECTOR,y
+    sta OUTPUT_LOGITS,y
+    iny
+    lda OUTPUT_LOGITS,y
+    adc POSITION_VECTOR,y
+    sta OUTPUT_LOGITS,y
+    iny
+    cpy #26
+    bne output_bias_add_lane
+    rts
+
+; Signed Q8.8 raw argmax across the 13 output logits.  Equality deliberately
+; keeps the earlier row, making the token-index tie rule lower-ID-first.
+select_output_argmax:
+    lda OUTPUT_LOGITS
+    sta output_argmax_lo
+    lda OUTPUT_LOGITS+1
+    sta output_argmax_hi
+    lda #0
+    sta output_argmax_index
+    ldx #1
+    ldy #2
+output_argmax_row:
+    lda OUTPUT_LOGITS,y
+    sta output_candidate_lo
+    iny
+    lda OUTPUT_LOGITS,y
+    sta output_candidate_hi
+    eor #$80
+    sta output_compare_hi
+    lda output_argmax_hi
+    eor #$80
+    cmp output_compare_hi
+    bcc output_argmax_replace
+    bne output_argmax_next
+    lda output_argmax_lo
+    cmp output_candidate_lo
+    bcs output_argmax_next
+output_argmax_replace:
+    lda output_candidate_lo
+    sta output_argmax_lo
+    lda output_candidate_hi
+    sta output_argmax_hi
+    stx output_argmax_index
+output_argmax_next:
+    inx
+    iny
+    cpx #13
+    bne output_argmax_row
     rts
 
 ; C9W09 has one FP16 scale and nine packed INT4 router-bias values.
@@ -3924,6 +4150,8 @@ expert4_weight1_filename: .text "C9W26.PRG"
 expert4_bias1_filename: .text "C9W27.PRG"
 expert4_weight2_filename: .text "C9W28.PRG"
 expert4_bias2_filename: .text "C9W29.PRG"
+output_head_filename: .text "C9W46.PRG"
+output_bias_filename: .text "C9W47.PRG"
 position_row: .byte 0
 position_sumlo: .byte 0
 position_sumhi: .byte 0
@@ -3958,6 +4186,12 @@ silu_negative: .byte 0
 silu_lane: .byte 0
 merge_lo: .byte 0
 merge_hi: .byte 0
+output_argmax_index: .byte 0
+output_argmax_lo: .byte 0
+output_argmax_hi: .byte 0
+output_candidate_lo: .byte 0
+output_candidate_hi: .byte 0
+output_compare_hi: .byte 0
 packet_name_lo: .byte 0
 packet_name_hi: .byte 0
 packet_expected_id: .byte 0
@@ -4020,43 +4254,49 @@ title:
 loading: .text "THINKING: READING C9W00 FROM DISK...",13,0
 loaded: .text "C9W00 READY. TYPE A THROUGH I.",13,13,0
 thinking: .text "THINKING TOKEN ",0
-step_token: .text "1/37 TOKEN EMBEDDING",13,0
-step_position: .text "2/37 POSITION EMBEDDING",13,0
-step_query: .text "3/37 ATTENTION Q",13,0
-step_key: .text "4/37 ATTENTION K",13,0
-step_value: .text "5/37 ATTENTION V",13,0
-step_history: .text "6/37 RETAIN K/V HISTORY",13,0
-step_scores: .text "7/37 SELF ATTENTION SCORES",13,0
-step_two_key_scores: .text "8/37 TWO-KEY CAUSAL SCORES",13,0
-step_head0: .text "9/37 CAUSAL SOFTMAX + V HEAD 0",13,0
-step_head1: .text "10/37 CAUSAL SOFTMAX + V HEAD 1",13,0
-step_head2: .text "11/37 CAUSAL SOFTMAX + V HEAD 2",13,0
-step_head3: .text "12/37 CAUSAL SOFTMAX + V HEAD 3",13,0
-step_head4: .text "13/37 CAUSAL SOFTMAX + V HEAD 4",13,0
-step_head5: .text "14/37 CAUSAL SOFTMAX + V HEAD 5",13,0
-step_head6: .text "15/37 CAUSAL SOFTMAX + V HEAD 6",13,0
-step_head7: .text "16/37 CAUSAL SOFTMAX + V HEAD 7",13,0
-step_residual_retain: .text "17/37 RETAIN ATTENTION RESIDUAL",13,0
-step_output_load: .text "18/37 LOAD ATTENTION OUTPUT WEIGHT",13,0
-step_output_project: .text "19/37 ATTENTION OUTPUT PROJECTION",13,0
-step_output_bias_load: .text "20/37 LOAD ATTENTION OUTPUT BIAS",13,0
-step_output_bias: .text "21/37 ADD ATTENTION OUTPUT BIAS",13,0
-step_residual_add: .text "22/37 ADD ATTENTION RESIDUAL",13,0
-step_norm_center: .text "23/37 CENTER LAYERNORM INPUT",13,0
-step_norm_variance: .text "24/37 LAYERNORM VARIANCE",13,0
-step_norm_isqrt: .text "25/37 LAYERNORM NEAREST ISQRT",13,0
-step_norm_normalize: .text "26/37 NORMALIZE LAYERNORM",13,0
-step_norm_load: .text "27/37 LOAD NORM WEIGHT",13,0
-step_norm_materialize: .text "28/37 MATERIALIZE NORM WEIGHT",13,0
-step_norm_bias_load: .text "29/37 LOAD NORM BIAS",13,0
-step_norm_bias_materialize: .text "30/37 MATERIALIZE NORM BIAS",13,0
-step_norm_affine: .text "31/37 APPLY NORM AFFINE",13,0
-step_router_load: .text "32/37 LOAD ROUTER WEIGHT C9W08",13,0
-step_router_project: .text "33/37 ROUTER AFFINE LOGITS",13,0
-step_router_bias_load: .text "34/37 LOAD ROUTER BIAS C9W09",13,0
-step_router_bias: .text "35/37 ADD ROUTER BIAS",13,0
-step_router_top2: .text "36/37 STABLE TOP-2 LOGIT INDICES",13,0
-step_router_normalize: .text "37/37 NORMALIZE TOP-2 WEIGHTS",13,0
+step_token: .text "1/43 TOKEN EMBEDDING",13,0
+step_position: .text "2/43 POSITION EMBEDDING",13,0
+step_query: .text "3/43 ATTENTION Q",13,0
+step_key: .text "4/43 ATTENTION K",13,0
+step_value: .text "5/43 ATTENTION V",13,0
+step_history: .text "6/43 RETAIN K/V HISTORY",13,0
+step_scores: .text "7/43 SELF ATTENTION SCORES",13,0
+step_two_key_scores: .text "8/43 TWO-KEY CAUSAL SCORES",13,0
+step_head0: .text "9/43 CAUSAL SOFTMAX + V HEAD 0",13,0
+step_head1: .text "10/43 CAUSAL SOFTMAX + V HEAD 1",13,0
+step_head2: .text "11/43 CAUSAL SOFTMAX + V HEAD 2",13,0
+step_head3: .text "12/43 CAUSAL SOFTMAX + V HEAD 3",13,0
+step_head4: .text "13/43 CAUSAL SOFTMAX + V HEAD 4",13,0
+step_head5: .text "14/43 CAUSAL SOFTMAX + V HEAD 5",13,0
+step_head6: .text "15/43 CAUSAL SOFTMAX + V HEAD 6",13,0
+step_head7: .text "16/43 CAUSAL SOFTMAX + V HEAD 7",13,0
+step_residual_retain: .text "17/43 RETAIN ATTENTION RESIDUAL",13,0
+step_output_load: .text "18/43 LOAD ATTENTION OUTPUT WEIGHT",13,0
+step_output_project: .text "19/43 ATTENTION OUTPUT PROJECTION",13,0
+step_output_bias_load: .text "20/43 LOAD ATTENTION OUTPUT BIAS",13,0
+step_output_bias: .text "21/43 ADD ATTENTION OUTPUT BIAS",13,0
+step_residual_add: .text "22/43 ADD ATTENTION RESIDUAL",13,0
+step_norm_center: .text "23/43 CENTER LAYERNORM INPUT",13,0
+step_norm_variance: .text "24/43 LAYERNORM VARIANCE",13,0
+step_norm_isqrt: .text "25/43 LAYERNORM NEAREST ISQRT",13,0
+step_norm_normalize: .text "26/43 NORMALIZE LAYERNORM",13,0
+step_norm_load: .text "27/43 LOAD NORM WEIGHT",13,0
+step_norm_materialize: .text "28/43 MATERIALIZE NORM WEIGHT",13,0
+step_norm_bias_load: .text "29/43 LOAD NORM BIAS",13,0
+step_norm_bias_materialize: .text "30/43 MATERIALIZE NORM BIAS",13,0
+step_norm_affine: .text "31/43 APPLY NORM AFFINE",13,0
+step_router_load: .text "32/43 LOAD ROUTER WEIGHT C9W08",13,0
+step_router_project: .text "33/43 ROUTER AFFINE LOGITS",13,0
+step_router_bias_load: .text "34/43 LOAD ROUTER BIAS C9W09",13,0
+step_router_bias: .text "35/43 ADD ROUTER BIAS",13,0
+step_router_top2: .text "36/43 STABLE TOP-2 LOGIT INDICES",13,0
+step_router_normalize: .text "37/43 NORMALIZE TOP-2 WEIGHTS",13,0
+step_expert_residual: .text "38/43 ADD SELECTED-EXPERT RESIDUAL",13,0
+step_output_head_load: .text "39/43 LOAD OUTPUT HEAD C9W46",13,0
+step_output_head_project: .text "40/43 OUTPUT HEAD AFFINE",13,0
+step_head_bias_load: .text "41/43 LOAD OUTPUT BIAS C9W47",13,0
+step_output_head_bias: .text "42/43 ADD OUTPUT HEAD BIAS",13,0
+step_output_argmax: .text "43/43 RAW NEXT-TOKEN ARGMAX",13,0
 scale_result: .text "FP16 SCALE AS Q8.8 $",0
 result: .text "TOKEN ",0
 embedding_checksum: .text " EMBEDDING CHECKSUM $",0
@@ -4073,5 +4313,6 @@ router_top1_result: .text " ROUTER TOP-1 EXPERT E",0
 router_top1_weight_result: .text " WEIGHT Q0.15 $",0
 router_top2_result: .text " ROUTER TOP-2 EXPERT E",0
 router_top2_weight_result: .text " WEIGHT Q0.15 $",0
+output_argmax_result: .text " RAW BOUNDED NEXT-TOKEN INDEX $",0
 error_message: .text "C9W00 LOAD OR HEADER ERROR",13,0
 scale_error_message: .text "UNSUPPORTED FP16 SCALE",13,0

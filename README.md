@@ -146,6 +146,10 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 `cs64-037-router-normalization.d64` normalizes Stage 036's two selected original C9W08/C9W09 router logits for the bounded live `A`→`B` path. It subtracts the lower selected Q8.8 logit from the higher, then looks up `round(sigmoid(delta / 256) * 32768)` in a checked Q0.15 table covering deltas 0 through 8.0 (larger deltas saturate at the 8.0 endpoint); the complementary Q0.15 weight is exactly `32768 - top1`. The assembled-6502 regression pages and decodes verbatim C9W09 bytes, produces the two selected logits, and independently checks the resulting weights against `exp`. The C64 display visibly runs 32/37 through 37/37 and reports `ROUTER TOP-1 EXPERT E1 WEIGHT Q0.15 $630F` and `ROUTER TOP-2 EXPERT E4 WEIGHT Q0.15 $1CF1`. These are bounded CP64 router weights—not original packed-runtime routing parity—and no expert tensor is yet paged or executed.
 
+### Stage 043 raw bounded next-token argmax
+
+`cs64-043-raw-bounded-next-token-argmax.d64` continues the live bounded `A`→`B` route through selected original E1/E4 affine tensors, the declared Q8.8 SiLU and Q0.15 merge contracts, a post-MoE residual, then original C9W46 (13-by-32 output head) and C9W47 (13-lane bias). It displays real steps 38/43 through 43/43 and a lower-index-first signed-Q8.8 raw argmax token index. This is a bounded CP64 fixed-point output, not original packed-runtime or playable-policy parity.
+
 ### Browser test target
 
 The manual acceptance target is [C64 Online Emulator](https://c64online.com/c64-online-emulator/). Use its **Load Program** control to select the numbered `.d64` artifact; it accepts D64 files directly. This project treats a user-reported matching result from that emulator as a separate browser-emulator confirmation in addition to the assembled-6502 regression suite.

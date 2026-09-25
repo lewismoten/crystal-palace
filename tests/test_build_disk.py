@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_router_normalization():
+def test_current_disk_stage_reports_raw_bounded_next_token_argmax():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 37
-    assert builder.CURRENT_DESCRIPTION == "router-normalization"
+    assert builder.CURRENT_STAGE == 43
+    assert builder.CURRENT_DESCRIPTION == "raw-bounded-next-token-argmax"

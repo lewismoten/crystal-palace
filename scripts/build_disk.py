@@ -10,8 +10,8 @@ from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 37
-CURRENT_DESCRIPTION = "router-normalization"
+CURRENT_STAGE = 43
+CURRENT_DESCRIPTION = "raw-bounded-next-token-argmax"
 
 
 def stage_image_path(number: int, description: str) -> Path:
