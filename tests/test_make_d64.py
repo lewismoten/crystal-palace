@@ -59,5 +59,6 @@ def test_build_d64_directory_entry_preserves_start_track_sector_and_filename(tmp
     start_track, start_sector = data[entry + 1], data[entry + 2]
     assert start_track == 1
     assert start_sector == 0
-    assert data[entry + 3] == 0
-    assert data[entry + 5 : entry + 21].rstrip(b"\xa0") == b"CP64.PRG"
+    # CBM DOS stores a filename immediately after the two-byte start pointer.
+    # This must be a conventional directory entry that DOS can open by name.
+    assert data[entry + 3 : entry + 19].rstrip(b"\xa0") == b"CP64.PRG"

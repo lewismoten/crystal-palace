@@ -106,8 +106,8 @@ def build_d64_files(files: dict[str, Path], output_path: Path, disk_name: str = 
     for index, (name, chain) in enumerate(chains):
         directory = sector_offset(DIRECTORY_TRACK, DIRECTORY_SECTOR + index // 8)
         entry = directory + 2 + (index % 8) * 32
-        image[entry : entry + 4] = bytes((0x82, chain[0][0], chain[0][1], 0))
-        image[entry + 5 : entry + 21] = petscii_name(name)
+        image[entry : entry + 3] = bytes((0x82, chain[0][0], chain[0][1]))
+        image[entry + 3 : entry + 19] = petscii_name(name)
         image[entry + 28 : entry + 30] = len(chain).to_bytes(2, "little")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
