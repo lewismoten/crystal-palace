@@ -1322,7 +1322,17 @@ def test_interactive_pipeline_pages_output_head_then_displays_raw_bounded_argmax
     assert request.index("jsr add_selected_expert_residual") < request.index("jsr load_packet_checked")
     assert request.count("jsr load_packet_checked") == 2
     assert request.index("jsr project_output_head") < request.index("jsr add_output_head_bias") < request.index("jsr select_output_argmax")
-    for text in ("38/43 ADD SELECTED-EXPERT RESIDUAL", "39/43 LOAD OUTPUT HEAD C9W46", "40/43 OUTPUT HEAD AFFINE", "41/43 LOAD OUTPUT BIAS C9W47", "42/43 ADD OUTPUT HEAD BIAS", "43/43 RAW NEXT-TOKEN ARGMAX", "RAW BOUNDED NEXT-TOKEN INDEX $"):
+    for text in ("38/44 ADD SELECTED-EXPERT RESIDUAL", "39/44 LOAD OUTPUT HEAD C9W46", "40/44 OUTPUT HEAD AFFINE", "41/44 LOAD OUTPUT BIAS C9W47", "42/44 ADD OUTPUT HEAD BIAS", "43/44 RAW NEXT-TOKEN ARGMAX", "RAW BOUNDED NEXT-TOKEN INDEX $"):
+        assert text in source
+
+
+def test_interactive_pipeline_rematerializes_predicted_original_embedding_after_argmax():
+    """Stage 044 turns the raw output index back into its C9W00 source vector."""
+    source = (ROOT / "src" / "cp64.asm").read_text()
+    request = source[source.index("output_bias_loaded:") : source.index("lda #<scale_result")]
+    assert request.index("jsr select_output_argmax") < request.index("jsr load_embedding")
+    assert request.index("jsr load_embedding") < request.index("jsr decode_scale") < request.index("jsr materialize_embedding")
+    for text in ("44/44 LOAD PREDICTED TOKEN C9W00", "PREDICTED TOKEN EMBEDDING CHECKSUM $"):
         assert text in source
 
 

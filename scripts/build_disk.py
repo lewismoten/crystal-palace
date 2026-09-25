@@ -10,8 +10,8 @@ from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 43
-CURRENT_DESCRIPTION = "raw-bounded-next-token-argmax"
+CURRENT_STAGE = 44
+CURRENT_DESCRIPTION = "predicted-token-embedding-feedback"
 
 
 def stage_image_path(number: int, description: str) -> Path:

@@ -150,6 +150,10 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 `cs64-043-raw-bounded-next-token-argmax.d64` continues the live bounded `A`→`B` route through selected original E1/E4 affine tensors, the declared Q8.8 SiLU and Q0.15 merge contracts, a post-MoE residual, then original C9W46 (13-by-32 output head) and C9W47 (13-lane bias). It displays real steps 38/43 through 43/43 and a lower-index-first signed-Q8.8 raw argmax token index. Browser-emulator parity is confirmed: the live route reports `$08`, which is vocabulary token `e`. This is a bounded CP64 fixed-point output, not original packed-runtime or playable-policy parity.
 
+### Stage 044 predicted-token embedding feedback
+
+`cs64-044-predicted-token-embedding-feedback.d64` preserves Stage 043's bounded live `A`→`B` raw argmax, then genuinely reloads verbatim original C9W00 after the output packets have replaced the disk window. It uses the raw output index directly as the original embedding row, decodes its FP16 row scale and all 32 original packed INT4 codes, and displays the input-dependent predicted-token embedding checksum. For `A`→`B`, the raw index remains `$08` (the established `e` vocabulary row) and C9W00 row 8 materializes to checksum `$889C`. This proves disk/RAM feedback materialization only—not a third live forward pass, original-runtime parity, or a playable policy.
+
 ### Browser test target
 
 The manual acceptance target is [C64 Online Emulator](https://c64online.com/c64-online-emulator/). Use its **Load Program** control to select the numbered `.d64` artifact; it accepts D64 files directly. This project treats a user-reported matching result from that emulator as a separate browser-emulator confirmation in addition to the assembled-6502 regression suite.

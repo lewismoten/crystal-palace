@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_raw_bounded_next_token_argmax():
+def test_current_disk_stage_reports_predicted_token_embedding_feedback():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 43
-    assert builder.CURRENT_DESCRIPTION == "raw-bounded-next-token-argmax"
+    assert builder.CURRENT_STAGE == 44
+    assert builder.CURRENT_DESCRIPTION == "predicted-token-embedding-feedback"
