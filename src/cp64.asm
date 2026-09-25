@@ -957,6 +957,30 @@ configure_expert_packet:
     sta packet_expected_id
     stx packet_name_lo
     sty packet_name_hi
+    cmp #46
+    bne configure_check_output_bias
+    lda #26
+    sta packet_scale_lo
+    lda #0
+    sta packet_scale_hi
+    lda #208
+    sta packet_packed_lo
+    lda #0
+    sta packet_packed_hi
+    rts
+configure_check_output_bias:
+    cmp #47
+    bne configure_expert_kind
+    lda #2
+    sta packet_scale_lo
+    lda #0
+    sta packet_scale_hi
+    lda #7
+    sta packet_packed_lo
+    lda #0
+    sta packet_packed_hi
+    rts
+configure_expert_kind:
     and #1
     beq configure_expert_weight
     lda #2

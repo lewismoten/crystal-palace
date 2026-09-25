@@ -1301,6 +1301,20 @@ def test_6502_selects_lowest_index_for_equal_maximum_output_logit(tmp_path):
     assert int.from_bytes(mpu.memory[symbols["output_argmax_lo"] : symbols["output_argmax_lo"] + 2], "little", signed=True) == 32767
 
 
+def test_6502_configures_original_output_packets_with_their_13_row_lengths(tmp_path):
+    """C9W46/C9W47 are not 32-row expert packets; browser LOAD must accept them."""
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    for packet_id, scale_bytes, packed_bytes in ((46, 26, 208), (47, 2, 7)):
+        mpu.a = packet_id
+        call(mpu, symbols["configure_expert_packet"])
+        actual_scale = mpu.memory[symbols["packet_scale_lo"]] | (mpu.memory[symbols["packet_scale_hi"]] << 8)
+        actual_packed = mpu.memory[symbols["packet_packed_lo"]] | (mpu.memory[symbols["packet_packed_hi"]] << 8)
+        assert (actual_scale, actual_packed) == (scale_bytes, packed_bytes)
+
+
 def test_interactive_pipeline_pages_output_head_then_displays_raw_bounded_argmax():
     """The browser path visibly executes both original head packets after MoE residual."""
     source = (ROOT / "src" / "cp64.asm").read_text()
