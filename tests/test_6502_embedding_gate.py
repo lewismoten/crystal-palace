@@ -1021,6 +1021,35 @@ def test_6502_adds_original_router_bias_to_all_live_router_logits(tmp_path):
     assert actual == [logit + offset for logit, offset in zip(projected_logits, bias)]
 
 
+def test_6502_selects_the_two_largest_original_router_logits(tmp_path):
+    """Top-2 selection preserves the winning C9W08/C9W09 expert indices and logits."""
+    prg = tmp_path / "CP64.PRG"
+    labels_path = tmp_path / "cp64.lbl"
+    subprocess.run(
+        [str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")],
+        check=True, capture_output=True, text=True,
+    )
+    symbols = labels(labels_path)
+    assert "select_router_top2" in symbols
+    mpu = MPU()
+    image = prg.read_bytes()
+    load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    for index, value in enumerate([-839, 1559, 9, -228, 1324, -381, -613, -1574, 878]):
+        mpu.memory[symbols["ROUTER_LOGITS"] + index * 2 : symbols["ROUTER_LOGITS"] + index * 2 + 2] = (value & 0xFFFF).to_bytes(2, "little")
+    packet = ROOT / "build" / "layers" / "C9W09.PRG"
+    payload = packet.read_bytes()
+    mpu.memory[0xC000 : 0xC000 + len(payload) - 2] = payload[2:]
+    call(mpu, symbols["add_router_bias"])
+    call(mpu, symbols["select_router_top2"])
+
+    final_logits = [-839 + value for value in q8_8_vector_from_original_packet(packet, 0)[:1]]
+    final_logits += [value + offset for value, offset in zip([1559, 9, -228, 1324, -381, -613, -1574, 878], q8_8_vector_from_original_packet(packet, 0)[1:9])]
+    expected = sorted(enumerate(final_logits), key=lambda item: item[1], reverse=True)[:2]
+    assert (mpu.memory[symbols["router_top1_index"]], mpu.memory[symbols["router_top1_lo"]] | (mpu.memory[symbols["router_top1_hi"]] << 8)) == (expected[0][0], expected[0][1] & 0xFFFF)
+    assert (mpu.memory[symbols["router_top2_index"]], mpu.memory[symbols["router_top2_lo"]] | (mpu.memory[symbols["router_top2_hi"]] << 8)) == (expected[1][0], expected[1][1] & 0xFFFF)
+
+
 def test_interactive_pipeline_pages_original_router_bias_after_router_projection():
     """The executable gate pages C9W09 only after C9W08 produced all nine logits."""
     source = (ROOT / "src" / "cp64.asm").read_text()
@@ -1028,6 +1057,12 @@ def test_interactive_pipeline_pages_original_router_bias_after_router_projection
     assert request.index("jsr project_router") < request.index("jsr load_router_bias")
     assert request.index("jsr load_router_bias") < request.index("jsr add_router_bias")
     assert 'router_bias_filename: .text "C9W09.PRG"' in source
+
+
+def test_interactive_pipeline_selects_router_top2_after_adding_original_bias():
+    source = (ROOT / "src" / "cp64.asm").read_text()
+    request = source[source.index("router_loaded:") : source.index("lda #<scale_result")]
+    assert request.index("jsr add_router_bias") < request.index("jsr select_router_top2")
 
 
 def test_interactive_pipeline_pages_original_router_after_norm_affine():

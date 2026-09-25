@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_router_bias():
+def test_current_disk_stage_reports_router_top2():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 35
-    assert builder.CURRENT_DESCRIPTION == "router-bias"
+    assert builder.CURRENT_STAGE == 36
+    assert builder.CURRENT_DESCRIPTION == "router-top2"

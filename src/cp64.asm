@@ -308,6 +308,7 @@ router_loaded:
     jmp disk_error
 router_bias_loaded:
     jsr add_router_bias
+    jsr select_router_top2
     lda #<scale_result
     ldy #>scale_result
     jsr print
@@ -1198,6 +1199,100 @@ router_bias_add_lane:
     iny
     cpy #18
     bne router_bias_add_lane
+    rts
+
+; Select the two greatest signed Q8.8 router logits, retaining their original
+; expert indices.  Softmax normalization and expert execution are later gates.
+select_router_top2:
+    lda ROUTER_LOGITS
+    sta router_top1_lo
+    lda ROUTER_LOGITS+1
+    sta router_top1_hi
+    lda #0
+    sta router_top1_index
+    lda #$00
+    sta router_top2_lo
+    lda #$80
+    sta router_top2_hi
+    sta router_top2_index
+    lda #1
+    sta router_candidate_index
+select_router_next:
+    lda router_candidate_index
+    asl
+    tay
+    lda ROUTER_LOGITS,y
+    sta router_candidate_lo
+    iny
+    lda ROUTER_LOGITS,y
+    sta router_candidate_hi
+    jsr router_candidate_gt_top1
+    bcc select_router_not_top1
+    lda router_top1_lo
+    sta router_top2_lo
+    lda router_top1_hi
+    sta router_top2_hi
+    lda router_top1_index
+    sta router_top2_index
+    lda router_candidate_lo
+    sta router_top1_lo
+    lda router_candidate_hi
+    sta router_top1_hi
+    lda router_candidate_index
+    sta router_top1_index
+    jmp select_router_advance
+select_router_not_top1:
+    jsr router_candidate_gt_top2
+    bcc select_router_advance
+    lda router_candidate_lo
+    sta router_top2_lo
+    lda router_candidate_hi
+    sta router_top2_hi
+    lda router_candidate_index
+    sta router_top2_index
+select_router_advance:
+    inc router_candidate_index
+    lda router_candidate_index
+    cmp #9
+    bne select_router_next
+    rts
+
+; Carry set when signed router_candidate is greater than signed top1 value.
+router_candidate_gt_top1:
+    lda router_top1_lo
+    sta router_compare_lo
+    lda router_top1_hi
+    sta router_compare_hi
+    jmp router_candidate_gt_compare
+
+; Carry set when signed router_candidate is greater than signed top2 value.
+router_candidate_gt_top2:
+    lda router_top2_lo
+    sta router_compare_lo
+    lda router_top2_hi
+    sta router_compare_hi
+router_candidate_gt_compare:
+    lda router_candidate_hi
+    eor router_compare_hi
+    bmi router_compare_opposite_sign
+    lda router_candidate_hi
+    cmp router_compare_hi
+    bcc router_compare_less
+    bne router_compare_greater
+    lda router_candidate_lo
+    cmp router_compare_lo
+    bcc router_compare_less
+    beq router_compare_less
+router_compare_greater:
+    sec
+    rts
+router_compare_opposite_sign:
+    lda router_candidate_hi
+    bmi router_compare_less
+    sec
+    rts
+router_compare_less:
+    clc
     rts
 
 project_query:
@@ -3166,6 +3261,17 @@ multiplicand2: .byte 0
 multiplicand3: .byte 0
 result_lo: .byte 0
 result_hi: .byte 0
+router_top1_index: .byte 0
+router_top1_lo: .byte 0
+router_top1_hi: .byte 0
+router_top2_index: .byte 0
+router_top2_lo: .byte 0
+router_top2_hi: .byte 0
+router_candidate_index: .byte 0
+router_candidate_lo: .byte 0
+router_candidate_hi: .byte 0
+router_compare_lo: .byte 0
+router_compare_hi: .byte 0
 query_sumlo: .byte 0
 query_sumhi: .byte 0
 query_factor: .byte 0
