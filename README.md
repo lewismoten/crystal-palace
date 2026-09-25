@@ -148,7 +148,7 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 ### Stage 043 raw bounded next-token argmax
 
-`cs64-043-raw-bounded-next-token-argmax.d64` continues the live bounded `A`→`B` route through selected original E1/E4 affine tensors, the declared Q8.8 SiLU and Q0.15 merge contracts, a post-MoE residual, then original C9W46 (13-by-32 output head) and C9W47 (13-lane bias). It displays real steps 38/43 through 43/43 and a lower-index-first signed-Q8.8 raw argmax token index. This is a bounded CP64 fixed-point output, not original packed-runtime or playable-policy parity.
+`cs64-043-raw-bounded-next-token-argmax.d64` continues the live bounded `A`→`B` route through selected original E1/E4 affine tensors, the declared Q8.8 SiLU and Q0.15 merge contracts, a post-MoE residual, then original C9W46 (13-by-32 output head) and C9W47 (13-lane bias). It displays real steps 38/43 through 43/43 and a lower-index-first signed-Q8.8 raw argmax token index. Browser-emulator parity is confirmed: the live route reports `$08`, which is vocabulary token `e`. This is a bounded CP64 fixed-point output, not original packed-runtime or playable-policy parity.
 
 ### Browser test target
 
