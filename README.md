@@ -124,7 +124,7 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 ### Stage 033 LayerNorm affine bundle
 
-`cs64-033-layer-norm-affine.d64` completes this bounded fixed-point LayerNorm contract for the live `A`→`B` sequence: 32-bit centering and variance, epsilon `$00000001` Q16.16, nearest integer square root, symmetric Q8.8 normalization, and original packed C9W06 gamma/C9W07 beta affine application. Its assembled-6502 live-path regression asserts residual `$FF9E`, mean `-711`, variance `$06C97ECE`, stddev `$29AF`, normalized checksum `$DF93`, static original gamma/beta checksums `$E4D4`/`$051C`, and final affine checksum `$FCBF`. This is LayerNorm only; routing and expert execution remain unimplemented.
+`cs64-033-layer-norm-affine.d64` completes this bounded fixed-point LayerNorm contract for the live `A`→`B` sequence: 32-bit centering and variance, epsilon `$00000001` Q16.16, nearest integer square root, symmetric Q8.8 normalization, and original packed C9W06 gamma/C9W07 beta affine application. Its assembled-6502 live-path regression asserts residual `$FF9E`, mean `-711`, variance `$06C97ECE`, stddev `$29AF`, normalized checksum `$DF93`, static original gamma/beta checksums `$E4D4`/`$051C`, and final affine checksum `$FCBF`. Browser-emulator parity is confirmed for `$29AF`, `$DF93`, and `$FCBF`. This is LayerNorm only; routing and expert execution remain unimplemented.
 
 ### Browser test target
 
