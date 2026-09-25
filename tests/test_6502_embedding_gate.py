@@ -989,6 +989,47 @@ def test_6502_projects_live_norm_output_through_all_original_router_rows(tmp_pat
     assert actual == expected
 
 
+def test_6502_adds_original_router_bias_to_all_live_router_logits(tmp_path):
+    """C9W09's original tensor-scale INT4 bias shifts each of the nine logits."""
+    prg = tmp_path / "CP64.PRG"
+    labels_path = tmp_path / "cp64.lbl"
+    subprocess.run(
+        [str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")],
+        check=True, capture_output=True, text=True,
+    )
+    symbols = labels(labels_path)
+    assert "add_router_bias" in symbols
+    assert "ROUTER_LOGITS" in symbols
+    mpu = MPU()
+    image = prg.read_bytes()
+    load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    projected_logits = [-839, 1559, 9, -228, 1324, -381, -613, -1574, 878]
+    for index, value in enumerate(projected_logits):
+        mpu.memory[symbols["ROUTER_LOGITS"] + index * 2 : symbols["ROUTER_LOGITS"] + index * 2 + 2] = (value & 0xFFFF).to_bytes(2, "little")
+    packet = ROOT / "build" / "layers" / "C9W09.PRG"
+    payload = packet.read_bytes()
+    mpu.memory[0xC000 : 0xC000 + len(payload) - 2] = payload[2:]
+
+    call(mpu, symbols["add_router_bias"])
+
+    bias = q8_8_vector_from_original_packet(packet, 0)[:9]
+    actual = []
+    for index in range(9):
+        value = mpu.memory[symbols["ROUTER_LOGITS"] + index * 2] | (mpu.memory[symbols["ROUTER_LOGITS"] + index * 2 + 1] << 8)
+        actual.append(value - 0x10000 if value & 0x8000 else value)
+    assert actual == [logit + offset for logit, offset in zip(projected_logits, bias)]
+
+
+def test_interactive_pipeline_pages_original_router_bias_after_router_projection():
+    """The executable gate pages C9W09 only after C9W08 produced all nine logits."""
+    source = (ROOT / "src" / "cp64.asm").read_text()
+    request = source[source.index("router_loaded:") : source.index("lda #<scale_result")]
+    assert request.index("jsr project_router") < request.index("jsr load_router_bias")
+    assert request.index("jsr load_router_bias") < request.index("jsr add_router_bias")
+    assert 'router_bias_filename: .text "C9W09.PRG"' in source
+
+
 def test_interactive_pipeline_pages_original_router_after_norm_affine():
     """The executable gate must page C9W08 only after producing its live input."""
     source = (ROOT / "src" / "cp64.asm").read_text()

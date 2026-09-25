@@ -303,6 +303,11 @@ norm_bias_loaded:
     jmp disk_error
 router_loaded:
     jsr project_router
+    jsr load_router_bias
+    bcc router_bias_loaded
+    jmp disk_error
+router_bias_loaded:
+    jsr add_router_bias
     lda #<scale_result
     ldy #>scale_result
     jsr print
@@ -722,6 +727,52 @@ router_load_failed:
     sec
     rts
 
+; Page original C9W09 router.bias: one FP16 scale and nine packed INT4 values.
+load_router_bias:
+    lda #9
+    ldx #<router_bias_filename
+    ldy #>router_bias_filename
+    jsr SETNAM
+    lda #1
+    ldx #8
+    ldy #0
+    jsr SETLFS
+    lda #0
+    ldx #<BUFFER
+    ldy #>BUFFER
+    jsr LOAD
+    bcs router_bias_load_failed
+    lda BUFFER
+    cmp #'C'
+    bne router_bias_load_failed
+    lda BUFFER+1
+    cmp #'9'
+    bne router_bias_load_failed
+    lda BUFFER+2
+    cmp #'W'
+    bne router_bias_load_failed
+    lda BUFFER+3
+    cmp #'1'
+    bne router_bias_load_failed
+    lda BUFFER+4
+    cmp #9
+    bne router_bias_load_failed
+    lda BUFFER+5
+    cmp #2
+    bne router_bias_load_failed
+    lda BUFFER+6
+    bne router_bias_load_failed
+    lda BUFFER+7
+    cmp #5
+    bne router_bias_load_failed
+    lda BUFFER+8
+    bne router_bias_load_failed
+    clc
+    rts
+router_bias_load_failed:
+    sec
+    rts
+
 ; Materialize the selected original embedding row as 32 signed Q8.8 values.
 ; The 64-byte token vector lives at $C100, outside the $C000 packet window.
 materialize_embedding:
@@ -1088,6 +1139,65 @@ project_router_dot:
     beq project_router_done
     jmp project_router_row
 project_router_done:
+    rts
+
+; C9W09 has one FP16 scale and nine packed INT4 router-bias values.
+; Decode exactly its nine lanes, then add them to the nine projected logits.
+add_router_bias:
+    lda #0
+    sta row
+    jsr decode_scale
+    lda #<POSITION_VECTOR
+    sta vector_base
+    lda #>POSITION_VECTOR
+    sta vector_base+1
+    lda #0
+    sta sumlo
+    sta sumhi
+    sta vector_index
+    lda #1
+    sta factor
+    lda #<(BUFFER+$0b)  ; C9W1 header (9) + one FP16 scale (2)
+    sta pointer
+    lda #>(BUFFER+$0b)
+    sta pointer+1
+    ldy #0
+router_bias_byte:
+    lda (pointer),y
+    sta packed_byte
+    sty packed_index
+    and #$0f
+    jsr materialize_nibble
+    lda vector_index
+    cmp #18
+    beq router_bias_add
+    ldy packed_index
+    lda packed_byte
+    lsr
+    lsr
+    lsr
+    lsr
+    jsr materialize_nibble
+    lda vector_index
+    cmp #18
+    beq router_bias_add
+    ldy packed_index
+    iny
+    jmp router_bias_byte
+router_bias_add:
+    ldy #0
+router_bias_add_lane:
+    clc
+    lda ROUTER_LOGITS,y
+    adc POSITION_VECTOR,y
+    sta ROUTER_LOGITS,y
+    iny
+    lda ROUTER_LOGITS,y
+    adc POSITION_VECTOR,y
+    sta ROUTER_LOGITS,y
+    iny
+    cpy #18
+    bne router_bias_add_lane
     rts
 
 project_query:
@@ -3030,6 +3140,7 @@ attention_output_bias_filename: .text "C9W05.PRG"
 norm_weight_filename: .text "C9W06.PRG"
 norm_bias_filename: .text "C9W07.PRG"
 router_filename: .text "C9W08.PRG"
+router_bias_filename: .text "C9W09.PRG"
 position_row: .byte 0
 position_sumlo: .byte 0
 position_sumhi: .byte 0

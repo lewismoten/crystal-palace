@@ -10,8 +10,8 @@ from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 34
-CURRENT_DESCRIPTION = "router-projection"
+CURRENT_STAGE = 35
+CURRENT_DESCRIPTION = "router-bias"
 
 
 def stage_image_path(number: int, description: str) -> Path:
