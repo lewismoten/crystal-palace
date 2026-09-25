@@ -144,7 +144,7 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 ### Stage 037 router normalization
 
-`cs64-037-router-normalization.d64` normalizes Stage 036's two selected original C9W08/C9W09 router logits for the bounded live `A`→`B` path. It subtracts the lower selected Q8.8 logit from the higher, then looks up `round(sigmoid(delta / 256) * 32768)` in a checked Q0.15 table covering deltas 0 through 8.0 (larger deltas saturate at the 8.0 endpoint); the complementary Q0.15 weight is exactly `32768 - top1`. The assembled-6502 regression pages and decodes verbatim C9W09 bytes, produces the two selected logits, and independently checks the resulting weights against `exp`. This is router normalization only: no expert tensor is yet paged or executed.
+`cs64-037-router-normalization.d64` normalizes Stage 036's two selected original C9W08/C9W09 router logits for the bounded live `A`→`B` path. It subtracts the lower selected Q8.8 logit from the higher, then looks up `round(sigmoid(delta / 256) * 32768)` in a checked Q0.15 table covering deltas 0 through 8.0 (larger deltas saturate at the 8.0 endpoint); the complementary Q0.15 weight is exactly `32768 - top1`. The assembled-6502 regression pages and decodes verbatim C9W09 bytes, produces the two selected logits, and independently checks the resulting weights against `exp`. The C64 display visibly runs 32/37 through 37/37 and reports `ROUTER TOP-1 EXPERT E1 WEIGHT Q0.15 $630F` and `ROUTER TOP-2 EXPERT E4 WEIGHT Q0.15 $1CF1`. These are bounded CP64 router weights—not original packed-runtime routing parity—and no expert tensor is yet paged or executed.
 
 ### Browser test target
 

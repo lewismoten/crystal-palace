@@ -298,17 +298,35 @@ norm_bias_loaded:
     jsr print
     jsr apply_norm_affine
     jsr checksum_norm_affine
+    lda #<step_router_load
+    ldy #>step_router_load
+    jsr print
     jsr load_router
     bcc router_loaded
     jmp disk_error
 router_loaded:
+    lda #<step_router_project
+    ldy #>step_router_project
+    jsr print
     jsr project_router
+    lda #<step_router_bias_load
+    ldy #>step_router_bias_load
+    jsr print
     jsr load_router_bias
     bcc router_bias_loaded
     jmp disk_error
 router_bias_loaded:
+    lda #<step_router_bias
+    ldy #>step_router_bias
+    jsr print
     jsr add_router_bias
+    lda #<step_router_top2
+    ldy #>step_router_top2
+    jsr print
     jsr select_router_top2
+    lda #<step_router_normalize
+    ldy #>step_router_normalize
+    jsr print
     jsr normalize_router_top2
     lda #<scale_result
     ldy #>scale_result
@@ -407,6 +425,38 @@ router_bias_loaded:
     lda norm_affine_sumhi
     jsr hexbyte
     lda norm_affine_sumlo
+    jsr hexbyte
+    lda #13
+    jsr CHROUT
+    lda #<router_top1_result
+    ldy #>router_top1_result
+    jsr print
+    lda router_top1_index
+    clc
+    adc #'0'
+    jsr CHROUT
+    lda #<router_top1_weight_result
+    ldy #>router_top1_weight_result
+    jsr print
+    lda router_weight_top1_hi
+    jsr hexbyte
+    lda router_weight_top1_lo
+    jsr hexbyte
+    lda #13
+    jsr CHROUT
+    lda #<router_top2_result
+    ldy #>router_top2_result
+    jsr print
+    lda router_top2_index
+    clc
+    adc #'0'
+    jsr CHROUT
+    lda #<router_top2_weight_result
+    ldy #>router_top2_weight_result
+    jsr print
+    lda router_weight_top2_hi
+    jsr hexbyte
+    lda router_weight_top2_lo
     jsr hexbyte
     lda #13
     jsr CHROUT
@@ -3378,37 +3428,43 @@ title:
 loading: .text "THINKING: READING C9W00 FROM DISK...",13,0
 loaded: .text "C9W00 READY. TYPE A THROUGH I.",13,13,0
 thinking: .text "THINKING TOKEN ",0
-step_token: .text "1/31 TOKEN EMBEDDING",13,0
-step_position: .text "2/31 POSITION EMBEDDING",13,0
-step_query: .text "3/31 ATTENTION Q",13,0
-step_key: .text "4/31 ATTENTION K",13,0
-step_value: .text "5/31 ATTENTION V",13,0
-step_history: .text "6/31 RETAIN K/V HISTORY",13,0
-step_scores: .text "7/31 SELF ATTENTION SCORES",13,0
-step_two_key_scores: .text "8/31 TWO-KEY CAUSAL SCORES",13,0
-step_head0: .text "9/31 CAUSAL SOFTMAX + V HEAD 0",13,0
-step_head1: .text "10/31 CAUSAL SOFTMAX + V HEAD 1",13,0
-step_head2: .text "11/31 CAUSAL SOFTMAX + V HEAD 2",13,0
-step_head3: .text "12/31 CAUSAL SOFTMAX + V HEAD 3",13,0
-step_head4: .text "13/31 CAUSAL SOFTMAX + V HEAD 4",13,0
-step_head5: .text "14/31 CAUSAL SOFTMAX + V HEAD 5",13,0
-step_head6: .text "15/31 CAUSAL SOFTMAX + V HEAD 6",13,0
-step_head7: .text "16/31 CAUSAL SOFTMAX + V HEAD 7",13,0
-step_residual_retain: .text "17/31 RETAIN ATTENTION RESIDUAL",13,0
-step_output_load: .text "18/31 LOAD ATTENTION OUTPUT WEIGHT",13,0
-step_output_project: .text "19/31 ATTENTION OUTPUT PROJECTION",13,0
-step_output_bias_load: .text "20/31 LOAD ATTENTION OUTPUT BIAS",13,0
-step_output_bias: .text "21/31 ADD ATTENTION OUTPUT BIAS",13,0
-step_residual_add: .text "22/31 ADD ATTENTION RESIDUAL",13,0
-step_norm_center: .text "23/31 CENTER LAYERNORM INPUT",13,0
-step_norm_variance: .text "24/31 LAYERNORM VARIANCE",13,0
-step_norm_isqrt: .text "25/31 LAYERNORM NEAREST ISQRT",13,0
-step_norm_normalize: .text "26/31 NORMALIZE LAYERNORM",13,0
-step_norm_load: .text "27/31 LOAD NORM WEIGHT",13,0
-step_norm_materialize: .text "28/31 MATERIALIZE NORM WEIGHT",13,0
-step_norm_bias_load: .text "29/31 LOAD NORM BIAS",13,0
-step_norm_bias_materialize: .text "30/31 MATERIALIZE NORM BIAS",13,0
-step_norm_affine: .text "31/31 APPLY NORM AFFINE",13,0
+step_token: .text "1/37 TOKEN EMBEDDING",13,0
+step_position: .text "2/37 POSITION EMBEDDING",13,0
+step_query: .text "3/37 ATTENTION Q",13,0
+step_key: .text "4/37 ATTENTION K",13,0
+step_value: .text "5/37 ATTENTION V",13,0
+step_history: .text "6/37 RETAIN K/V HISTORY",13,0
+step_scores: .text "7/37 SELF ATTENTION SCORES",13,0
+step_two_key_scores: .text "8/37 TWO-KEY CAUSAL SCORES",13,0
+step_head0: .text "9/37 CAUSAL SOFTMAX + V HEAD 0",13,0
+step_head1: .text "10/37 CAUSAL SOFTMAX + V HEAD 1",13,0
+step_head2: .text "11/37 CAUSAL SOFTMAX + V HEAD 2",13,0
+step_head3: .text "12/37 CAUSAL SOFTMAX + V HEAD 3",13,0
+step_head4: .text "13/37 CAUSAL SOFTMAX + V HEAD 4",13,0
+step_head5: .text "14/37 CAUSAL SOFTMAX + V HEAD 5",13,0
+step_head6: .text "15/37 CAUSAL SOFTMAX + V HEAD 6",13,0
+step_head7: .text "16/37 CAUSAL SOFTMAX + V HEAD 7",13,0
+step_residual_retain: .text "17/37 RETAIN ATTENTION RESIDUAL",13,0
+step_output_load: .text "18/37 LOAD ATTENTION OUTPUT WEIGHT",13,0
+step_output_project: .text "19/37 ATTENTION OUTPUT PROJECTION",13,0
+step_output_bias_load: .text "20/37 LOAD ATTENTION OUTPUT BIAS",13,0
+step_output_bias: .text "21/37 ADD ATTENTION OUTPUT BIAS",13,0
+step_residual_add: .text "22/37 ADD ATTENTION RESIDUAL",13,0
+step_norm_center: .text "23/37 CENTER LAYERNORM INPUT",13,0
+step_norm_variance: .text "24/37 LAYERNORM VARIANCE",13,0
+step_norm_isqrt: .text "25/37 LAYERNORM NEAREST ISQRT",13,0
+step_norm_normalize: .text "26/37 NORMALIZE LAYERNORM",13,0
+step_norm_load: .text "27/37 LOAD NORM WEIGHT",13,0
+step_norm_materialize: .text "28/37 MATERIALIZE NORM WEIGHT",13,0
+step_norm_bias_load: .text "29/37 LOAD NORM BIAS",13,0
+step_norm_bias_materialize: .text "30/37 MATERIALIZE NORM BIAS",13,0
+step_norm_affine: .text "31/37 APPLY NORM AFFINE",13,0
+step_router_load: .text "32/37 LOAD ROUTER WEIGHT C9W08",13,0
+step_router_project: .text "33/37 ROUTER AFFINE LOGITS",13,0
+step_router_bias_load: .text "34/37 LOAD ROUTER BIAS C9W09",13,0
+step_router_bias: .text "35/37 ADD ROUTER BIAS",13,0
+step_router_top2: .text "36/37 STABLE TOP-2 LOGIT INDICES",13,0
+step_router_normalize: .text "37/37 NORMALIZE TOP-2 WEIGHTS",13,0
 scale_result: .text "FP16 SCALE AS Q8.8 $",0
 result: .text "TOKEN ",0
 embedding_checksum: .text " EMBEDDING CHECKSUM $",0
@@ -3421,5 +3477,9 @@ norm_variance_result: .text " NORM VARIANCE Q16.16 $",0
 norm_rms_result: .text " NORM STDDEV Q8.8 $",0
 norm_normalized_checksum: .text " NORM NORMALIZED CHECKSUM $",0
 norm_affine_checksum: .text " NORM AFFINE CHECKSUM $",0
+router_top1_result: .text " ROUTER TOP-1 EXPERT E",0
+router_top1_weight_result: .text " WEIGHT Q0.15 $",0
+router_top2_result: .text " ROUTER TOP-2 EXPERT E",0
+router_top2_weight_result: .text " WEIGHT Q0.15 $",0
 error_message: .text "C9W00 LOAD OR HEADER ERROR",13,0
 scale_error_message: .text "UNSUPPORTED FP16 SCALE",13,0
