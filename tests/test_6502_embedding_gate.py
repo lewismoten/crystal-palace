@@ -1112,3 +1112,27 @@ def test_interactive_pipeline_pages_original_router_after_norm_affine():
     assert request.index("jsr apply_norm_affine") < request.index("jsr load_router")
     assert request.index("jsr load_router") < request.index("jsr project_router")
     assert 'router_filename: .text "C9W08.PRG"' in source
+
+
+def test_6502_selected_expert_first_affines_match_original_packets(tmp_path):
+    """Stage 038 executes E1/E4 first affine from verbatim packets on live A→B."""
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    state = [-74, -134, 141, 98, -73, 305, 56, -14, 165, 155, 71, -146, 29, 33, -41, -120, -214, 210, 43, -47, 46, -149, 155, 30, -9, -9, -53, -258, -94, 228, 91, -101]
+    cases = (
+        (1, "C9W14.PRG", "C9W15.PRG", [-902, -834, -1747, -707, -492, -2540, -1586, -853, -1236, 76, -1762, -2846, -770, -357, -1794, -1597, -1214, -1637, -753, -2636, -1300, -2107, -512, -1103, -1161, -1044, -1636, -1300, -2228, -701, -2006, -639]),
+        (4, "C9W26.PRG", "C9W27.PRG", [-1929, 69, -300, -961, -1662, -842, -773, -2055, -2018, -1302, -2289, -1513, -910, -2190, -1160, -1637, -1431, 240, 1373, 681, -260, -1024, 121, -2714, -143, -1294, 938, -1258, -409, -1016, -774, -2365]),
+    )
+    for expert, packet_name, bias_name, expected in cases:
+        for lane, value in enumerate(state):
+            mpu.memory[symbols["ATTENDED_VECTOR"] + lane * 2 : symbols["ATTENDED_VECTOR"] + lane * 2 + 2] = (value & 0xFFFF).to_bytes(2, "little")
+        payload = (ROOT / "build" / "layers" / packet_name).read_bytes()[2:]
+        mpu.memory[0xC000 : 0xC000 + len(payload)] = payload
+        mpu.memory[symbols["expert_index"]] = expert
+        call(mpu, symbols["project_selected_expert_first"], steps=100_000_000)
+        payload = (ROOT / "build" / "layers" / bias_name).read_bytes()[2:]
+        mpu.memory[0xC000 : 0xC000 + len(payload)] = payload
+        call(mpu, symbols["add_selected_expert_first_bias"], steps=5_000_000)
+        assert signed_vector(mpu, symbols["EXPERT_FIRST_VECTOR"]) == expected

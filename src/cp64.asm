@@ -34,6 +34,7 @@ RESIDUAL_VECTOR = $c880 ; valid after two-key score materialization
 ATTENDED_VECTOR = $c900
 CAUSAL_SCORES = $c940
 ROUTER_LOGITS = $c940
+EXPERT_FIRST_VECTOR = $c700
 VALUE_HISTORY = $c980
 pointer = $fb
 vector_base = $fd
@@ -825,6 +826,54 @@ router_bias_load_failed:
     sec
     rts
 
+; Page a packet selected by packet_name_{lo,hi}; check C9W1, ID, and lengths.
+load_packet_checked:
+    lda #9
+    ldx packet_name_lo
+    ldy packet_name_hi
+    jsr SETNAM
+    lda #1
+    ldx #8
+    ldy #0
+    jsr SETLFS
+    lda #0
+    ldx #<BUFFER
+    ldy #>BUFFER
+    jsr LOAD
+    bcs packet_load_failed
+    lda BUFFER
+    cmp #'C'
+    bne packet_load_failed
+    lda BUFFER+1
+    cmp #'9'
+    bne packet_load_failed
+    lda BUFFER+2
+    cmp #'W'
+    bne packet_load_failed
+    lda BUFFER+3
+    cmp #'1'
+    bne packet_load_failed
+    lda BUFFER+4
+    cmp packet_expected_id
+    bne packet_load_failed
+    lda BUFFER+5
+    cmp packet_scale_lo
+    bne packet_load_failed
+    lda BUFFER+6
+    cmp packet_scale_hi
+    bne packet_load_failed
+    lda BUFFER+7
+    cmp packet_packed_lo
+    bne packet_load_failed
+    lda BUFFER+8
+    cmp packet_packed_hi
+    bne packet_load_failed
+    clc
+    rts
+packet_load_failed:
+    sec
+    rts
+
 ; Materialize the selected original embedding row as 32 signed Q8.8 values.
 ; The 64-byte token vector lives at $C100, outside the $C000 packet window.
 materialize_embedding:
@@ -1191,6 +1240,100 @@ project_router_dot:
     beq project_router_done
     jmp project_router_row
 project_router_done:
+    rts
+
+; Stage 038 generic selected-expert first affine.  The caller pages a 32x32
+; row-scaled packet at $C000; ATTENDED_VECTOR is the retained live norm state.
+project_selected_expert_first:
+    lda #0
+    sta projection_row
+    sta projection_offset
+expert_first_row:
+    lda projection_row
+    sta row
+    jsr decode_scale
+    lda #$49            ; C9W1 header (9) + 32 FP16 scales (64)
+    sta packed_offset
+    lda #<PROJECTION_SCRATCH
+    sta vector_base
+    lda #>PROJECTION_SCRATCH
+    sta vector_base+1
+    jsr materialize_row
+    lda #0
+    sta dot0
+    sta dot1
+    sta dot2
+    sta dot3
+    ldy #0
+expert_first_dot:
+    lda ATTENDED_VECTOR,y
+    sta mul_a_lo
+    lda ATTENDED_VECTOR+1,y
+    sta mul_a_hi
+    lda PROJECTION_SCRATCH,y
+    sta mul_b_lo
+    lda PROJECTION_SCRATCH+1,y
+    sta mul_b_hi
+    jsr multiply_q8_8
+    clc
+    lda dot0
+    adc product0
+    sta dot0
+    lda dot1
+    adc product1
+    sta dot1
+    lda dot2
+    adc product2
+    sta dot2
+    lda dot3
+    adc product3
+    sta dot3
+    iny
+    iny
+    cpy #64
+    bne expert_first_dot
+    jsr rounded_dot_to_q8_8
+    ldy projection_offset
+    lda result_lo
+    sta EXPERT_FIRST_VECTOR,y
+    iny
+    lda result_hi
+    sta EXPERT_FIRST_VECTOR,y
+    inc projection_row
+    inc projection_offset
+    inc projection_offset
+    lda projection_row
+    cmp #32
+    beq expert_first_done
+    jmp expert_first_row
+expert_first_done:
+    rts
+
+; Caller pages the selected expert's tensor-scaled 32-lane bias packet.
+add_selected_expert_first_bias:
+    lda #0
+    sta row
+    jsr decode_scale
+    lda #$0b            ; C9W1 header (9) + one FP16 scale (2)
+    sta packed_offset
+    lda #<POSITION_VECTOR
+    sta vector_base
+    lda #>POSITION_VECTOR
+    sta vector_base+1
+    jsr materialize_row
+    ldy #0
+expert_first_bias_lane:
+    clc
+    lda EXPERT_FIRST_VECTOR,y
+    adc POSITION_VECTOR,y
+    sta EXPERT_FIRST_VECTOR,y
+    iny
+    lda EXPERT_FIRST_VECTOR,y
+    adc POSITION_VECTOR,y
+    sta EXPERT_FIRST_VECTOR,y
+    iny
+    cpy #64
+    bne expert_first_bias_lane
     rts
 
 ; C9W09 has one FP16 scale and nine packed INT4 router-bias values.
@@ -2974,7 +3117,7 @@ scale_exp15_positive:
     rts
 scale_check_exp16:
     cmp #$40            ; binary16 exponent 16
-    bne scale_check_exp14
+    bne scale_check_exp17
     lda raw_scale_hi
     bpl scale_exp16_positive
     jmp scale_invalid
@@ -3005,6 +3148,21 @@ scale_exp16_positive:
     clc
     adc #2              ; Q8.8 base for exponent 16 is 512
     sta scale_hi
+    clc
+    rts
+scale_check_exp17:
+    cmp #$44            ; binary16 exponent 17: Q8.8 is exactly 1024 + fraction
+    bne scale_check_exp14
+    lda raw_scale_hi
+    bpl scale_exp17_positive
+    jmp scale_invalid
+scale_exp17_positive:
+    and #$03
+    clc
+    adc #4
+    sta scale_hi
+    lda raw_scale_lo
+    sta scale_lo
     clc
     rts
 scale_check_exp14:
@@ -3373,6 +3531,14 @@ multiplicand2: .byte 0
 multiplicand3: .byte 0
 result_lo: .byte 0
 result_hi: .byte 0
+expert_index: .byte 0
+packet_name_lo: .byte 0
+packet_name_hi: .byte 0
+packet_expected_id: .byte 0
+packet_scale_lo: .byte 0
+packet_scale_hi: .byte 0
+packet_packed_lo: .byte 0
+packet_packed_hi: .byte 0
 router_top1_index: .byte 0
 router_top1_lo: .byte 0
 router_top1_hi: .byte 0
