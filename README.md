@@ -59,6 +59,7 @@ build/cs64-033-layer-norm-affine.d64
 build/cs64-034-router-projection.d64
 build/cs64-035-router-bias.d64
 build/cs64-036-router-top2.d64
+build/cs64-037-router-normalization.d64
 ```
 
 `cp64.d64` is a compatibility copy of the current numbered gate. A number is reserved only after its gate builds and passes its reference tests.
@@ -141,13 +142,17 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 `cs64-036-router-top2.d64` retains Stage 035's nine original router logits and selects the largest two signed Q8.8 values, retaining each value and its source expert index. The assembled-6502 regression derives the Stage 035 logits from verbatim C9W09 bias bytes and asserts the selected indices and values. This is selection only: router normalization and selected-expert execution remain out of scope.
 
+### Stage 037 router normalization
+
+`cs64-037-router-normalization.d64` normalizes Stage 036's two selected original C9W08/C9W09 router logits for the bounded live `A`→`B` path. It subtracts the lower selected Q8.8 logit from the higher, then looks up `round(sigmoid(delta / 256) * 32768)` in a checked Q0.15 table covering deltas 0 through 8.0 (larger deltas saturate at the 8.0 endpoint); the complementary Q0.15 weight is exactly `32768 - top1`. The assembled-6502 regression pages and decodes verbatim C9W09 bytes, produces the two selected logits, and independently checks the resulting weights against `exp`. This is router normalization only: no expert tensor is yet paged or executed.
+
 ### Browser test target
 
 The manual acceptance target is [C64 Online Emulator](https://c64online.com/c64-online-emulator/). Use its **Load Program** control to select the numbered `.d64` artifact; it accepts D64 files directly. This project treats a user-reported matching result from that emulator as a separate browser-emulator confirmation in addition to the assembled-6502 regression suite.
 
 ## Next proof gates
 
-1. Implement router normalization, then page and execute only the two selected original expert tensors before output logits.
+1. Page and execute only the two selected original expert tensors before output logits.
 2. Feed legal move histories from the C64 game loop and compare every C64 prediction against the packed Python reference runtime.
 3. Run exhaustive legal-history parity before claiming the C64 can play tic-tac-toe with Crystal-9.
 

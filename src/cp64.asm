@@ -309,6 +309,7 @@ router_loaded:
 router_bias_loaded:
     jsr add_router_bias
     jsr select_router_top2
+    jsr normalize_router_top2
     lda #<scale_result
     ldy #>scale_result
     jsr print
@@ -1255,6 +1256,67 @@ select_router_advance:
     lda router_candidate_index
     cmp #9
     bne select_router_next
+    rts
+
+; Normalize the two retained router winners with sigmoid((top1-top2)/256).
+; The source logits are Q8.8 and the result is Q0.15.  The checked lookup
+; covers 0..8 Q8.8; larger positive deltas use its 8.0 saturation endpoint.
+normalize_router_top2:
+    sec
+    lda router_top1_lo
+    sbc router_top2_lo
+    sta router_delta_lo
+    lda router_top1_hi
+    sbc router_top2_hi
+    sta router_delta_hi
+    lda router_delta_hi
+    cmp #8
+    bcc router_delta_bounded
+    bne router_delta_saturate
+    lda router_delta_lo
+    beq router_delta_bounded
+router_delta_saturate:
+    lda #0
+    sta router_delta_lo
+    lda #8
+    sta router_delta_hi
+router_delta_bounded:
+    lda #<router_sigmoid_q0_15
+    sta pointer
+    lda #>router_sigmoid_q0_15
+    sta pointer+1
+router_sigmoid_advance:
+    lda router_delta_lo
+    ora router_delta_hi
+    beq router_sigmoid_ready
+    inc pointer
+    bne router_sigmoid_advance_second_byte
+    inc pointer+1
+router_sigmoid_advance_second_byte:
+    inc pointer
+    bne router_sigmoid_advance_decrement
+    inc pointer+1
+router_sigmoid_advance_decrement:
+    lda router_delta_lo
+    bne router_sigmoid_decrement_low
+    dec router_delta_hi
+router_sigmoid_decrement_low:
+    dec router_delta_lo
+    jmp router_sigmoid_advance
+router_sigmoid_ready:
+    ldy #0
+    lda (pointer),y
+    sta router_weight_top1_lo
+    iny
+    lda (pointer),y
+    sta router_weight_top1_hi
+    lda #0
+    sec
+    sbc router_weight_top1_lo
+    sta router_weight_top2_lo
+    lda #$80
+    sbc router_weight_top1_hi
+    sta router_weight_top2_hi
     rts
 
 ; Carry set when signed router_candidate is greater than signed top1 value.
@@ -3272,6 +3334,12 @@ router_candidate_lo: .byte 0
 router_candidate_hi: .byte 0
 router_compare_lo: .byte 0
 router_compare_hi: .byte 0
+router_delta_lo: .byte 0
+router_delta_hi: .byte 0
+router_weight_top1_lo: .byte 0
+router_weight_top1_hi: .byte 0
+router_weight_top2_lo: .byte 0
+router_weight_top2_hi: .byte 0
 query_sumlo: .byte 0
 query_sumhi: .byte 0
 query_factor: .byte 0
@@ -3299,6 +3367,7 @@ two_key_state: .byte 0
 history_offset: .byte 0
 softmax_lo: .byte $00,$20,$40,$60,$80,$a0,$c0,$e0,$00,$20,$40,$60,$80,$a0,$c0,$e0,$00,$20,$40,$60,$80,$a0,$c0,$e0,$ff,$1f,$3f,$5f,$7f,$9f,$bf,$df
 softmax_hi: .byte $40,$40,$40,$40,$40,$40,$40,$40,$41,$41,$41,$41,$41,$41,$41,$41,$42,$42,$42,$42,$42,$42,$42,$42,$42,$43,$43,$43,$43,$43,$43,$43
+router_sigmoid_q0_15: .binary "router_sigmoid_q0_15.bin"
 
 title:
     .text "CP64 CRYSTAL-9",13
