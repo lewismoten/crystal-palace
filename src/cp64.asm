@@ -329,6 +329,7 @@ router_bias_loaded:
     ldy #>step_router_normalize
     jsr print
     jsr normalize_router_top2
+    jsr retain_expert_input
     ldx #<expert1_weight1_filename
     ldy #>expert1_weight1_filename
     lda #14
@@ -1345,8 +1346,20 @@ project_router_dot:
 project_router_done:
     rts
 
-; Stage 038 generic selected-expert first affine.  The caller pages a 32x32
-; row-scaled packet at $C000; ATTENDED_VECTOR is the retained live norm state.
+; Preserve the live norm state before either expert writes its second-affine
+; output to ATTENDED_VECTOR. RESIDUAL_VECTOR is free after LayerNorm.
+retain_expert_input:
+    ldy #0
+retain_expert_input_lane:
+    lda ATTENDED_VECTOR,y
+    sta RESIDUAL_VECTOR,y
+    iny
+    cpy #64
+    bne retain_expert_input_lane
+    rts
+
+; Stage 038 generic selected-expert first affine. The caller pages a 32x32
+; row-scaled packet at $C000; RESIDUAL_VECTOR retains the live norm state.
 project_selected_expert_first:
     lda #0
     sta projection_row
@@ -1369,9 +1382,9 @@ expert_first_row:
     sta dot3
     ldy #0
 expert_first_dot:
-    lda ATTENDED_VECTOR,y
+    lda RESIDUAL_VECTOR,y
     sta mul_a_lo
-    lda ATTENDED_VECTOR+1,y
+    lda RESIDUAL_VECTOR+1,y
     sta mul_a_hi
     lda PROJECTION_SCRATCH,y
     sta mul_b_lo

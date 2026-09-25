@@ -1128,6 +1128,7 @@ def test_6502_selected_expert_first_affines_match_original_packets(tmp_path):
     for expert, packet_name, bias_name, expected in cases:
         for lane, value in enumerate(state):
             mpu.memory[symbols["ATTENDED_VECTOR"] + lane * 2 : symbols["ATTENDED_VECTOR"] + lane * 2 + 2] = (value & 0xFFFF).to_bytes(2, "little")
+        call(mpu, symbols["retain_expert_input"], steps=5_000_000)
         payload = (ROOT / "build" / "layers" / packet_name).read_bytes()[2:]
         mpu.memory[0xC000 : 0xC000 + len(payload)] = payload
         mpu.memory[symbols["expert_index"]] = expert
@@ -1160,6 +1161,7 @@ def test_6502_selected_expert_second_affines_follow_bounded_silu(tmp_path):
     for expert, first_weight, first_bias, second_weight, second_bias in cases:
         for lane, value in enumerate(state):
             mpu.memory[symbols["ATTENDED_VECTOR"] + lane * 2 : symbols["ATTENDED_VECTOR"] + lane * 2 + 2] = (value & 0xFFFF).to_bytes(2, "little")
+        call(mpu, symbols["retain_expert_input"], steps=5_000_000)
         for packet_name, routine in ((first_weight, "project_selected_expert_first"), (first_bias, "add_selected_expert_first_bias"), (None, "apply_selected_expert_silu"), (second_weight, "project_selected_expert_second"), (second_bias, "add_selected_expert_second_bias")):
             if packet_name:
                 payload = (ROOT / "build" / "layers" / packet_name).read_bytes()[2:]
@@ -1172,6 +1174,25 @@ def test_6502_selected_expert_second_affines_follow_bounded_silu(tmp_path):
         second_bias_values = q8_8_vector_from_original_packet(ROOT / "build" / "layers" / second_bias, 0)
         expected = [((value + bias + 0x8000) & 0xFFFF) - 0x8000 for value, bias in zip(second, second_bias_values)]
         assert signed_vector(mpu, symbols["ATTENDED_VECTOR"]) == expected
+
+
+def test_6502_e4_first_affine_retains_live_pre_expert_input_after_e1(tmp_path):
+    """Live E4 starts from the retained norm output, never E1's second-affine output."""
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    state = [-74, -134, 141, 98, -73, 305, 56, -14, 165, 155, 71, -146, 29, 33, -41, -120, -214, 210, 43, -47, 46, -149, 155, 30, -9, -9, -53, -258, -94, 228, 91, -101]
+    for lane, value in enumerate(state):
+        mpu.memory[symbols["ATTENDED_VECTOR"] + lane * 2 : symbols["ATTENDED_VECTOR"] + lane * 2 + 2] = (value & 0xFFFF).to_bytes(2, "little")
+    call(mpu, symbols["retain_expert_input"], steps=5_000_000)
+    for packet_name, routine in (("C9W14.PRG", "project_selected_expert_first"), ("C9W15.PRG", "add_selected_expert_first_bias"), (None, "apply_selected_expert_silu"), ("C9W16.PRG", "project_selected_expert_second"), ("C9W17.PRG", "add_selected_expert_second_bias"), ("C9W26.PRG", "project_selected_expert_first")):
+        if packet_name:
+            payload = (ROOT / "build" / "layers" / packet_name).read_bytes()[2:]
+            mpu.memory[0xC000 : 0xC000 + len(payload)] = payload
+        call(mpu, symbols[routine], steps=100_000_000)
+    expected = [q8_8_dot(state, q8_8_vector_from_original_packet(ROOT / "build" / "layers" / "C9W26.PRG", row)) for row in range(32)]
+    assert signed_vector(mpu, symbols["EXPERT_FIRST_VECTOR"]) == expected
 
 
 def test_interactive_pipeline_pages_both_selected_expert_second_affines_after_router_normalization():
