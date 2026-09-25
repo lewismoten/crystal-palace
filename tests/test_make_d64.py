@@ -43,3 +43,21 @@ def test_build_d64_chains_directory_sectors_for_more_than_eight_files(tmp_path):
     assert data[second:second + 2] == bytes((0, 0xff))
     assert b"L0" in data[first:first + 256]
     assert b"L8" in data[second:second + 256]
+
+
+def test_build_d64_directory_entry_preserves_start_track_sector_and_filename(tmp_path):
+    """A CBM directory entry must keep its start pointer outside the PETSCII name."""
+    builder = load_builder()
+    prg = tmp_path / "CP64.PRG"
+    prg.write_bytes(bytes((0x01, 0x08, 0x60)))
+    image = tmp_path / "cp64.d64"
+
+    builder.build_d64_files({"CP64.PRG": prg}, image, disk_name="CP64 MODEL")
+
+    data = image.read_bytes()
+    entry = 0x16600 + 2
+    start_track, start_sector = data[entry + 1], data[entry + 2]
+    assert start_track == 1
+    assert start_sector == 0
+    assert data[entry + 3] == 0
+    assert data[entry + 5 : entry + 21].rstrip(b"\xa0") == b"CP64.PRG"
