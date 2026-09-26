@@ -65,6 +65,13 @@ embedding_loaded:
     lda #<loaded
     ldy #>loaded
     jsr print
+    jsr draw_history_ui
+    ldx #10                 ; Keep normal CHROUT text below the fixed UI.
+ui_text_below:
+    lda #13
+    jsr CHROUT
+    dex
+    bne ui_text_below
 read_key:
     jsr GETIN
     beq read_key
@@ -82,9 +89,13 @@ uppercase_key:
 accepted_key:
     sta selected
     jsr print_thinking
+    lda #0
+    jsr show_real_progress
     lda #<step_token
     ldy #>step_token
     jsr print
+    lda #1
+    jsr show_real_progress
     jsr load_embedding       ; C9W01 from the prior request occupied $C000.
     bcc embedding_reloaded
     jmp disk_error
@@ -107,6 +118,8 @@ scale_ready:
     lda #<step_position
     ldy #>step_position
     jsr print
+    lda #2
+    jsr show_real_progress
     jsr load_position
     bcc position_loaded
     jmp disk_error
@@ -125,6 +138,8 @@ position_scale_ready:
     lda #<step_query
     ldy #>step_query
     jsr print
+    lda #3
+    jsr show_real_progress
     jsr load_attention_input
     bcc attention_input_loaded
     jmp disk_error
@@ -135,18 +150,26 @@ attention_input_loaded:
     lda #<step_key
     ldy #>step_key
     jsr print
+    lda #4
+    jsr show_real_progress
     jsr project_key
     lda #<step_value
     ldy #>step_value
     jsr print
+    lda #5
+    jsr show_real_progress
     jsr project_value
     lda #<step_history
     ldy #>step_history
     jsr print
+    lda #6
+    jsr show_real_progress
     jsr capture_legal_history
     lda #<step_scores
     ldy #>step_scores
     jsr print
+    lda #7
+    jsr show_real_progress
     jsr materialize_self_attention_scores
     lda three_key_ready
     bne attended_three_key
@@ -169,6 +192,28 @@ attended_three_key:
     lda #<three_key_retained_message
     ldy #>three_key_retained_message
     jsr print
+    jsr sum_history_bytes
+    lda #<history_length_result
+    ldy #>history_length_result
+    jsr print
+    lda sequence_length
+    jsr hexbyte
+    lda #<history_key_sum_result
+    ldy #>history_key_sum_result
+    jsr print
+    lda history_key_sumhi
+    jsr hexbyte
+    lda history_key_sumlo
+    jsr hexbyte
+    lda #<history_value_sum_result
+    ldy #>history_value_sum_result
+    jsr print
+    lda history_value_sumhi
+    jsr hexbyte
+    lda history_value_sumlo
+    jsr hexbyte
+    lda #13
+    jsr CHROUT
     jmp read_key
 attended_two_key:
     lda #<step_two_key_scores
@@ -3347,6 +3392,7 @@ capture_legal_history:
     asl a
     sta history_offset
     jsr capture_history
+    jsr mark_selected_move
     inc sequence_length
     lda sequence_length
     cmp #3
@@ -4159,6 +4205,114 @@ print_byte:
 print_done:
     rts
 
+; Fixed character-mode panel. Screen RAM writes keep this compatible with
+; ordinary PETSCII terminals while avoiding a bitmap-mode requirement.
+draw_history_ui:
+    ldx #0
+draw_cells:
+    lda ui_cell_offsets,x
+    sta pointer
+    lda ui_cell_offsets+1,x
+    sta pointer+1
+    ldy #0
+    lda #$2e             ; empty board square
+    sta (pointer),y
+    inx
+    inx
+    cpx #18
+    bne draw_cells
+    ldx #0
+draw_verticals:
+    lda ui_vertical_offsets,x
+    sta pointer
+    lda ui_vertical_offsets+1,x
+    sta pointer+1
+    ldy #0
+    lda #$5d
+    sta (pointer),y
+    inx
+    inx
+    cpx #12
+    bne draw_verticals
+    ldx #0
+draw_upper_line:
+    lda #$40
+    sta $04f7,x
+    sta $0547,x
+    inx
+    cpx #19
+    bne draw_upper_line
+    lda #0
+    jmp show_real_progress
+
+; A is the number of named real page/compute boundaries completed (0..7).
+show_real_progress:
+    sta ui_progress_count
+    ldx #0
+draw_progress:
+    cpx #28
+    beq progress_done
+    cpx ui_progress_count
+    bcc progress_filled
+    lda #$40
+    bne progress_store
+progress_filled:
+    lda #$a0
+progress_store:
+    sta $05be,x
+    inx
+    bne draw_progress
+progress_done:
+    rts
+
+; Called only from the legal capture success path, so an arbitrary key cannot
+; paint a model move on the panel.
+mark_selected_move:
+    lda selected
+    sec
+    sbc #'a'
+    asl
+    tax
+    lda ui_cell_offsets,x
+    sta pointer
+    lda ui_cell_offsets+1,x
+    sta pointer+1
+    lda selected
+    sec
+    sbc #$60             ; C64 screen-code A through I
+    ldy #0
+    sta (pointer),y
+    rts
+
+; Actual byte sums over the retained original projected K/V pages. These are
+; diagnostic measurements, not a model prediction or a synthesized policy.
+sum_history_bytes:
+    lda #0
+    sta history_key_sumlo
+    sta history_key_sumhi
+    sta history_value_sumlo
+    sta history_value_sumhi
+    ldx #0
+sum_history_loop:
+    clc
+    lda history_key_sumlo
+    adc KEY_HISTORY,x
+    sta history_key_sumlo
+    lda history_key_sumhi
+    adc #0
+    sta history_key_sumhi
+    clc
+    lda history_value_sumlo
+    adc VALUE_HISTORY,x
+    sta history_value_sumlo
+    lda history_value_sumhi
+    adc #0
+    sta history_value_sumhi
+    inx
+    cpx #192
+    bne sum_history_loop
+    rts
+
 disk_error:
     lda #<error_message
     ldy #>error_message
@@ -4351,6 +4505,13 @@ three_key_ready: .byte 0
 sequence_length: .byte 0
 sequence_position: .byte 0
 history_offset: .byte 0
+ui_progress_count: .byte 0
+history_key_sumlo: .byte 0
+history_key_sumhi: .byte 0
+history_value_sumlo: .byte 0
+history_value_sumhi: .byte 0
+ui_cell_offsets: .word $04cf,$04d7,$04df,$051f,$0527,$052f,$056f,$0577,$057f
+ui_vertical_offsets: .word $04d3,$04db,$0523,$052b,$0573,$057b
 softmax_lo: .byte $00,$20,$40,$60,$80,$a0,$c0,$e0,$00,$20,$40,$60,$80,$a0,$c0,$e0,$00,$20,$40,$60,$80,$a0,$c0,$e0,$ff,$1f,$3f,$5f,$7f,$9f,$bf,$df
 softmax_hi: .byte $40,$40,$40,$40,$40,$40,$40,$40,$41,$41,$41,$41,$41,$41,$41,$41,$42,$42,$42,$42,$42,$42,$42,$42,$42,$43,$43,$43,$43,$43,$43,$43
 router_sigmoid_q0_15: .binary "router_sigmoid_q0_15.bin"
@@ -4367,6 +4528,9 @@ thinking: .text "THINKING TOKEN ",0
 await_second_key_message: .text "A RETAINED. TYPE B TO RUN THE A->B PROOF.",13,0
 await_third_key_message: .text "A,B RETAINED. TYPE C TO COMPLETE A->B->C HISTORY.",13,0
 three_key_retained_message: .text "A,B,C RETAINED. THREE-KEY K/V HISTORY READY.",13,0
+history_length_result: .text "HISTORY LENGTH $",0
+history_key_sum_result: .text " KEY BYTE SUM $",0
+history_value_sum_result: .text " VALUE BYTE SUM $",0
 step_token: .text "1/44 TOKEN EMBEDDING",13,0
 step_position: .text "2/44 POSITION EMBEDDING",13,0
 step_query: .text "3/44 ATTENTION Q",13,0

@@ -1374,3 +1374,32 @@ def test_6502_legal_history_contract_retains_a_b_c_with_length_and_position(tmp_
         assert mpu.memory[symbols["sequence_position"]] == position
     assert list(mpu.memory[symbols["KEY_HISTORY"] : symbols["KEY_HISTORY"] + 192]) == list(range(192))
     assert list(mpu.memory[symbols["VALUE_HISTORY"] : symbols["VALUE_HISTORY"] + 192]) == [((0xc0 + index) & 0xff) for index in range(192)]
+
+
+def test_6502_graphical_history_ui_marks_accepted_moves_and_real_progress(tmp_path):
+    """Stage 047's PETSCII UI is direct screen memory, not a text-only claim."""
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    assert {"draw_history_ui", "mark_selected_move", "show_real_progress", "sum_history_bytes"} <= symbols.keys()
+    mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+
+    call(mpu, symbols["draw_history_ui"])
+    assert [mpu.memory[0x0400 + offset] for offset in (207, 215, 223, 287, 295, 303, 367, 375, 383)] == [0x2e] * 9
+    assert mpu.memory[0x0400 + 446] == 0x40  # graphical progress bar starts empty
+
+    for token, expected_offset in ((ord("a"), 207), (ord("b"), 215), (ord("c"), 223)):
+        mpu.memory[symbols["selected"]] = token
+        call(mpu, symbols["mark_selected_move"])
+        assert mpu.memory[0x0400 + expected_offset] == token - 0x60
+    mpu.a = 7
+    call(mpu, symbols["show_real_progress"])
+    assert [mpu.memory[0x0400 + offset] for offset in range(446, 453)] == [0xa0] * 7
+
+    for index in range(192):
+        mpu.memory[symbols["KEY_HISTORY"] + index] = index
+        mpu.memory[symbols["VALUE_HISTORY"] + index] = (0xc0 + index) & 0xff
+    call(mpu, symbols["sum_history_bytes"])
+    assert (mpu.memory[symbols["history_key_sumlo"]] | (mpu.memory[symbols["history_key_sumhi"]] << 8)) == sum(range(192)) & 0xffff
+    assert (mpu.memory[symbols["history_value_sumlo"]] | (mpu.memory[symbols["history_value_sumhi"]] << 8)) == sum((0xc0 + index) & 0xff for index in range(192)) & 0xffff

@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_three_token_legal_history_boundary():
+def test_current_disk_stage_reports_graphical_three_token_history_boundary():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 46
-    assert builder.CURRENT_DESCRIPTION == "three-token-legal-history"
+    assert builder.CURRENT_STAGE == 47
+    assert builder.CURRENT_DESCRIPTION == "graphical-three-token-history"
