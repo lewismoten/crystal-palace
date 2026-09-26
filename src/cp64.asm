@@ -150,7 +150,10 @@ attention_input_loaded:
     jsr materialize_self_attention_scores
     lda two_key_ready
     bne attended_two_key
-    jmp attended_single_key
+    lda #<await_second_key_message
+    ldy #>await_second_key_message
+    jsr print
+    jmp read_key
 attended_two_key:
     lda #<step_two_key_scores
     ldy #>step_two_key_scores
@@ -4305,6 +4308,7 @@ title:
 loading: .text "THINKING: READING C9W00 FROM DISK...",13,0
 loaded: .text "C9W00 READY. TYPE A THROUGH I.",13,13,0
 thinking: .text "THINKING TOKEN ",0
+await_second_key_message: .text "A RETAINED. TYPE B TO RUN THE A->B PROOF.",13,0
 step_token: .text "1/44 TOKEN EMBEDDING",13,0
 step_position: .text "2/44 POSITION EMBEDDING",13,0
 step_query: .text "3/44 ATTENTION Q",13,0

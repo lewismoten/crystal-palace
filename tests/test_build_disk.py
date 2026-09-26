@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_predicted_token_embedding_feedback():
+def test_current_disk_stage_reports_a_then_b_output_boundary():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 44
-    assert builder.CURRENT_DESCRIPTION == "predicted-token-embedding-feedback"
+    assert builder.CURRENT_STAGE == 45
+    assert builder.CURRENT_DESCRIPTION == "a-then-b-output-boundary"

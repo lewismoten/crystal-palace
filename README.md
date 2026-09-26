@@ -154,6 +154,10 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 `cs64-044-predicted-token-embedding-feedback.d64` preserves Stage 043's bounded live `A`→`B` raw argmax, then genuinely reloads verbatim original C9W00 after the output packets have replaced the disk window. It uses the raw output index directly as the original embedding row, decodes its FP16 row scale and all 32 original packed INT4 codes, and displays the input-dependent predicted-token embedding checksum. For `A`→`B`, the raw index remains `$08` (the established `e` vocabulary row) and C9W00 row 8 materializes to checksum `$889C`. This proves disk/RAM feedback materialization only—not a third live forward pass, original-runtime parity, or a playable policy.
 
+### Stage 045 A→B output boundary
+
+`cs64-045-a-then-b-output-boundary.d64` corrects Stage 044's interactive boundary. The proof is specifically the live `A`→`B` route: after `A`, CP64 retains original K/V history, reports `A RETAINED. TYPE B TO RUN THE A->B PROOF.`, and returns to input without emitting an output token. Only then does `B` run the two-key bounded route through the existing output argmax and predicted-token feedback gates. This prevents a misleading one-key result from being presented beside the accepted A→B output.
+
 ### Browser test target
 
 The manual acceptance target is [C64 Online Emulator](https://c64online.com/c64-online-emulator/). Use its **Load Program** control to select the numbered `.d64` artifact; it accepts D64 files directly. This project treats a user-reported matching result from that emulator as a separate browser-emulator confirmation in addition to the assembled-6502 regression suite.

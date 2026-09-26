@@ -162,15 +162,15 @@ def test_interactive_request_announces_input_and_each_long_work_stage():
         assert step in source
     assert request.index("#<step_history") < request.index("jsr capture_two_key_sequence")
     assert request.index("#<step_scores") < request.index("jsr materialize_self_attention_scores")
-    assert request.index("#<step_two_key_scores") < request.index("jsr materialize_two_token_causal_scores")
+    assert source.index("#<step_two_key_scores") < source.index("jsr materialize_two_token_causal_scores")
     for step in ("step_head0", "step_head1", "step_head2", "step_head3", "step_head4", "step_head5", "step_head6", "step_head7"):
-        assert request.find("jsr two_key_selected_head_softmax_attention_output", request.index(f"#<{step}")) != -1
-    assert request.index("#<step_residual_retain") < request.index("jsr retain_attention_residual") < request.index("jsr project_attention_output")
-    assert request.index("#<step_residual_add") < request.index("jsr add_attention_residual")
-    assert request.index("#<step_norm_load") < request.index("jsr load_norm_weight")
-    assert request.index("#<step_norm_materialize") < request.index("jsr materialize_norm_weight")
-    assert request.index("#<step_norm_bias_load") < request.index("jsr load_norm_bias")
-    assert request.index("#<step_norm_bias_materialize") < request.index("jsr materialize_norm_bias")
+        assert source.find("jsr two_key_selected_head_softmax_attention_output", source.index(f"#<{step}")) != -1
+    assert source.index("#<step_residual_retain") < source.index("jsr retain_attention_residual") < source.index("jsr project_attention_output")
+    assert source.index("#<step_residual_add") < source.index("jsr add_attention_residual")
+    assert source.index("#<step_norm_load") < source.index("jsr load_norm_weight")
+    assert source.index("#<step_norm_materialize") < source.index("jsr materialize_norm_weight")
+    assert source.index("#<step_norm_bias_load") < source.index("jsr load_norm_bias")
+    assert source.index("#<step_norm_bias_materialize") < source.index("jsr materialize_norm_bias")
 
 
 def test_final_display_uses_input_dependent_attention_query_checksum():
@@ -1324,6 +1324,17 @@ def test_interactive_pipeline_pages_output_head_then_displays_raw_bounded_argmax
     assert request.index("jsr project_output_head") < request.index("jsr add_output_head_bias") < request.index("jsr select_output_argmax")
     for text in ("38/44 ADD SELECTED-EXPERT RESIDUAL", "39/44 LOAD OUTPUT HEAD C9W46", "40/44 OUTPUT HEAD AFFINE", "41/44 LOAD OUTPUT BIAS C9W47", "42/44 ADD OUTPUT HEAD BIAS", "43/44 RAW NEXT-TOKEN ARGMAX", "RAW BOUNDED NEXT-TOKEN INDEX $"):
         assert text in source
+
+
+def test_interactive_a_only_arms_history_without_emitting_a_token():
+    """Stage 044 is an A→B proof: A must wait, rather than run a single-key argmax."""
+    source = (ROOT / "src" / "cp64.asm").read_text()
+    request = source[source.index("jsr capture_two_key_sequence") : source.index("attended_two_key:")]
+    assert "bne attended_two_key" in request
+    assert "lda #<await_second_key_message" in request
+    assert "jsr print" in request
+    assert "jmp read_key" in request
+    assert "await_second_key_message: .text \"A RETAINED. TYPE B TO RUN THE A->B PROOF.\"" in source
 
 
 def test_interactive_pipeline_rematerializes_predicted_original_embedding_after_argmax():
