@@ -156,7 +156,7 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 ### Stage 045 A→B output boundary
 
-`cs64-045-a-then-b-output-boundary.d64` corrects Stage 044's interactive boundary. The proof is specifically the live `A`→`B` route: after `A`, CP64 retains original K/V history, reports `A RETAINED. TYPE B TO RUN THE A->B PROOF.`, and returns to input without emitting an output token. Only then does `B` run the two-key bounded route through the existing output argmax and predicted-token feedback gates. This prevents a misleading one-key result from being presented beside the accepted A→B output.
+`cs64-045-a-then-b-output-boundary.d64` corrects Stage 044's interactive boundary. The proof is specifically the live `A`→`B` route: after `A`, CP64 retains original K/V history, reports `A RETAINED. TYPE B TO RUN THE A->B PROOF.`, and returns to input without emitting an output token. Only then does `B` run the two-key bounded route through the existing output argmax and predicted-token feedback gates. Browser-emulator acceptance confirmed that `A` stops at the retention boundary and `B` produces the expected result. This prevents a misleading one-key result from being presented beside the accepted A→B output.
 
 ### Browser test target
 
