@@ -158,6 +158,10 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 `cs64-045-a-then-b-output-boundary.d64` corrects Stage 044's interactive boundary. The proof is specifically the live `A`→`B` route: after `A`, CP64 retains original K/V history, reports `A RETAINED. TYPE B TO RUN THE A->B PROOF.`, and returns to input without emitting an output token. Only then does `B` run the two-key bounded route through the existing output argmax and predicted-token feedback gates. Browser-emulator acceptance confirmed that `A` stops at the retention boundary and `B` produces the expected result. This prevents a misleading one-key result from being presented beside the accepted A→B output.
 
+### Stage 046 three-token legal-history boundary
+
+`cs64-046-three-token-legal-history.d64` is the earliest bounded browser sequence beyond the accepted A→B route. Enter `A`, then `B`, then `C`, waiting for each real tensor-page/projection pass. The program retains each projected original C9W02 K/V page in a contiguous explicit history buffer, reports the required next input after A and B, then displays `A,B,C RETAINED. THREE-KEY K/V HISTORY READY.` after C. The assembled-6502 parity test compares all 192 retained key bytes and all 192 retained value bytes across the live three-call state machine, while the wider suite keeps independent original packed-byte references for token, position, and attention materialization. This is a three-token pageable-history proof only: it deliberately does not claim a three-key softmax, forward pass, argmax, or prediction.
+
 ### Browser test target
 
 The manual acceptance target is [C64 Online Emulator](https://c64online.com/c64-online-emulator/). Use its **Load Program** control to select the numbered `.d64` artifact; it accepts D64 files directly. This project treats a user-reported matching result from that emulator as a separate browser-emulator confirmation in addition to the assembled-6502 regression suite.

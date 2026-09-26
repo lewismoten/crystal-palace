@@ -143,15 +143,31 @@ attention_input_loaded:
     lda #<step_history
     ldy #>step_history
     jsr print
-    jsr capture_two_key_sequence
+    jsr capture_legal_history
     lda #<step_scores
     ldy #>step_scores
     jsr print
     jsr materialize_self_attention_scores
-    lda two_key_ready
-    bne attended_two_key
+    lda three_key_ready
+    bne attended_three_key
+    lda sequence_length
+    cmp #1
+    bne await_third_key
     lda #<await_second_key_message
     ldy #>await_second_key_message
+    jsr print
+    jmp read_key
+await_third_key:
+    lda #<await_third_key_message
+    ldy #>await_third_key_message
+    jsr print
+    jmp read_key
+attended_three_key:
+    ; Three retained original K/V pages are browser-testable at this boundary.
+    ; Do not enter the two-key attention/output path until its three-key
+    ; normalized attention implementation has independent parity coverage.
+    lda #<three_key_retained_message
+    ldy #>three_key_retained_message
     jsr print
     jmp read_key
 attended_two_key:
@@ -3308,25 +3324,62 @@ rounded_q15_magnitude:
     sta result_hi
     rts
 
-; Browser proof sequence: type A, wait for completion, then type B. Each
-; projected original K/V vector is retained before the next disk page.
+; Legal bounded history contract. Each accepted move must be the next token in
+; the A,B,C tracer sequence. K/V bytes remain verbatim projections until the
+; later three-key attention gate consumes them.
+capture_legal_history:
+    lda #0
+    sta three_key_ready
+    lda sequence_length
+    cmp #3
+    beq capture_reset
+    clc
+    adc #'a'
+    cmp selected
+    bne capture_reset
+    lda sequence_length
+    sta sequence_position
+    asl a
+    asl a
+    asl a
+    asl a
+    asl a
+    asl a
+    sta history_offset
+    jsr capture_history
+    inc sequence_length
+    lda sequence_length
+    cmp #3
+    bne capture_history_done
+    lda #1
+    sta three_key_ready
+capture_history_done:
+    rts
+capture_reset:
+    lda #0
+    sta sequence_length
+    sta sequence_position
+    rts
+
+; Retained emulator fixture for the accepted Stage 045 A->B parity matrix.
+; The interactive path above deliberately uses capture_legal_history instead.
 capture_two_key_sequence:
     lda #0
     sta two_key_ready
     lda selected
     cmp #'a'
-    bne capture_b
+    bne fixture_capture_b
     lda #0
     sta history_offset
     lda #1
     sta two_key_state
     jmp capture_history
-capture_b:
+fixture_capture_b:
     cmp #'b'
-    bne capture_reset
+    bne fixture_capture_reset
     lda two_key_state
     cmp #1
-    bne capture_reset
+    bne fixture_capture_reset
     lda #64
     sta history_offset
     lda #1
@@ -3334,7 +3387,7 @@ capture_b:
     lda #2
     sta two_key_state
     jmp capture_history
-capture_reset:
+fixture_capture_reset:
     lda #0
     sta two_key_state
     rts
@@ -4294,6 +4347,9 @@ all_heads_index: .byte 0
 softmax_component_limit: .byte 0
 two_key_ready: .byte 0
 two_key_state: .byte 0
+three_key_ready: .byte 0
+sequence_length: .byte 0
+sequence_position: .byte 0
 history_offset: .byte 0
 softmax_lo: .byte $00,$20,$40,$60,$80,$a0,$c0,$e0,$00,$20,$40,$60,$80,$a0,$c0,$e0,$00,$20,$40,$60,$80,$a0,$c0,$e0,$ff,$1f,$3f,$5f,$7f,$9f,$bf,$df
 softmax_hi: .byte $40,$40,$40,$40,$40,$40,$40,$40,$41,$41,$41,$41,$41,$41,$41,$41,$42,$42,$42,$42,$42,$42,$42,$42,$42,$43,$43,$43,$43,$43,$43,$43
@@ -4309,6 +4365,8 @@ loading: .text "THINKING: READING C9W00 FROM DISK...",13,0
 loaded: .text "C9W00 READY. TYPE A THROUGH I.",13,13,0
 thinking: .text "THINKING TOKEN ",0
 await_second_key_message: .text "A RETAINED. TYPE B TO RUN THE A->B PROOF.",13,0
+await_third_key_message: .text "A,B RETAINED. TYPE C TO COMPLETE A->B->C HISTORY.",13,0
+three_key_retained_message: .text "A,B,C RETAINED. THREE-KEY K/V HISTORY READY.",13,0
 step_token: .text "1/44 TOKEN EMBEDDING",13,0
 step_position: .text "2/44 POSITION EMBEDDING",13,0
 step_query: .text "3/44 ATTENTION Q",13,0

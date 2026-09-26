@@ -160,7 +160,7 @@ def test_interactive_request_announces_input_and_each_long_work_stage():
     assert request.index("jsr print_thinking") < request.index("jsr load_embedding")
     for step in ("step_token", "step_position", "step_query", "step_key", "step_value", "step_history", "step_scores", "step_two_key_scores", "step_head0", "step_head1", "step_head2", "step_head3", "step_head4", "step_head5", "step_head6", "step_head7", "step_residual_retain", "step_output_load", "step_output_project", "step_output_bias_load", "step_output_bias", "step_residual_add", "step_norm_load", "step_norm_materialize", "step_norm_bias_load", "step_norm_bias_materialize"):
         assert step in source
-    assert request.index("#<step_history") < request.index("jsr capture_two_key_sequence")
+    assert request.index("#<step_history") < request.index("jsr capture_legal_history")
     assert request.index("#<step_scores") < request.index("jsr materialize_self_attention_scores")
     assert source.index("#<step_two_key_scores") < source.index("jsr materialize_two_token_causal_scores")
     for step in ("step_head0", "step_head1", "step_head2", "step_head3", "step_head4", "step_head5", "step_head6", "step_head7"):
@@ -1326,11 +1326,11 @@ def test_interactive_pipeline_pages_output_head_then_displays_raw_bounded_argmax
         assert text in source
 
 
-def test_interactive_a_only_arms_history_without_emitting_a_token():
-    """Stage 044 is an A→B proof: A must wait, rather than run a single-key argmax."""
+def test_interactive_a_only_arms_legal_history_without_emitting_a_token():
+    """The three-key slice must wait after A rather than emit a two-key output."""
     source = (ROOT / "src" / "cp64.asm").read_text()
-    request = source[source.index("jsr capture_two_key_sequence") : source.index("attended_two_key:")]
-    assert "bne attended_two_key" in request
+    request = source[source.index("jsr capture_legal_history") : source.index("attended_two_key:")]
+    assert "lda three_key_ready" in request
     assert "lda #<await_second_key_message" in request
     assert "jsr print" in request
     assert "jmp read_key" in request
@@ -1354,3 +1354,23 @@ def test_interactive_pipeline_retains_e1_then_merges_after_e4():
     assert request.index("jsr add_selected_expert_second_bias") < request.index("jsr retain_expert_one_output")
     assert request.index("jsr retain_expert_one_output") < request.index("jsr project_selected_expert_first", request.index("expert4_weight1_loaded:"))
     assert request.index("expert4_bias2_loaded:") < request.index("jsr merge_selected_expert_outputs")
+
+
+def test_6502_legal_history_contract_retains_a_b_c_with_length_and_position(tmp_path):
+    """The earliest live three-move slice has explicit state, not an A/B branch."""
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    assert {"capture_legal_history", "sequence_length", "sequence_position"} <= symbols.keys()
+    mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    for position, token in enumerate(b"abc"):
+        mpu.memory[symbols["selected"]] = token
+        for lane in range(64):
+            mpu.memory[symbols["KEY_VECTOR"] + lane] = (position * 64 + lane) & 0xff
+            mpu.memory[symbols["VALUE_VECTOR"] + lane] = (0xc0 + position * 64 + lane) & 0xff
+        call(mpu, symbols["capture_legal_history"])
+        assert mpu.memory[symbols["sequence_length"]] == position + 1
+        assert mpu.memory[symbols["sequence_position"]] == position
+    assert list(mpu.memory[symbols["KEY_HISTORY"] : symbols["KEY_HISTORY"] + 192]) == list(range(192))
+    assert list(mpu.memory[symbols["VALUE_HISTORY"] : symbols["VALUE_HISTORY"] + 192]) == [((0xc0 + index) & 0xff) for index in range(192)]

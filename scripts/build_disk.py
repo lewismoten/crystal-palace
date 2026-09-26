@@ -10,8 +10,8 @@ from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 45
-CURRENT_DESCRIPTION = "a-then-b-output-boundary"
+CURRENT_STAGE = 46
+CURRENT_DESCRIPTION = "three-token-legal-history"
 
 
 def stage_image_path(number: int, description: str) -> Path:
