@@ -1,8 +1,4 @@
-; CP64 Stage 064 — single-PRG native Crystal Palace title proof.
-; The supplied charset, screen plane, and colour plane are embedded verbatim in
-; CP64.PRG so browser loading cannot depend on whether its D64 launcher mounts
-; drive 8 after auto-start.  This is a presentation-only acceptance gate.
-
+; CP64 embedded Crystal Palace art/navigation proof.  No runtime disk loads.
 * = $0801
     .word basic_end
     .word 10
@@ -12,93 +8,247 @@
 basic_end: .word 0
 
 * = $080d
+GETIN = $ffe4
 COLOR = $d800
-source_pointer = $fb
-output_pointer = $fd
+src = $fb
+out = $fd
 
 start:
-    jsr copy_title_screen
-    jsr copy_title_colour
+    lda #1
+    sta title_mode
+    jsr show_title
+key_loop:
+    jsr GETIN
+    beq key_loop
+    lda view_mode
+    beq title_key
+    cmp #'Q'
+    beq return_title
+    cmp #'q'
+    beq return_title
+    cmp #' '
+    beq return_title
+    cmp #'I'
+    beq return_title
+    cmp #'i'
+    beq return_title
+    jmp key_loop
+title_key:
+    cmp #$91
+    beq title_up
+    cmp #$11
+    beq title_down
+    cmp #' '
+    bne title_not_space
+    jmp show_game
+title_not_space:
+    cmp #'I'
+    beq title_info
+    cmp #'i'
+    bne title_not_info
+ title_info:
+    jmp show_info
+title_not_info:
+    cmp #'Q'
+    beq exit_basic
+    cmp #'q'
+    beq exit_basic
+    jmp key_loop
+title_up:
+    lda title_mode
+    beq up_to_two
+    cmp #2
+    beq up_to_one
+    lda #0
+    bne store_title
+up_to_two: lda #2
+    bne store_title
+up_to_one: lda #1
+store_title:
+    sta title_mode
+    jsr show_title
+    jmp key_loop
+title_down:
+    lda title_mode
+    cmp #1
+    beq down_to_two
+    lda #0
+    bne store_title_down
+down_to_two: lda #2
+store_title_down:
+    sta title_mode
+    jsr show_title
+    jmp key_loop
+return_title:
+    jsr show_title
+    jmp key_loop
+exit_basic:
+    jsr set_text_vic
+    jmp $fce2
+
+show_title:
+    lda title_mode
+    beq title_zero
+    cmp #1
+    beq title_one
+    lda #<title2_screen
+    ldy #>title2_screen
+    jsr copy_screen
+    lda #<title2_colour
+    ldy #>title2_colour
+    jsr copy_colour
+    bne title_done
+title_zero:
+    lda #<title0_screen
+    ldy #>title0_screen
+    jsr copy_screen
+    lda #<title0_colour
+    ldy #>title0_colour
+    jsr copy_colour
+    bne title_done
+title_one:
+    lda #<title1_screen
+    ldy #>title1_screen
+    jsr copy_screen
+    lda #<title1_colour
+    ldy #>title1_colour
+    jsr copy_colour
+title_done:
+    lda #0
+    sta view_mode
+    jmp set_title_vic
+
+show_info:
+    lda #<info_screen
+    ldy #>info_screen
+    jsr copy_screen
+    lda #<info_colour
+    ldy #>info_colour
+    jsr copy_colour
+    lda #2
+    sta view_mode
+    jmp set_title_vic
+
+show_game:
+    lda #<game_screen
+    ldy #>game_screen
+    jsr copy_screen
+    lda #<game_colour
+    ldy #>game_colour
+    jsr copy_colour
+    lda #1
+    sta view_mode
+    jmp set_game_vic
+
+copy_screen:
+    sta src
+    sty src+1
+    lda #<$0400
+    sta out
+    lda #>$0400
+    sta out+1
+    jmp copy_1000
+copy_colour:
+    sta src
+    sty src+1
+    lda #<COLOR
+    sta out
+    lda #>COLOR
+    sta out+1
+copy_1000:
+    ldy #0
+copy0: lda (src),y
+    sta (out),y
+    iny
+    bne copy0
+    inc src+1
+    inc out+1
+copy1: lda (src),y
+    sta (out),y
+    iny
+    bne copy1
+    inc src+1
+    inc out+1
+copy2: lda (src),y
+    sta (out),y
+    iny
+    bne copy2
+    inc src+1
+    inc out+1
+copytail:
+    cpy #232
+    beq copydone
+    lda (src),y
+    sta (out),y
+    iny
+    jmp copytail
+copydone: rts
+
+set_title_vic:
     lda $dd00
     and #$fc
-    ora #$03               ; VIC bank $0000
+    ora #$03
     sta $dd00
     lda $d011
-    and #$df               ; standard character mode
+    and #$df
     sta $d011
     lda $d016
-    and #$ef               ; non-multicolour character mode
+    and #$ef
     sta $d016
-    lda #$1e               ; screen $0400, supplied charset $3800
+    lda #$1e
     sta $d018
     lda #0
     sta $d021
-idle:
-    jmp idle
-
-copy_title_screen:
-    lda #<title_screen
-    sta source_pointer
-    lda #>title_screen
-    sta source_pointer+1
-    lda #<$0400
-    sta output_pointer
-    lda #>$0400
-    sta output_pointer+1
-    jmp copy_1000
-
-copy_title_colour:
-    lda #<title_colour
-    sta source_pointer
-    lda #>title_colour
-    sta source_pointer+1
-    lda #<COLOR
-    sta output_pointer
-    lda #>COLOR
-    sta output_pointer+1
-
-copy_1000:
-    ldy #0
-copy_page_0:
-    lda (source_pointer),y
-    sta (output_pointer),y
-    iny
-    bne copy_page_0
-    inc source_pointer+1
-    inc output_pointer+1
-copy_page_1:
-    lda (source_pointer),y
-    sta (output_pointer),y
-    iny
-    bne copy_page_1
-    inc source_pointer+1
-    inc output_pointer+1
-copy_page_2:
-    lda (source_pointer),y
-    sta (output_pointer),y
-    iny
-    bne copy_page_2
-    inc source_pointer+1
-    inc output_pointer+1
-copy_tail:
-    cpy #232
-    beq copy_done
-    lda (source_pointer),y
-    sta (output_pointer),y
-    iny
-    jmp copy_tail
-copy_done:
+    rts
+set_game_vic:
+    lda $dd00
+    and #$fc
+    ora #$02
+    sta $dd00
+    lda $d011
+    ora #$20
+    sta $d011
+    lda $d016
+    ora #$10
+    sta $d016
+    lda #$08
+    sta $d018
+    lda #0
+    sta $d021
+    rts
+set_text_vic:
+    lda $dd00
+    and #$fc
+    ora #$03
+    sta $dd00
+    lda #$14
+    sta $d018
     rts
 
-; Raw supplied data, included byte-for-byte in this single browser-loadable PRG.
+view_mode: .byte 0
+title_mode: .byte 1
+
 * = $3800
-supplied_charset:
 .binary "../assets/crystal-palace-screen-states/crystal-palace-charset.bin"
-
 * = $4000
-title_screen:
-.binary "../assets/crystal-palace-screen-states/crystal-palace-title-player-1.screen.bin"
-
+title0_screen: .binary "../assets/crystal-palace-screen-states/crystal-palace-title-player-0.screen.bin"
 * = $4400
-title_colour:
-.binary "../assets/crystal-palace-screen-states/crystal-palace-title-player-1.color.bin"
+title1_screen: .binary "../assets/crystal-palace-screen-states/crystal-palace-title-player-1.screen.bin"
+* = $4800
+title2_screen: .binary "../assets/crystal-palace-screen-states/crystal-palace-title-player-2.screen.bin"
+* = $4c00
+title0_colour: .binary "../assets/crystal-palace-screen-states/crystal-palace-title-player-0.color.bin"
+* = $5000
+title1_colour: .binary "../assets/crystal-palace-screen-states/crystal-palace-title-player-1.color.bin"
+* = $5400
+title2_colour: .binary "../assets/crystal-palace-screen-states/crystal-palace-title-player-2.color.bin"
+* = $5800
+info_screen: .binary "../assets/crystal-palace-screen-states/crystal-palace-info.screen.bin"
+* = $5c00
+info_colour: .binary "../assets/crystal-palace-screen-states/crystal-palace-info.color.bin"
+* = $6000
+.binary "../assets/crystal-palace-screen-states/crystal-palace-game-blank.bitmap.bin"
+* = $8000
+game_screen: .binary "../assets/crystal-palace-screen-states/crystal-palace-game-blank.screen.bin"
+* = $8400
+game_colour: .binary "../assets/crystal-palace-screen-states/crystal-palace-game-blank.color.bin"

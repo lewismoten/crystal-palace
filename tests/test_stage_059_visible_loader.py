@@ -18,9 +18,9 @@ def load_builder():
     return module
 
 
-def test_stage_064_declares_embedded_native_title_proof():
+def test_stage_065_declares_embedded_art_navigation():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (64, "embedded-native-title-proof")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (65, "embedded-art-navigation")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
 
 
@@ -51,7 +51,7 @@ def test_embedded_title_uses_declared_vic_addresses_and_direct_plane_copies():
     source = (ROOT / "src" / "art_embedded_title.asm").read_text()
     assert "* = $3800" in source and "* = $4000" in source and "* = $4400" in source
     assert "lda #$1e" in source and "sta $d018" in source
-    assert "jsr copy_title_screen" in source and "jsr copy_title_colour" in source
+    assert "show_title:" in source and "show_info:" in source and "show_game:" in source
 
 
 def test_assembled_embedded_title_copies_exact_planes_to_live_vic_memory(tmp_path):
@@ -74,7 +74,7 @@ def test_assembled_embedded_title_copies_exact_planes_to_live_vic_memory(tmp_pat
     image = prg.read_bytes()
     load = int.from_bytes(image[:2], "little")
     mpu.memory[load : load + len(image) - 2] = image[2:]
-    call(mpu, symbols["copy_title_screen"])
-    call(mpu, symbols["copy_title_colour"])
+    mpu.memory[symbols["title_mode"]] = 1
+    call(mpu, symbols["show_title"])
     assert bytes(mpu.memory[0x0400 : 0x0400 + 1000]) == (ASSETS / "crystal-palace-title-player-1.screen.bin").read_bytes()
     assert bytes(mpu.memory[0xD800 : 0xD800 + 1000]) == (ASSETS / "crystal-palace-title-player-1.color.bin").read_bytes()

@@ -10,8 +10,8 @@ from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 64
-CURRENT_DESCRIPTION = "embedded-native-title-proof"
+CURRENT_STAGE = 65
+CURRENT_DESCRIPTION = "embedded-art-navigation"
 PROGRAM_SOURCE = ROOT / "src" / "art_embedded_title.asm"
 ART = ROOT / "assets" / "crystal-palace-screen-states"
 
