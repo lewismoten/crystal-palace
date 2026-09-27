@@ -1,0 +1,166 @@
+{
+  "screen_pixels": [
+    320,
+    200
+  ],
+  "logical_pixels": [
+    160,
+    200
+  ],
+  "cell_rectangles": {
+    "a": {
+      "logical_xywh": [
+        58,
+        30,
+        14,
+        24
+      ],
+      "preview_xywh": [
+        116,
+        30,
+        28,
+        24
+      ],
+      "board_row": 0,
+      "board_column": 0
+    },
+    "b": {
+      "logical_xywh": [
+        73,
+        30,
+        14,
+        24
+      ],
+      "preview_xywh": [
+        146,
+        30,
+        28,
+        24
+      ],
+      "board_row": 0,
+      "board_column": 1
+    },
+    "c": {
+      "logical_xywh": [
+        88,
+        30,
+        14,
+        24
+      ],
+      "preview_xywh": [
+        176,
+        30,
+        28,
+        24
+      ],
+      "board_row": 0,
+      "board_column": 2
+    },
+    "d": {
+      "logical_xywh": [
+        58,
+        55,
+        14,
+        24
+      ],
+      "preview_xywh": [
+        116,
+        55,
+        28,
+        24
+      ],
+      "board_row": 1,
+      "board_column": 0
+    },
+    "e": {
+      "logical_xywh": [
+        73,
+        55,
+        14,
+        24
+      ],
+      "preview_xywh": [
+        146,
+        55,
+        28,
+        24
+      ],
+      "board_row": 1,
+      "board_column": 1
+    },
+    "f": {
+      "logical_xywh": [
+        88,
+        55,
+        14,
+        24
+      ],
+      "preview_xywh": [
+        176,
+        55,
+        28,
+        24
+      ],
+      "board_row": 1,
+      "board_column": 2
+    },
+    "g": {
+      "logical_xywh": [
+        58,
+        80,
+        14,
+        24
+      ],
+      "preview_xywh": [
+        116,
+        80,
+        28,
+        24
+      ],
+      "board_row": 2,
+      "board_column": 0
+    },
+    "h": {
+      "logical_xywh": [
+        73,
+        80,
+        14,
+        24
+      ],
+      "preview_xywh": [
+        146,
+        80,
+        28,
+        24
+      ],
+      "board_row": 2,
+      "board_column": 1
+    },
+    "i": {
+      "logical_xywh": [
+        88,
+        80,
+        14,
+        24
+      ],
+      "preview_xywh": [
+        176,
+        80,
+        28,
+        24
+      ],
+      "board_row": 2,
+      "board_column": 2
+    }
+  },
+  "note": "Rectangles exclude the grid lines; each crop is identical within one board state.",
+  "title_selection": {
+    "cursor_column": 9,
+    "option_column": 11,
+    "rows": {
+      "1": 9,
+      "2": 11,
+      "0": 13
+    }
+  }
+}
