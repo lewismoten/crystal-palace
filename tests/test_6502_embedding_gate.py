@@ -1503,6 +1503,28 @@ def test_6502_graphical_history_ui_marks_accepted_moves_and_real_progress(tmp_pa
     assert (mpu.memory[symbols["history_value_sumlo"]] | (mpu.memory[symbols["history_value_sumhi"]] << 8)) == sum((0xc0 + index) & 0xff for index in range(192)) & 0xffff
 
 
+def test_6502_dashboard_meter_never_decreases_across_every_real_boundary(tmp_path):
+    """Stage 054 regression: the live N/60 status parser is monotonic through 60."""
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    assert {"ui_step_status", "show_real_progress"} <= symbols.keys()
+    mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+
+    widths = []
+    status_address = 0x8000
+    for boundary in range(61):
+        mpu.memory[status_address : status_address + 32] = f"{boundary}/60 TEST\0".encode()
+        mpu.a = status_address & 0xff
+        mpu.y = status_address >> 8
+        call(mpu, symbols["ui_step_status"])
+        widths.append(sum(mpu.memory[0x05be + cell] == 0xa0 for cell in range(28)))
+
+    assert widths == sorted(widths)
+    assert widths[-1] == 28
+
+
 def test_6502_dashboard_status_and_diagnostics_are_fixed_colored_screen_writes(tmp_path):
     """Stage 048 must not scroll the Stage 047 dashboard through CHROUT output."""
     prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
@@ -1659,7 +1681,12 @@ def test_dashboard_mode_redirects_legacy_model_step_prints_to_fixed_status_ram(t
     mpu.memory[0x00d1] = 24
     call(mpu, symbols["print"])
     assert mpu.memory[0x00d1] == 24
-    assert list(mpu.memory[0x0400 + 192 : 0x0400 + 560]) == board
+    # A named model boundary may update only the fixed meter; it must not scroll
+    # or overwrite board cells outside that dashboard widget.
+    after = list(mpu.memory[0x0400 + 192 : 0x0400 + 560])
+    meter_start, meter_end = 446 - 192, 474 - 192
+    assert after[:meter_start] + after[meter_end:] == board[:meter_start] + board[meter_end:]
+    assert after[meter_start:meter_end] == [0xa0] * 28
 
 
 def test_6502_hex_diagnostic_nibbles_are_c64_screen_codes(tmp_path):

@@ -4465,10 +4465,12 @@ ui_step_status:
     sec
     sbc #'0'
     sta ui_progress_width
+    ; Two-digit N/60 prefixes are decimal: first digit * 10 + second digit.
+    ; The former 16*x+nibble arithmetic indexed beyond the 0..60 width table
+    ; at 40 and visibly reset the meter during an active model turn.
     lda ui_progress_count
     asl
     sta ui_progress_count
-    asl
     asl
     asl
     clc

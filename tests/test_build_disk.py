@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_second_human_position_fix():
+def test_current_disk_stage_reports_monotonic_dashboard_meter_fix():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 55
-    assert builder.CURRENT_DESCRIPTION == "fix-second-human-position-scale"
+    assert builder.CURRENT_STAGE == 56
+    assert builder.CURRENT_DESCRIPTION == "fix-dashboard-meter-decimal-progress"
