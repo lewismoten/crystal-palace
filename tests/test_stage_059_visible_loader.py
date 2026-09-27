@@ -18,10 +18,10 @@ def load_builder():
     return module
 
 
-def test_stage_063_declares_disk_filename_loader_fix():
+def test_stage_064_declares_embedded_native_title_proof():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (63, "disk-filename-loader-fix")
-    assert builder.PROGRAM_SOURCE.name == "art_loader.asm"
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (64, "embedded-native-title-proof")
+    assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
 
 
 def test_native_art_chunks_are_source_exact_final_address_prgs(tmp_path):
@@ -39,31 +39,42 @@ def test_native_art_chunks_are_source_exact_final_address_prgs(tmp_path):
     assert b"".join(page[2:] for page in game_bitmap) == (ASSETS / "crystal-palace-game-blank.bitmap.bin").read_bytes()
 
 
-def test_loader_source_has_splash_before_load_and_direct_page_progress_without_editor_output():
-    source = (ROOT / "src" / "art_loader.asm").read_text()
-    assert source.index("jsr preview_splash") < source.index("jsr preview_load_charset")
-    assert "CRYSTAL PALACE 9" in source
-    assert "LOADING NATIVE DISPLAY" in source
-    assert "SETMSG = $ff90" in source
-    assert source.index("jsr SETMSG") < source.index("jsr preview_load_charset")
-    # Each real load advances an internal boundary, but after the charset becomes
-    # active the source-exact screen/color pages are the visible progress.  No
-    # CHROUT/cursor call may scroll or overwrite the direct $0400 dashboard.
-    loader = source[source.index("preview_load_prg:") : source.index("preview_load_pages:")]
-    assert "inc preview_progress_count" in loader
-    assert "CHROUT" not in loader
-    assert "preview_loading_label" not in source
-    assert "name_t1s0" in source and "name_gbm7" in source and "name_ins3" in source
-    assert '.null "CPCHAR.PRG"' in source
-    assert '.null "CT1S0.PRG"' in source
-    assert '.null "CT1C3.PRG"' in source
+def test_embedded_title_source_uses_no_disk_loader_or_screen_editor_output():
+    source = (ROOT / "src" / "art_embedded_title.asm").read_text()
+    assert "jsr LOAD" not in source and "SETNAM" not in source and "CHROUT" not in source
+    assert '.binary "../assets/crystal-palace-screen-states/crystal-palace-charset.bin"' in source
+    assert '.binary "../assets/crystal-palace-screen-states/crystal-palace-title-player-1.screen.bin"' in source
+    assert '.binary "../assets/crystal-palace-screen-states/crystal-palace-title-player-1.color.bin"' in source
 
 
-def test_loader_keeps_page_list_pointer_exclusive_to_source_page_names():
-    """A temporary label must never overwrite the filename-table pointer."""
-    source = (ROOT / "src" / "art_loader.asm").read_text()
-    pages = source[source.index("preview_load_pages:") : source.index("preview_load_title:")]
-    assert "preview_page_label" not in source
-    assert "label_pointer" not in source
-    assert "list_pointer" in pages
-    assert "sta list_pointer" in pages
+def test_embedded_title_uses_declared_vic_addresses_and_direct_plane_copies():
+    source = (ROOT / "src" / "art_embedded_title.asm").read_text()
+    assert "* = $3800" in source and "* = $4000" in source and "* = $4400" in source
+    assert "lda #$1e" in source and "sta $d018" in source
+    assert "jsr copy_title_screen" in source and "jsr copy_title_colour" in source
+
+
+def test_assembled_embedded_title_copies_exact_planes_to_live_vic_memory(tmp_path):
+    """Exercise the actual 6502 copies, not a host-language substitute."""
+    import subprocess
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+
+    prg = tmp_path / "CP64.PRG"
+    labels_path = tmp_path / "embedded.lbl"
+    source = ROOT / "src" / "art_embedded_title.asm"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(source)], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    mpu = MPU()
+    image = prg.read_bytes()
+    load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+    call(mpu, symbols["copy_title_screen"])
+    call(mpu, symbols["copy_title_colour"])
+    assert bytes(mpu.memory[0x0400 : 0x0400 + 1000]) == (ASSETS / "crystal-palace-title-player-1.screen.bin").read_bytes()
+    assert bytes(mpu.memory[0xD800 : 0xD800 + 1000]) == (ASSETS / "crystal-palace-title-player-1.color.bin").read_bytes()

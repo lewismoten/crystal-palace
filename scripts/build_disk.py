@@ -10,9 +10,9 @@ from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 63
-CURRENT_DESCRIPTION = "disk-filename-loader-fix"
-PROGRAM_SOURCE = ROOT / "src" / "art_loader.asm"
+CURRENT_STAGE = 64
+CURRENT_DESCRIPTION = "embedded-native-title-proof"
+PROGRAM_SOURCE = ROOT / "src" / "art_embedded_title.asm"
 ART = ROOT / "assets" / "crystal-palace-screen-states"
 
 # These are immutable source planes wrapped only in standard two-byte PRG load
