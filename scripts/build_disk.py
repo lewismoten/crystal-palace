@@ -10,8 +10,8 @@ from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 71
-CURRENT_DESCRIPTION = "petscii-lowercase-move-repair"
+CURRENT_STAGE = 72
+CURRENT_DESCRIPTION = "original-c9w00-embedding-bridge"
 PROGRAM_SOURCE = ROOT / "src" / "art_embedded_title.asm"
 ART = ROOT / "assets" / "crystal-palace-screen-states"
 

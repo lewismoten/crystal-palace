@@ -5,6 +5,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).parents[1]
 ASSETS = ROOT / "assets" / "crystal-palace-screen-states"
 
@@ -18,9 +20,9 @@ def load_builder():
     return module
 
 
-def test_stage_071_declares_petscii_lowercase_move_repair():
+def test_stage_072_declares_original_c9w00_embedding_bridge():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (71, "petscii-lowercase-move-repair")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (72, "original-c9w00-embedding-bridge")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
 
 
@@ -39,12 +41,76 @@ def test_native_art_chunks_are_source_exact_final_address_prgs(tmp_path):
     assert b"".join(page[2:] for page in game_bitmap) == (ASSETS / "crystal-palace-game-blank.bitmap.bin").read_bytes()
 
 
-def test_embedded_title_source_uses_no_disk_loader_or_screen_editor_output():
+def test_embedded_title_source_uses_no_screen_editor_output():
     source = (ROOT / "src" / "art_embedded_title.asm").read_text()
-    assert "jsr LOAD" not in source and "SETNAM" not in source and "CHROUT" not in source
+    assert "CHROUT" not in source
     assert '.binary "../assets/crystal-palace-screen-states/crystal-palace-charset.bin"' in source
     assert '.binary "../assets/crystal-palace-screen-states/crystal-palace-title-player-1.screen.bin"' in source
     assert '.binary "../assets/crystal-palace-screen-states/crystal-palace-title-player-1.color.bin"' in source
+
+
+@pytest.mark.parametrize("game_index", range(9))
+def test_assembled_embedded_game_bridge_loads_and_materializes_original_c9w00_after_x(tmp_path, game_index):
+    """The art route performs a real C9W00 bridge; it neither paints O nor predicts."""
+    import subprocess
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels, q8_8_vector_from_original_packet, signed_vector
+
+    prg, labels_path = tmp_path / "CP64.PRG", tmp_path / "embedded.lbl"
+    source_path = ROOT / "src" / "art_embedded_title.asm"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(source_path)], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    assert {"load_c9w00", "materialize_selected_embedding", "EMBEDDING_VECTOR", "embedding_sumlo", "embedding_sumhi"} <= symbols.keys()
+
+    image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+    # KERNAL calls return in Py65; the original packet is already in its real $c000 window.
+    for address in (0xFFBA, 0xFFBD, 0xFFD5): mpu.memory[address] = 0x60
+    packet = (ROOT / "build" / "layers" / "C9W00.PRG").read_bytes()
+    mpu.memory[0xC000 : 0xC000 + len(packet) - 2] = packet[2:]
+    mpu.memory[symbols["game_index"]] = game_index
+    mpu.p &= ~mpu.CARRY
+
+    call(mpu, symbols["materialize_selected_embedding"])
+
+    expected = q8_8_vector_from_original_packet(ROOT / "build" / "layers" / "C9W00.PRG", game_index + 4)
+    assert signed_vector(mpu, symbols["EMBEDDING_VECTOR"]) == expected
+    assert mpu.memory[symbols["embedding_sumlo"]] | (mpu.memory[symbols["embedding_sumhi"]] << 8) == (
+        sum((index + 1) * value for index, value in enumerate(expected)) & 0xFFFF
+    )
+    bridge = source_path.read_text()[source_path.read_text().index("game_draw_x:") : source_path.read_text().index("game_key_done:")]
+    assert bridge.index("jsr draw_x") < bridge.index("jsr materialize_selected_embedding")
+    assert "draw_o" not in bridge and "turn_mark" not in bridge
+
+
+def test_assembled_embedded_c9w00_loader_rejects_wrong_packet_header(tmp_path):
+    """A resident lookalike cannot be materialized as the original C9W00 tensor."""
+    import subprocess
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+
+    prg, labels_path = tmp_path / "CP64.PRG", tmp_path / "embedded.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "art_embedded_title.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+    for address in (0xFFBA, 0xFFBD, 0xFFD5): mpu.memory[address] = 0x60
+    packet = bytearray((ROOT / "build" / "layers" / "C9W00.PRG").read_bytes()[2:])
+    packet[4] = 1  # C9W01 must not pass a C9W00 bridge.
+    mpu.memory[0xC000 : 0xC000 + len(packet)] = packet
+    mpu.p &= ~mpu.CARRY
+
+    call(mpu, symbols["load_c9w00"])
+
+    assert mpu.p & mpu.CARRY
 
 
 def test_embedded_title_uses_declared_vic_addresses_and_direct_plane_copies():
