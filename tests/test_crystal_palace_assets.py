@@ -73,6 +73,20 @@ def test_build_packages_native_art_as_fixed_address_prgs_without_model_window_ov
         assert not (load_address < 0xCA00 and load_address + len(payload) - 2 > 0xC100)
 
 
+def test_all_o_bitmap_uses_the_safe_native_patch_source_buffer():
+    """The all-O bitmap must page beside the blank board, never replace it."""
+    import importlib.util
+    import sys
+
+    scripts = ROOT / "scripts"
+    sys.path.insert(0, str(scripts))
+    spec = importlib.util.spec_from_file_location("build_disk", scripts / "build_disk.py")
+    builder = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(builder)
+
+    assert builder.CRYSTAL_PALACE_ART["CPGOB.PRG"] == ("crystal-palace-game-all-o.bitmap.bin", 0x8000)
+
+
 def test_6502_native_title_and_game_art_activate_at_declared_vic_locations(tmp_path):
     """The supplied planes, not a recreated dashboard, drive each VIC-II mode."""
     import subprocess
@@ -151,6 +165,39 @@ def test_6502_native_game_patches_one_x_cell_from_the_supplied_all_x_plane(tmp_p
     assert changed
     assert changed <= allowed
     assert bytes(mpu.memory[0x6000 : 0x6000 + 8000])[min(allowed) : max(allowed) + 1] != blank[min(allowed) : max(allowed) + 1]
+
+
+def test_6502_native_game_patches_one_o_cell_from_the_supplied_all_o_plane(tmp_path):
+    """A model O is copied from its supplied cell source, not a PETSCII overlay."""
+    import subprocess
+    import sys
+
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    assert {"ui_patch_native_o_cell", "computer_cell"} <= symbols.keys()
+    mpu = MPU(); image = prg.read_bytes(); load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+    blank = (ASSETS / "crystal-palace-game-blank.bitmap.bin").read_bytes()
+    all_o = (ASSETS / "crystal-palace-game-all-o.bitmap.bin").read_bytes()
+    mpu.memory[0x6000 : 0x6000 + 8000] = blank
+    mpu.memory[0x8000 : 0x8000 + 8000] = all_o
+    mpu.memory[symbols["computer_cell"]] = 4
+
+    call(mpu, symbols["ui_patch_native_o_cell"])
+
+    allowed = {((row * 40 + column) * 8 + scan) for row in range(7, 10) for column in range(19, 21) for scan in range(8)}
+    changed = {index for index, (before, after) in enumerate(zip(blank, mpu.memory[0x6000 : 0x6000 + 8000])) if before != after}
+    assert changed
+    assert changed <= allowed
 
 
 def test_6502_title_selection_cycles_supplied_player_states(tmp_path):

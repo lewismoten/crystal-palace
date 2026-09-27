@@ -4590,6 +4590,49 @@ ui_patch_native_x_byte:
     bne ui_patch_native_x_row
     rts
 
+; The supplied all-O plane is paged into the same $8000 source buffer after
+; model computation. Its cell geometry is identical to all-X, but the bytes
+; remain a distinct immutable source asset. This routine therefore makes no
+; character-mode approximation of an O.
+ui_patch_native_o_cell:
+    lda computer_cell
+    asl
+    tax
+    lda ui_x_source_offsets,x
+    sta vector_base
+    lda ui_x_source_offsets+1,x
+    sta vector_base+1
+    lda ui_x_destination_offsets,x
+    sta pointer
+    lda ui_x_destination_offsets+1,x
+    sta pointer+1
+    ldx #3
+ui_patch_native_o_row:
+    ldy #0
+ui_patch_native_o_byte:
+    lda (vector_base),y
+    sta (pointer),y
+    iny
+    cpy #16
+    bne ui_patch_native_o_byte
+    clc
+    lda vector_base
+    adc #$40
+    sta vector_base
+    lda vector_base+1
+    adc #1
+    sta vector_base+1
+    clc
+    lda pointer
+    adc #$40
+    sta pointer
+    lda pointer+1
+    adc #1
+    sta pointer+1
+    dex
+    bne ui_patch_native_o_row
+    rts
+
 ui_clear_dashboard_screen:
     ldx #0
 ui_clear_dashboard_loop:
