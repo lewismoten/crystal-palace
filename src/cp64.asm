@@ -4400,6 +4400,122 @@ ui_set_dashboard_palette:
     sta $d020
     rts
 
+; Native Crystal Palace art is loaded verbatim into $5000/$5400 staging and
+; copied into the VIC-visible plane.  The model pager remains exclusively at
+; $c000, and neither display layout overlaps its $c000-$c9ff load window.
+; vector_base is source and pointer is destination for ui_copy_1000.
+ui_copy_1000:
+    ldx #0
+ui_copy_1000_page0:
+    lda (vector_base),y
+    sta (pointer),y
+    iny
+    bne ui_copy_1000_page0
+    inc vector_base+1
+    inc pointer+1
+ui_copy_1000_page1:
+    lda (vector_base),y
+    sta (pointer),y
+    iny
+    bne ui_copy_1000_page1
+    inc vector_base+1
+    inc pointer+1
+ui_copy_1000_page2:
+    lda (vector_base),y
+    sta (pointer),y
+    iny
+    bne ui_copy_1000_page2
+    inc vector_base+1
+    inc pointer+1
+ui_copy_1000_tail:
+    cpy #232
+    beq ui_copy_1000_done
+    lda (vector_base),y
+    sta (pointer),y
+    iny
+    jmp ui_copy_1000_tail
+ui_copy_1000_done:
+    rts
+
+; Standard character title/info page: screen $0400, shared charset $3800,
+; VIC bank $0000.  The caller has paged the supplied screen/color PRGs into
+; the staging addresses before entry.
+ui_show_native_title:
+    lda #<$5000
+    sta vector_base
+    lda #>$5000
+    sta vector_base+1
+    lda #<$0400
+    sta pointer
+    lda #>$0400
+    sta pointer+1
+    ldy #0
+    jsr ui_copy_1000
+    lda #<$5400
+    sta vector_base
+    lda #>$5400
+    sta vector_base+1
+    lda #<$d800
+    sta pointer
+    lda #>$d800
+    sta pointer+1
+    ldy #0
+    jsr ui_copy_1000
+    lda $dd00
+    and #$fc
+    ora #$03             ; VIC bank $0000
+    sta $dd00
+    lda $d011
+    and #$df             ; character mode
+    sta $d011
+    lda $d016
+    and #$ef             ; standard (not multicolor) character mode
+    sta $d016
+    lda #$1e             ; screen $0400 / charset $3800 in bank $0000
+    sta $d018
+    lda #0
+    sta $d021
+    rts
+
+; Multicolor bitmap game page: bitmap $6000 and screen $4000 in VIC bank
+; $4000. $5000/$5400 remain immutable staging planes for the next art page.
+ui_show_native_game:
+    lda #<$5000
+    sta vector_base
+    lda #>$5000
+    sta vector_base+1
+    lda #<$4000
+    sta pointer
+    lda #>$4000
+    sta pointer+1
+    ldy #0
+    jsr ui_copy_1000
+    lda #<$5400
+    sta vector_base
+    lda #>$5400
+    sta vector_base+1
+    lda #<$d800
+    sta pointer
+    lda #>$d800
+    sta pointer+1
+    ldy #0
+    jsr ui_copy_1000
+    lda $dd00
+    and #$fc
+    ora #$02             ; VIC bank $4000
+    sta $dd00
+    lda $d011
+    ora #$20             ; bitmap mode
+    sta $d011
+    lda $d016
+    ora #$10             ; multicolor bitmap
+    sta $d016
+    lda #$08             ; screen $4000 / bitmap $6000 in bank $4000
+    sta $d018
+    lda #0
+    sta $d021
+    rts
+
 ui_clear_dashboard_screen:
     ldx #0
 ui_clear_dashboard_loop:

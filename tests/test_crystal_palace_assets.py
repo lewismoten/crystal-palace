@@ -71,3 +71,48 @@ def test_build_packages_native_art_as_fixed_address_prgs_without_model_window_ov
         assert payload[2:] == (ASSETS / asset_name).read_bytes()
         assert not (load_address < 0xCA00 and load_address + len(payload) - 2 > 0xC000)
         assert not (load_address < 0xCA00 and load_address + len(payload) - 2 > 0xC100)
+
+
+def test_6502_native_title_and_game_art_activate_at_declared_vic_locations(tmp_path):
+    """The supplied planes, not a recreated dashboard, drive each VIC-II mode."""
+    import subprocess
+    import sys
+
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+
+    prg = tmp_path / "CP64.PRG"
+    labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    assert {"ui_show_native_title", "ui_show_native_game", "ui_copy_1000"} <= symbols.keys()
+    mpu = MPU()
+    image = prg.read_bytes()
+    load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+
+    title_screen = (ASSETS / "crystal-palace-title-player-1.screen.bin").read_bytes()
+    title_color = (ASSETS / "crystal-palace-title-player-1.color.bin").read_bytes()
+    mpu.memory[0x5000 : 0x5000 + 1000] = title_screen
+    mpu.memory[0x5400 : 0x5400 + 1000] = title_color
+    call(mpu, symbols["ui_show_native_title"])
+    assert bytes(mpu.memory[0x0400 : 0x0400 + 1000]) == title_screen
+    assert bytes(mpu.memory[0xD800 : 0xD800 + 1000]) == title_color
+    assert (mpu.memory[0xD011] & 0x20, mpu.memory[0xD016] & 0x10, mpu.memory[0xD018], mpu.memory[0xDD00] & 3) == (0, 0, 0x1E, 3)
+
+    bitmap = (ASSETS / "crystal-palace-game-blank.bitmap.bin").read_bytes()
+    game_screen = (ASSETS / "crystal-palace-game-blank.screen.bin").read_bytes()
+    game_color = (ASSETS / "crystal-palace-game-blank.color.bin").read_bytes()
+    mpu.memory[0x6000 : 0x6000 + 8000] = bitmap
+    mpu.memory[0x5000 : 0x5000 + 1000] = game_screen
+    mpu.memory[0x5400 : 0x5400 + 1000] = game_color
+    call(mpu, symbols["ui_show_native_game"])
+    assert bytes(mpu.memory[0x6000 : 0x6000 + 8000]) == bitmap
+    assert bytes(mpu.memory[0x4000 : 0x4000 + 1000]) == game_screen
+    assert bytes(mpu.memory[0xD800 : 0xD800 + 1000]) == game_color
+    assert (mpu.memory[0xD011] & 0x20, mpu.memory[0xD016] & 0x10, mpu.memory[0xD018], mpu.memory[0xDD00] & 3, mpu.memory[0xD021]) == (0x20, 0x10, 0x08, 2, 0)
