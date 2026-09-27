@@ -18,9 +18,9 @@ def load_builder():
     return module
 
 
-def test_stage_065_declares_embedded_art_navigation():
+def test_stage_066_declares_interactive_title_controls():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (65, "embedded-art-navigation")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (66, "interactive-title-controls")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
 
 
@@ -52,6 +52,8 @@ def test_embedded_title_uses_declared_vic_addresses_and_direct_plane_copies():
     assert "* = $3800" in source and "* = $4000" in source and "* = $4400" in source
     assert "lda #$1e" in source and "sta $d018" in source
     assert "show_title:" in source and "show_info:" in source and "show_game:" in source
+    assert "ldx view_mode" in source
+    assert "patch_title_hints:" in source
 
 
 def test_assembled_embedded_title_copies_exact_planes_to_live_vic_memory(tmp_path):
@@ -76,5 +78,12 @@ def test_assembled_embedded_title_copies_exact_planes_to_live_vic_memory(tmp_pat
     mpu.memory[load : load + len(image) - 2] = image[2:]
     mpu.memory[symbols["title_mode"]] = 1
     call(mpu, symbols["show_title"])
-    assert bytes(mpu.memory[0x0400 : 0x0400 + 1000]) == (ASSETS / "crystal-palace-title-player-1.screen.bin").read_bytes()
-    assert bytes(mpu.memory[0xD800 : 0xD800 + 1000]) == (ASSETS / "crystal-palace-title-player-1.color.bin").read_bytes()
+    expected_screen = bytearray((ASSETS / "crystal-palace-title-player-1.screen.bin").read_bytes())
+    expected_colour = bytearray((ASSETS / "crystal-palace-title-player-1.color.bin").read_bytes())
+    expected_screen[120:160] = b"\x00" * 40
+    expected_colour[120:160] = b"\x00" * 40
+    expected_screen[912:928] = bytes((9, 0, 9, 14, 6, 15, 0, 0, 17, 0, 17, 21, 9, 20, 0, 0))
+    expected_colour[912:928] = b"\x07" * 16
+    for offset in (371, 451, 531): expected_colour[offset] = 7
+    assert bytes(mpu.memory[0x0400 : 0x0400 + 1000]) == bytes(expected_screen)
+    assert bytes(mpu.memory[0xD800 : 0xD800 + 1000]) == bytes(expected_colour)

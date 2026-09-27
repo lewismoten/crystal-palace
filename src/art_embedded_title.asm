@@ -20,7 +20,7 @@ start:
 key_loop:
     jsr GETIN
     beq key_loop
-    lda view_mode
+    ldx view_mode            ; preserve GETIN's key in A
     beq title_key
     cmp #'Q'
     beq return_title
@@ -42,6 +42,15 @@ title_key:
     bne title_not_space
     jmp show_game
 title_not_space:
+    cmp #'1'
+    beq title_number_game
+    cmp #'2'
+    beq title_number_game
+    cmp #'0'
+    bne title_not_number_game
+title_number_game:
+    jmp show_game
+title_not_number_game:
     cmp #'I'
     beq title_info
     cmp #'i'
@@ -114,6 +123,7 @@ title_one:
     ldy #>title1_colour
     jsr copy_colour
 title_done:
+    jsr patch_title_hints
     lda #0
     sta view_mode
     jmp set_title_vic
@@ -183,6 +193,33 @@ copytail:
     iny
     jmp copytail
 copydone: rts
+
+; Requested title affordances: remove the stray line above the title, make the
+; three number choices bright, and state the two non-obvious keyboard commands.
+patch_title_hints:
+    ldx #0
+clear_top_line:
+    lda #0
+    sta $0478,x              ; row 3, above the large CRYSTAL PALACE title
+    sta $d878,x
+    inx
+    cpx #40
+    bne clear_top_line
+    lda #7                   ; bright yellow
+    sta $d973                ; row 9, col 11: 1-player number
+    sta $d9c3                ; row 11, col 11: 2-player number
+    sta $da13                ; row 13, col 11: 0-player number
+    ldx #0
+hint_loop:
+    lda title_hints,x
+    sta $0790,x              ; lower left/right of supplied title frame
+    lda #7
+    sta $db90,x
+    inx
+    cpx #16
+    bne hint_loop
+    rts
+title_hints: .byte 9,0,9,14,6,15,0,0,17,0,17,21,9,20,0,0
 
 set_title_vic:
     lda $dd00
