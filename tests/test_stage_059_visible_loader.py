@@ -18,9 +18,9 @@ def load_builder():
     return module
 
 
-def test_stage_059_declares_visible_native_art_loader():
+def test_stage_060_declares_direct_screen_scroll_fix_loader():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (59, "visible-native-art-loader")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (60, "direct-screen-loader-scroll-fix")
     assert builder.PROGRAM_SOURCE.name == "art_loader.asm"
 
 
@@ -39,12 +39,16 @@ def test_native_art_chunks_are_source_exact_final_address_prgs(tmp_path):
     assert b"".join(page[2:] for page in game_bitmap) == (ASSETS / "crystal-palace-game-blank.bitmap.bin").read_bytes()
 
 
-def test_loader_source_has_splash_before_load_and_one_progress_boundary_per_page():
+def test_loader_source_has_splash_before_load_and_direct_page_progress_without_editor_output():
     source = (ROOT / "src" / "art_loader.asm").read_text()
     assert source.index("jsr preview_splash") < source.index("jsr preview_load_charset")
     assert "CRYSTAL PALACE 9" in source
     assert "LOADING NATIVE DISPLAY" in source
-    assert "preview_progress" in source
-    # Each page loader updates the visible boundary before its real KERNAL LOAD.
-    assert source.index("jsr preview_progress") < source.index("jsr LOAD")
+    # Each real load advances an internal boundary, but after the charset becomes
+    # active the source-exact screen/color pages are the visible progress.  No
+    # CHROUT/cursor call may scroll or overwrite the direct $0400 dashboard.
+    loader = source[source.index("preview_load_prg:") : source.index("preview_load_pages:")]
+    assert "inc preview_progress_count" in loader
+    assert "CHROUT" not in loader
+    assert "preview_loading_label" not in source
     assert "name_t1s0" in source and "name_gbm7" in source and "name_ins3" in source

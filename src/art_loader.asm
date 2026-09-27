@@ -103,45 +103,19 @@ splash_text:
     .text "BOUNDARY 00"
     .byte 0
 
-; This is called exactly once for each actual KERNAL disk page.
-preview_progress:
-    inc preview_progress_count
-    lda #13
-    jsr CHROUT
-    lda #'['
-    jsr CHROUT
-    lda preview_progress_count
-    lsr
-    lsr
-    lsr
-    lsr
-    jsr preview_hex_digit
-    lda preview_progress_count
-    and #$0f
-    jsr preview_hex_digit
-    lda #']'
-    jsr CHROUT
-    rts
-preview_hex_digit:
-    cmp #10
-    bcc progress_decimal
-    clc
-    adc #6
-progress_decimal:
-    clc
-    adc #'0'
-    jmp CHROUT
-
 preview_load_charset:
     lda #<name_char
     ldy #>name_char
     jmp preview_load_prg
 
-; A/Y identify a native source-exact page. Progress precedes, never follows, LOAD.
+; A/Y identify a native source-exact page.  Once the supplied charset is active,
+; no KERNAL screen-editor calls are permitted: its cursor can scroll $0400 and
+; corrupt the source-exact title plane.  The arriving screen/color pages are the
+; truthful visible progress, and this byte tracks the actual completed boundary.
 preview_load_prg:
     sta name_pointer
     sty name_pointer+1
-    jsr preview_progress
+    inc preview_progress_count
     ldy #0
 name_length:
     lda (name_pointer),y
@@ -163,8 +137,9 @@ name_ready:
     jsr LOAD
     rts
 
-; Table loader. Before every matching screen/color pair it writes a temporary
-; label in the still-unloaded page; the following source page replaces it.
+; Table loader.  Disk pages write directly into their final VIC addresses.
+; Deliberately do not write a temporary label into screen RAM: those writes would
+; be visible as non-source pixels and can be moved by the KERNAL screen editor.
 preview_load_pages:
     sta list_pointer
     sty list_pointer+1
@@ -172,11 +147,6 @@ preview_load_pages:
 page_loop:
     cpx preview_page_count
     beq page_done
-    txa
-    and #1
-    bne page_load
-    jsr preview_loading_label
-page_load:
     ldy #0
     lda (list_pointer),y
     pha
@@ -196,28 +166,6 @@ page_next:
     jmp page_loop
 page_done:
     rts
-
-; The label lives in the destination page which is immediately replaced by the
-; corresponding immutable bytes. It is visible during its paired disk loads.
-preview_loading_label:
-    ; Last title/info page replaces this temporary line, preserving final bytes.
-    ldy #0
-loading_label_loop:
-    lda loading_text,y
-    sta $07d0,y
-    lda #13
-    sta $dbd0,y
-    iny
-    cpy #16
-    bne loading_label_loop
-    txa
-    lsr
-    clc
-    adc #1
-    sta $07dd              ; TITLE SCREEN 1/4 through 4/4
-    rts
-; Native screen codes: TITLE SCREEN 1/4 (not an artificial timer).
-loading_text: .byte 20,9,20,12,5,32,19,3,18,5,5,14,32,1,47,52
 
 preview_load_title:
     lda preview_title_mode
