@@ -49,6 +49,36 @@ def build_d64(prg_path: Path, output_path: Path, disk_name: str = "CP64 MODEL") 
     build_d64_files({prg_path.name: prg_path}, output_path, disk_name)
 
 
+def extract_d64_file(image_path: Path, filename: str) -> bytes:
+    """Read one PRG back through its DOS directory and sector chain."""
+    image = image_path.read_bytes()
+    expected = petscii_name(filename)
+    track, sector = DIRECTORY_TRACK, DIRECTORY_SECTOR
+    visited_directories: set[tuple[int, int]] = set()
+    while track:
+        if (track, sector) in visited_directories:
+            raise ValueError("looped D64 directory chain")
+        visited_directories.add((track, sector))
+        directory = sector_offset(track, sector)
+        for index in range(8):
+            entry = directory + 2 + index * 32
+            if image[entry] and image[entry + 3 : entry + 19] == expected:
+                blocks = int.from_bytes(image[entry + 28 : entry + 30], "little")
+                file_track, file_sector = image[entry + 1], image[entry + 2]
+                payload = bytearray()
+                for block in range(blocks):
+                    if not file_track:
+                        raise ValueError("short D64 file chain")
+                    offset = sector_offset(file_track, file_sector)
+                    next_track, next_sector = image[offset], image[offset + 1]
+                    byte_count = 254 if block + 1 < blocks else next_sector - 1
+                    payload.extend(image[offset + 2 : offset + 2 + byte_count])
+                    file_track, file_sector = next_track, next_sector
+                return bytes(payload)
+        track, sector = image[directory], image[directory + 1]
+    raise FileNotFoundError(filename)
+
+
 def build_d64_files(files: dict[str, Path], output_path: Path, disk_name: str = "CP64 MODEL") -> None:
     """Write named PRGs to a D64, chaining directory sectors as required."""
     if not files:

@@ -289,3 +289,74 @@ def test_6502_restart_state_clears_every_board_ownership_bit(tmp_path):
     assert bytes(mpu.memory[symbols["human_cells"] : symbols["human_cells"] + 2]) == b"\0\0"
     assert bytes(mpu.memory[symbols["computer_cells"] : symbols["computer_cells"] + 2]) == b"\0\0"
     assert mpu.memory[symbols["computer_cell"]] == 0
+
+
+def test_stage_058_preview_uses_only_native_art_navigation_and_restores_title_mode(tmp_path):
+    """Stage 058 is an art navigator: title→game/info→title never enters a model path."""
+    import subprocess
+    import sys
+
+    import pytest
+
+    pytest.importorskip("py65")
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+    from py65.devices.mpu6502 import MPU
+
+    source = ROOT / "src" / "art_preview.asm"
+    assert source.is_file(), "Stage 058 needs a standalone no-inference preview program"
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(source)], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    assert {"preview_show_title", "preview_show_game", "preview_show_info", "preview_title_down", "preview_title_up", "preview_mode", "preview_title_mode"} <= symbols.keys()
+    mpu = MPU(); image = prg.read_bytes(); load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+    charset = (ASSETS / "crystal-palace-charset.bin").read_bytes()
+    mpu.memory[0x3800 : 0x4000] = charset
+
+    title_screen = (ASSETS / "crystal-palace-title-player-1.screen.bin").read_bytes()
+    title_color = (ASSETS / "crystal-palace-title-player-1.color.bin").read_bytes()
+    mpu.memory[0x5000 : 0x53e8] = title_screen; mpu.memory[0x5400 : 0x57e8] = title_color
+    call(mpu, symbols["preview_show_title"])
+    assert bytes(mpu.memory[0x0400 : 0x07e8]) == title_screen
+    assert bytes(mpu.memory[0xd800 : 0xdbe8]) == title_color
+    assert bytes(mpu.memory[0x3800 : 0x4000]) == charset
+    assert mpu.memory[symbols["preview_mode"]] == 0
+    assert (mpu.memory[0xd011] & 0x20, mpu.memory[0xd016] & 0x10, mpu.memory[0xd018], mpu.memory[0xdd00] & 3) == (0, 0, 0x1e, 3)
+
+    game_bitmap = (ASSETS / "crystal-palace-game-blank.bitmap.bin").read_bytes()
+    game_screen = (ASSETS / "crystal-palace-game-blank.screen.bin").read_bytes()
+    game_color = (ASSETS / "crystal-palace-game-blank.color.bin").read_bytes()
+    mpu.memory[0x6000 : 0x7f40] = game_bitmap; mpu.memory[0x5000 : 0x53e8] = game_screen; mpu.memory[0x5400 : 0x57e8] = game_color
+    call(mpu, symbols["preview_show_game"])
+    assert bytes(mpu.memory[0x6000 : 0x7f40]) == game_bitmap
+    assert bytes(mpu.memory[0x4000 : 0x43e8]) == game_screen
+    assert bytes(mpu.memory[0xd800 : 0xdbe8]) == game_color
+    assert mpu.memory[symbols["preview_mode"]] == 1
+    assert (mpu.memory[0xd011] & 0x20, mpu.memory[0xd016] & 0x10, mpu.memory[0xd018], mpu.memory[0xdd00] & 3, mpu.memory[0xd021]) == (0x20, 0x10, 0x08, 2, 0)
+
+    info_screen = (ASSETS / "crystal-palace-info.screen.bin").read_bytes()
+    info_color = (ASSETS / "crystal-palace-info.color.bin").read_bytes()
+    mpu.memory[0x5000 : 0x53e8] = info_screen; mpu.memory[0x5400 : 0x57e8] = info_color
+    call(mpu, symbols["preview_show_info"])
+    assert bytes(mpu.memory[0x0400 : 0x07e8]) == info_screen
+    assert bytes(mpu.memory[0xd800 : 0xdbe8]) == info_color
+    assert bytes(mpu.memory[0x3800 : 0x4000]) == charset
+    assert mpu.memory[symbols["preview_mode"]] == 2
+    assert (mpu.memory[0xd011] & 0x20, mpu.memory[0xd016] & 0x10, mpu.memory[0xd018], mpu.memory[0xdd00] & 3) == (0, 0, 0x1e, 3)
+
+    call(mpu, symbols["preview_title_down"]); assert mpu.memory[symbols["preview_title_mode"]] == 2
+    call(mpu, symbols["preview_title_down"]); assert mpu.memory[symbols["preview_title_mode"]] == 0
+    call(mpu, symbols["preview_title_up"]); assert mpu.memory[symbols["preview_title_mode"]] == 2
+
+
+def test_stage_058_build_uses_preview_program_and_archives_the_named_disk(tmp_path):
+    """The release builder must reserve stage 058 only for the native-art preview."""
+    import importlib.util
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    spec = importlib.util.spec_from_file_location("build_disk", ROOT / "scripts" / "build_disk.py")
+    builder = importlib.util.module_from_spec(spec); spec.loader.exec_module(builder)
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (58, "crystal-palace-native-art-preview")
+    assert builder.PROGRAM_SOURCE.name == "art_preview.asm"

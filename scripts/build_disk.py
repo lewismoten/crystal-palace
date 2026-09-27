@@ -10,8 +10,9 @@ from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 57
-CURRENT_DESCRIPTION = "masked-legal-model-argmax"
+CURRENT_STAGE = 58
+CURRENT_DESCRIPTION = "crystal-palace-native-art-preview"
+PROGRAM_SOURCE = ROOT / "src" / "art_preview.asm"
 ART = ROOT / "assets" / "crystal-palace-screen-states"
 
 # These are immutable source planes wrapped only in standard two-byte PRG load
@@ -61,7 +62,7 @@ def main() -> None:
     assembler = ROOT / "tools" / "64tass" / "usr" / "bin" / "64tass"
     if not assembler.is_file():
         raise SystemExit("64tass is missing; run scripts/bootstrap_64tass.sh first")
-    subprocess.run([str(assembler), "--cbm-prg", "-o", str(BUILD / "CP64.PRG"), str(ROOT / "src" / "cp64.asm")], check=True)
+    subprocess.run([str(assembler), "--cbm-prg", "-o", str(BUILD / "CP64.PRG"), str(PROGRAM_SOURCE)], check=True)
     files = {"CP64.PRG": BUILD / "CP64.PRG"}
     files.update({path.name: path for path in sorted((BUILD / "layers").glob("C9W*.PRG"))})
     if len(files) != 49:

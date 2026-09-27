@@ -62,3 +62,16 @@ def test_build_d64_directory_entry_preserves_start_track_sector_and_filename(tmp
     # CBM DOS stores a filename immediately after the two-byte start pointer.
     # This must be a conventional directory entry that DOS can open by name.
     assert data[entry + 3 : entry + 19].rstrip(b"\xa0") == b"CP64.PRG"
+
+
+def test_extract_d64_file_recovers_the_exact_chained_prg_payload(tmp_path):
+    """Release inspection must read back bytes from the D64 rather than trust inputs."""
+    builder = load_builder()
+    prg = tmp_path / "ART.PRG"
+    payload = bytes((0x00, 0x60)) + bytes(range(256)) * 3
+    prg.write_bytes(payload)
+    image = tmp_path / "preview.d64"
+
+    builder.build_d64_files({"ART.PRG": prg}, image, disk_name="CP64 PREVIEW")
+
+    assert builder.extract_d64_file(image, "ART.PRG") == payload

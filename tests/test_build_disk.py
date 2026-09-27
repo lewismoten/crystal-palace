@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_masked_legal_model_argmax():
+def test_current_disk_stage_reports_native_art_preview():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 57
-    assert builder.CURRENT_DESCRIPTION == "masked-legal-model-argmax"
+    assert builder.CURRENT_STAGE == 58
+    assert builder.CURRENT_DESCRIPTION == "crystal-palace-native-art-preview"

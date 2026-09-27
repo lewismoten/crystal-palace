@@ -4,9 +4,9 @@ CP64 is a Commodore 64 feasibility project for **the original Crystal-9 packed I
 
 ## Current executable milestone
 
-`build/cp64.d64` is a runnable C64 disk with a bounded **`<bos>`→`a` two-token attention, LayerNorm-affine, router top-2, MoE, and output-head gate**. At boot it materializes vocabulary row 1 (`<bos>`) at position 0 and explicitly retains its original projected K/V bytes. Typing `A` paints the human red X immediately, materializes `a` at position 1, then evaluates the original paged tensors through the existing fixed-point contract. Its source-byte and assembled-6502 route selects vocabulary ID `$08` (`e`), maps it to an empty board cell, and paints a blue O only after the declared-vocabulary and occupancy gate succeeds. All packets retain their original FP16 scale bytes and packed INT4 payloads.
+`build/cp64.d64` is currently **Stage 058, Crystal Palace native-art preview**. It pages the repository-verified native title variants, blank multicolor bitmap game room, info page, and shared charset. It deliberately does not load or invoke a Crystal-9 packet, inference routine, legal-move path, or winner logic.
 
-This is a bounded CP64 fixed-point output, not original packed-runtime bit parity or an exhaustive tic-tac-toe policy. It has one verified legal opening route (`<bos>`→`a` → `e`); all other legal histories remain out of scope.
+The prior bounded model route remains source and regression evidence, not the current browser-preview executable. Model-driven legal moves, live-compute lights/compositing, win detection, and restart behavior remain unfinished.
 
 ## Model provenance
 
@@ -63,6 +63,12 @@ build/cs64-037-router-normalization.d64
 ```
 
 `cp64.d64` is a compatibility copy of the current numbered gate. A number is reserved only after its gate builds and passes its reference tests.
+
+### Stage 058 native-art browser preview
+
+`cs64-058-crystal-palace-native-art-preview.d64` is an **art/navigation preview, not playable model gameplay**. It starts on the supplied player-1 title variant. On the title: **Up/Down** cycle raw variants `1`, `2`, `0`; **Space** opens the supplied blank multicolor bitmap game room; **I** opens native info; **Q** exits. On game/info: **Space**, **I**, or **Q** returns to the title. It restores character mode and black background on return/exit. No status text is overlaid because the supplied artwork must remain byte-exact.
+
+The disk packages CP64, all 48 original C9W packets, and 18 required native art PRGs. Stage-058 assembled-6502 regressions assert native title/game/info screen and colour planes, game bitmap, charset retention, VIC-II bank/mode transitions, and title cycling. D64 readback verifies every art PRG payload equals its repository source plane.
 
 ### Stage 014 acceptance
 
