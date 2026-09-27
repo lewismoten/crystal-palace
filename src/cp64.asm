@@ -4314,6 +4314,7 @@ progress_done:
 ; Called immediately after next-input validation and before disk/model work.
 ; The retained-history length selects alternating human X/O presentation.
 ui_mark_accepted_human_move:
+    jsr reserve_selected_human_cell
     lda selected
     sec
     sbc #'a'
@@ -4338,6 +4339,77 @@ ui_human_x:
     sta (pointer),y
     lda #$02             ; red
     sta (color_pointer),y
+    rts
+
+; Input validation has already confined selected to a declared a-i symbol.
+; Reserve its state bit before drawing so model legality never depends on VRAM.
+reserve_selected_human_cell:
+    lda selected
+    sec
+    sbc #'a'
+    tax
+    lda #1
+    sta computer_mask_lo
+    lda #0
+    sta computer_mask_hi
+human_mask_shift:
+    cpx #0
+    beq human_mask_ready
+    asl computer_mask_lo
+    rol computer_mask_hi
+    dex
+    jmp human_mask_shift
+human_mask_ready:
+    lda board_occupied
+    ora computer_mask_lo
+    sta board_occupied
+    lda board_occupied_hi
+    ora computer_mask_hi
+    sta board_occupied_hi
+    rts
+
+; Convert the declared Crystal-9 output vocabulary ID to its a-i board-cell
+; offset, but only claim it when that cell is presently empty.  IDs 0..3 are
+; <pad>, <bos>, <eos>, and !, never board moves.  Carry set means no legal
+; computer move was produced; carry clear atomically reserves the cell.
+map_output_token_to_empty_cell:
+    lda output_argmax_index
+    cmp #4
+    bcc computer_cell_invalid
+    cmp #13
+    bcs computer_cell_invalid
+    sec
+    sbc #4
+    sta computer_cell
+    tax
+    lda #1
+    sta computer_mask_lo
+    lda #0
+    sta computer_mask_hi
+computer_mask_shift:
+    cpx #0
+    beq computer_mask_ready
+    asl computer_mask_lo
+    rol computer_mask_hi
+    dex
+    jmp computer_mask_shift
+computer_mask_ready:
+    lda board_occupied
+    and computer_mask_lo
+    bne computer_cell_invalid
+    lda board_occupied_hi
+    and computer_mask_hi
+    bne computer_cell_invalid
+    lda board_occupied
+    ora computer_mask_lo
+    sta board_occupied
+    lda board_occupied_hi
+    ora computer_mask_hi
+    sta board_occupied_hi
+    clc
+    rts
+computer_cell_invalid:
+    sec
     rts
 
 ; Dashboard text is direct screen/color RAM output; it never moves KERNAL's
@@ -4759,6 +4831,13 @@ history_key_sumlo: .byte 0
 history_key_sumhi: .byte 0
 history_value_sumlo: .byte 0
 history_value_sumhi: .byte 0
+; Nine bits are sufficient for declared a-i cells.  This state is deliberately
+; separate from the visual board so a stale character cannot authorize a move.
+board_occupied: .byte 0
+board_occupied_hi: .byte 0
+computer_cell: .byte 0
+computer_mask_lo: .byte 0
+computer_mask_hi: .byte 0
 ui_cell_offsets: .word $04d1,$04d7,$04df,$0521,$0527,$052f,$0571,$0577,$057f
 ui_vertical_offsets: .word $04d3,$04db,$0523,$052b,$0573,$057b
 softmax_lo: .byte $00,$20,$40,$60,$80,$a0,$c0,$e0,$00,$20,$40,$60,$80,$a0,$c0,$e0,$00,$20,$40,$60,$80,$a0,$c0,$e0,$ff,$1f,$3f,$5f,$7f,$9f,$bf,$df

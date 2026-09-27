@@ -1,3 +1,4 @@
+import json
 import subprocess
 from math import exp
 from pathlib import Path
@@ -1299,6 +1300,48 @@ def test_6502_selects_lowest_index_for_equal_maximum_output_logit(tmp_path):
     call(mpu, symbols["select_output_argmax"])
     assert mpu.memory[symbols["output_argmax_index"]] == 3
     assert int.from_bytes(mpu.memory[symbols["output_argmax_lo"] : symbols["output_argmax_lo"] + 2], "little", signed=True) == 32767
+
+
+def test_6502_maps_only_original_move_token_ids_to_empty_board_cells(tmp_path):
+    """A C9W46/C9W47 output ID is a cell only for declared a-i IDs 4-12."""
+    vocabulary = json.loads((ROOT.parent / "crystal-9" / "releases" / "huggingface-int4-v1" / "design.json").read_text())["vocabulary"]["tokens"]
+    assert vocabulary == ["<pad>", "<bos>", "<eos>", "!", "a", "b", "c", "d", "e", "f", "g", "h", "i"]
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    assert {"map_output_token_to_empty_cell", "board_occupied", "computer_cell"} <= symbols.keys()
+
+    # Declared vocabulary IDs 4..12 are a..i.  Mark a and e occupied: a
+    # predicted e is rejected, while f maps to board cell five.
+    mpu.memory[symbols["board_occupied"]] = (1 << 0) | (1 << 4)
+    mpu.memory[symbols["output_argmax_index"]] = 8  # declared token e
+    call(mpu, symbols["map_output_token_to_empty_cell"])
+    assert mpu.p & mpu.CARRY
+    mpu.memory[symbols["output_argmax_index"]] = 9  # declared token f
+    call(mpu, symbols["map_output_token_to_empty_cell"])
+    assert not (mpu.p & mpu.CARRY)
+    assert mpu.memory[symbols["computer_cell"]] == 5
+    assert mpu.memory[symbols["board_occupied"]] == ((1 << 0) | (1 << 4) | (1 << 5))
+
+    # Special tokens and an out-of-vocabulary byte must never become cells.
+    for token_id in (0, 1, 2, 3, 13, 255):
+        mpu.memory[symbols["output_argmax_index"]] = token_id
+        call(mpu, symbols["map_output_token_to_empty_cell"])
+        assert mpu.p & mpu.CARRY
+
+
+def test_6502_accepted_human_cell_reserves_the_same_board_bit_before_rendering(tmp_path):
+    """The legal-empty check is stateful, not inferred from a PETSCII glyph."""
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    mpu.memory[symbols["selected"]] = ord("i")
+    mpu.memory[symbols["sequence_length"]] = 0
+    call(mpu, symbols["ui_mark_accepted_human_move"])
+    assert mpu.memory[symbols["board_occupied"]] == 0
+    assert mpu.memory[symbols["board_occupied_hi"]] == 1
 
 
 def test_6502_configures_original_output_packets_with_their_13_row_lengths(tmp_path):
