@@ -166,6 +166,10 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 `cs64-047-graphical-three-token-history.d64` keeps Stage 046's source-bound A→B→C history boundary and normal character-mode operation. It adds a direct-screen PETSCII 3×3 board; only accepted legal A, B, and C history inputs mark their cells. Its seven-cell progress segment advances immediately before each actual embedding page, position page, Q projection, K projection, V projection, K/V retention, and self-score computation—not on simulated timer ticks. After C it reports only measured state: history length `$03`, plus 16-bit byte sums over the 192 retained key bytes and 192 retained value bytes. It neither calculates nor claims a tic-tac-toe policy or a model prediction.
 
+### Stage 048 fixed dashboard history
+
+`cs64-048-fixed-dashboard-history.d64` fixes the Stage 047 browser scrolling regression. Once the board activates, accepted-token status, real work-stage text, and retained-history diagnostics are written directly to fixed screen and color-RAM panel slots; no interactive status or diagnostic path streams through KERNAL `CHROUT`. The board, seven real-work progress cells, status row, and diagnostic row retain explicit light-green color writes. Enter `A`, then `B`, then `C`: the fixed panel ends with `A,B,C RETAINED: HISTORY READY` and `LENGTH $03 KEY SUM $47A0 VALUE $` followed by the measured value sum. This remains a pageable three-token K/V-history proof, not a model prediction or playable policy.
+
 ### Browser test target
 
 The manual acceptance target is [C64 Online Emulator](https://c64online.com/c64-online-emulator/). Use its **Load Program** control to select the numbered `.d64` artifact; it accepts D64 files directly. This project treats a user-reported matching result from that emulator as a separate browser-emulator confirmation in addition to the assembled-6502 regression suite.

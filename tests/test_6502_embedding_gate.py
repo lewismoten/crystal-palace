@@ -157,11 +157,11 @@ def test_interactive_request_announces_input_and_each_long_work_stage():
     source = (ROOT / "src" / "cp64.asm").read_text()
     request = source[source.index("accepted_key:") : source.index("jmp read_key", source.index("accepted_key:"))]
 
-    assert request.index("jsr print_thinking") < request.index("jsr load_embedding")
+    assert request.index("jsr ui_status_thinking") < request.index("jsr load_embedding")
     for step in ("step_token", "step_position", "step_query", "step_key", "step_value", "step_history", "step_scores", "step_two_key_scores", "step_head0", "step_head1", "step_head2", "step_head3", "step_head4", "step_head5", "step_head6", "step_head7", "step_residual_retain", "step_output_load", "step_output_project", "step_output_bias_load", "step_output_bias", "step_residual_add", "step_norm_load", "step_norm_materialize", "step_norm_bias_load", "step_norm_bias_materialize"):
         assert step in source
-    assert request.index("#<step_history") < request.index("jsr capture_legal_history")
-    assert request.index("#<step_scores") < request.index("jsr materialize_self_attention_scores")
+    assert request.index("jsr ui_step_history") < request.index("jsr capture_legal_history")
+    assert request.index("jsr ui_step_scores") < request.index("jsr materialize_self_attention_scores")
     assert source.index("#<step_two_key_scores") < source.index("jsr materialize_two_token_causal_scores")
     for step in ("step_head0", "step_head1", "step_head2", "step_head3", "step_head4", "step_head5", "step_head6", "step_head7"):
         assert source.find("jsr two_key_selected_head_softmax_attention_output", source.index(f"#<{step}")) != -1
@@ -1331,8 +1331,7 @@ def test_interactive_a_only_arms_legal_history_without_emitting_a_token():
     source = (ROOT / "src" / "cp64.asm").read_text()
     request = source[source.index("jsr capture_legal_history") : source.index("attended_two_key:")]
     assert "lda three_key_ready" in request
-    assert "lda #<await_second_key_message" in request
-    assert "jsr print" in request
+    assert "jsr ui_status_a" in request
     assert "jmp read_key" in request
     assert "await_second_key_message: .text \"A RETAINED. TYPE B TO RUN THE A->B PROOF.\"" in source
 
@@ -1403,3 +1402,35 @@ def test_6502_graphical_history_ui_marks_accepted_moves_and_real_progress(tmp_pa
     call(mpu, symbols["sum_history_bytes"])
     assert (mpu.memory[symbols["history_key_sumlo"]] | (mpu.memory[symbols["history_key_sumhi"]] << 8)) == sum(range(192)) & 0xffff
     assert (mpu.memory[symbols["history_value_sumlo"]] | (mpu.memory[symbols["history_value_sumhi"]] << 8)) == sum((0xc0 + index) & 0xff for index in range(192)) & 0xffff
+
+
+def test_6502_dashboard_status_and_diagnostics_are_fixed_colored_screen_writes(tmp_path):
+    """Stage 048 must not scroll the Stage 047 dashboard through CHROUT output."""
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    assert {"draw_history_ui", "ui_status_a", "ui_status_b", "ui_status_complete", "ui_show_history_diagnostics"} <= symbols.keys()
+    mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    call(mpu, symbols["draw_history_ui"])
+    dashboard = list(mpu.memory[0x0400 + 192 : 0x0400 + 640])
+    for routine, text in (("ui_status_a", b"A RETAINED: TYPE B"), ("ui_status_b", b"A,B RETAINED: TYPE C")):
+        mpu.memory[0x00d1] = 24  # KERNAL cursor row sentinel: direct UI must not move it.
+        call(mpu, symbols[routine])
+        assert mpu.memory[0x00d1] == 24
+        assert bytes(mpu.memory[0x0400 + 600 : 0x0400 + 600 + len(text)]) == bytes(ch - 64 if 65 <= ch <= 90 else ch for ch in text)
+        assert list(mpu.memory[0x0400 + 192 : 0x0400 + 560]) == dashboard[:368]
+    for index in range(192):
+        mpu.memory[symbols["KEY_HISTORY"] + index] = index
+        mpu.memory[symbols["VALUE_HISTORY"] + index] = (0xc0 + index) & 0xff
+    call(mpu, symbols["sum_history_bytes"])
+    call(mpu, symbols["ui_status_complete"])
+    call(mpu, symbols["ui_show_history_diagnostics"])
+    screen = lambda text: bytes(ch - 64 if 65 <= ch <= 90 else ch for ch in text)
+    complete = screen(b"A,B,C RETAINED: HISTORY READY")
+    diagnostic = screen(b"LENGTH $03 KEY SUM $47A0 VALUE $")
+    assert bytes(mpu.memory[0x0400 + 600 : 0x0400 + 600 + len(complete)]) == complete
+    assert bytes(mpu.memory[0x0400 + 640 : 0x0400 + 640 + len(diagnostic)]) == diagnostic
+    assert bytes(mpu.memory[0x0400 + 640 + len(diagnostic) : 0x0400 + 644 + len(diagnostic)]) == b"57A0"
+    for offset in range(600, 680):
+        assert mpu.memory[0xd800 + offset] == 0x0d

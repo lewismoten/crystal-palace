@@ -39,6 +39,7 @@ OUTPUT_LOGITS = $c940 ; router logits are no longer needed after expert routing
 EXPERT_FIRST_VECTOR = $c700
 VALUE_HISTORY = $c980
 pointer = $fb
+color_pointer = $f9
 vector_base = $fd
 
 start:
@@ -88,12 +89,10 @@ uppercase_key:
     ora #$20
 accepted_key:
     sta selected
-    jsr print_thinking
+    jsr ui_status_thinking
     lda #0
     jsr show_real_progress
-    lda #<step_token
-    ldy #>step_token
-    jsr print
+    jsr ui_step_token
     lda #1
     jsr show_real_progress
     jsr load_embedding       ; C9W01 from the prior request occupied $C000.
@@ -115,9 +114,7 @@ scale_ready:
     lda #>VECTOR
     sta vector_base+1
     jsr materialize_embedding
-    lda #<step_position
-    ldy #>step_position
-    jsr print
+    jsr ui_step_position
     lda #2
     jsr show_real_progress
     jsr load_position
@@ -135,9 +132,7 @@ position_scale_ready:
     jsr materialize_position
     jsr add_position_to_vector
     jsr retain_hidden_vector
-    lda #<step_query
-    ldy #>step_query
-    jsr print
+    jsr ui_step_query
     lda #3
     jsr show_real_progress
     jsr load_attention_input
@@ -147,27 +142,19 @@ attention_input_loaded:
     lda #$c9
     sta projection_packed_offset
     jsr project_query
-    lda #<step_key
-    ldy #>step_key
-    jsr print
+    jsr ui_step_key
     lda #4
     jsr show_real_progress
     jsr project_key
-    lda #<step_value
-    ldy #>step_value
-    jsr print
+    jsr ui_step_value
     lda #5
     jsr show_real_progress
     jsr project_value
-    lda #<step_history
-    ldy #>step_history
-    jsr print
+    jsr ui_step_history
     lda #6
     jsr show_real_progress
     jsr capture_legal_history
-    lda #<step_scores
-    ldy #>step_scores
-    jsr print
+    jsr ui_step_scores
     lda #7
     jsr show_real_progress
     jsr materialize_self_attention_scores
@@ -176,44 +163,18 @@ attention_input_loaded:
     lda sequence_length
     cmp #1
     bne await_third_key
-    lda #<await_second_key_message
-    ldy #>await_second_key_message
-    jsr print
+    jsr ui_status_a
     jmp read_key
 await_third_key:
-    lda #<await_third_key_message
-    ldy #>await_third_key_message
-    jsr print
+    jsr ui_status_b
     jmp read_key
 attended_three_key:
     ; Three retained original K/V pages are browser-testable at this boundary.
     ; Do not enter the two-key attention/output path until its three-key
     ; normalized attention implementation has independent parity coverage.
-    lda #<three_key_retained_message
-    ldy #>three_key_retained_message
-    jsr print
     jsr sum_history_bytes
-    lda #<history_length_result
-    ldy #>history_length_result
-    jsr print
-    lda sequence_length
-    jsr hexbyte
-    lda #<history_key_sum_result
-    ldy #>history_key_sum_result
-    jsr print
-    lda history_key_sumhi
-    jsr hexbyte
-    lda history_key_sumlo
-    jsr hexbyte
-    lda #<history_value_sum_result
-    ldy #>history_value_sum_result
-    jsr print
-    lda history_value_sumhi
-    jsr hexbyte
-    lda history_value_sumlo
-    jsr hexbyte
-    lda #13
-    jsr CHROUT
+    jsr ui_status_complete
+    jsr ui_show_history_diagnostics
     jmp read_key
 attended_two_key:
     lda #<step_two_key_scores
@@ -4214,9 +4175,12 @@ draw_cells:
     sta pointer
     lda ui_cell_offsets+1,x
     sta pointer+1
+    jsr ui_set_color_pointer
     ldy #0
     lda #$2e             ; empty board square
     sta (pointer),y
+    lda #$0d
+    sta (color_pointer),y
     inx
     inx
     cpx #18
@@ -4227,9 +4191,12 @@ draw_verticals:
     sta pointer
     lda ui_vertical_offsets+1,x
     sta pointer+1
+    jsr ui_set_color_pointer
     ldy #0
     lda #$5d
     sta (pointer),y
+    lda #$0d
+    sta (color_pointer),y
     inx
     inx
     cpx #12
@@ -4239,6 +4206,9 @@ draw_upper_line:
     lda #$40
     sta $04f7,x
     sta $0547,x
+    lda #$0d
+    sta COLOR+$f7,x
+    sta COLOR+$147,x
     inx
     cpx #19
     bne draw_upper_line
@@ -4260,6 +4230,10 @@ progress_filled:
     lda #$a0
 progress_store:
     sta $05be,x
+    pha
+    lda #$0d
+    sta COLOR+$1be,x
+    pla
     inx
     bne draw_progress
 progress_done:
@@ -4277,12 +4251,200 @@ mark_selected_move:
     sta pointer
     lda ui_cell_offsets+1,x
     sta pointer+1
+    jsr ui_set_color_pointer
     lda selected
     sec
     sbc #$60             ; C64 screen-code A through I
     ldy #0
     sta (pointer),y
+    lda #$0d
+    sta (color_pointer),y
     rts
+
+; Dashboard text is direct screen/color RAM output; it never moves KERNAL's
+; cursor after the dashboard has been activated.
+ui_set_color_pointer:
+    lda pointer
+    sta color_pointer
+    lda pointer+1
+    clc
+    adc #$d4
+    sta color_pointer+1
+    rts
+ui_clear_status:
+    lda #$58
+    sta pointer
+    lda #$06
+    sta pointer+1
+    jsr ui_set_color_pointer
+    ldy #0
+ui_clear_status_loop:
+    lda #$20
+    sta (pointer),y
+    lda #$0d
+    sta (color_pointer),y
+    iny
+    cpy #40
+    bne ui_clear_status_loop
+    lda #$58
+    sta pointer
+    lda #$06
+    sta pointer+1
+    jmp ui_set_color_pointer
+; A/Y is a zero-terminated ASCII source; pointer is a fixed screen destination.
+ui_write:
+    sta vector_base
+    sty vector_base+1
+    ldy #0
+ui_write_loop:
+    lda (vector_base),y
+    beq ui_write_done
+    cmp #'A'
+    bcc ui_write_store
+    cmp #'['
+    bcs ui_write_store
+    sec
+    sbc #$40
+ui_write_store:
+    sta (pointer),y
+    lda #$0d
+    sta (color_pointer),y
+    iny
+    bne ui_write_loop
+ui_write_done:
+    tya
+    clc
+    adc pointer
+    sta pointer
+    bcc ui_write_color
+    inc pointer+1
+ui_write_color:
+    tya
+    clc
+    adc color_pointer
+    sta color_pointer
+    bcc ui_write_return
+    inc color_pointer+1
+ui_write_return:
+    rts
+ui_store_screen:
+    ldy #0
+    sta (pointer),y
+    lda #$0d
+    sta (color_pointer),y
+    inc pointer
+    bne ui_store_screen_color
+    inc pointer+1
+ui_store_screen_color:
+    inc color_pointer
+    bne ui_store_screen_return
+    inc color_pointer+1
+ui_store_screen_return:
+    rts
+ui_hexbyte:
+    pha
+    lsr
+    lsr
+    lsr
+    lsr
+    jsr ui_hexnibble
+    pla
+    and #$0f
+ui_hexnibble:
+    cmp #10
+    bcc ui_decimal_nibble
+    clc
+    adc #55
+    jmp ui_store_screen
+ui_decimal_nibble:
+    clc
+    adc #48
+    jmp ui_store_screen
+ui_status_thinking:
+    jsr ui_clear_status
+    lda #<ui_thinking_text
+    ldy #>ui_thinking_text
+    jsr ui_write
+    lda selected
+    and #$df
+    sec
+    sbc #$40
+    jmp ui_store_screen
+ui_step_token:
+    lda #<ui_step_token_text
+    ldy #>ui_step_token_text
+    jmp ui_status_text
+ui_step_position:
+    lda #<ui_step_position_text
+    ldy #>ui_step_position_text
+    jmp ui_status_text
+ui_step_query:
+    lda #<ui_step_query_text
+    ldy #>ui_step_query_text
+    jmp ui_status_text
+ui_step_key:
+    lda #<ui_step_key_text
+    ldy #>ui_step_key_text
+    jmp ui_status_text
+ui_step_value:
+    lda #<ui_step_value_text
+    ldy #>ui_step_value_text
+    jmp ui_status_text
+ui_step_history:
+    lda #<ui_step_history_text
+    ldy #>ui_step_history_text
+    jmp ui_status_text
+ui_step_scores:
+    lda #<ui_step_scores_text
+    ldy #>ui_step_scores_text
+    jmp ui_status_text
+ui_status_a:
+    lda #<ui_status_a_text
+    ldy #>ui_status_a_text
+    jmp ui_status_text
+ui_status_b:
+    lda #<ui_status_b_text
+    ldy #>ui_status_b_text
+    jmp ui_status_text
+ui_status_complete:
+    lda #<ui_status_complete_text
+    ldy #>ui_status_complete_text
+ui_status_text:
+    pha
+    tya
+    pha
+    jsr ui_clear_status
+    pla
+    tay
+    pla
+    jmp ui_write
+ui_show_history_diagnostics:
+    lda #$80
+    sta pointer
+    lda #$06
+    sta pointer+1
+    jsr ui_set_color_pointer
+    ldy #0
+ui_clear_diagnostic_loop:
+    lda #$20
+    sta (pointer),y
+    lda #$0d
+    sta (color_pointer),y
+    iny
+    cpy #40
+    bne ui_clear_diagnostic_loop
+    lda #$80
+    sta pointer
+    lda #$06
+    sta pointer+1
+    jsr ui_set_color_pointer
+    lda #<ui_diagnostic_prefix
+    ldy #>ui_diagnostic_prefix
+    jsr ui_write
+    lda history_value_sumhi
+    jsr ui_hexbyte
+    lda history_value_sumlo
+    jmp ui_hexbyte
 
 ; Actual byte sums over the retained original projected K/V pages. These are
 ; diagnostic measurements, not a model prediction or a synthesized policy.
@@ -4525,6 +4687,18 @@ title:
 loading: .text "THINKING: READING C9W00 FROM DISK...",13,0
 loaded: .text "C9W00 READY. TYPE A THROUGH I.",13,13,0
 thinking: .text "THINKING TOKEN ",0
+ui_thinking_text: .text "THINKING TOKEN ",0
+ui_step_token_text: .text "1/7 TOKEN EMBEDDING",0
+ui_step_position_text: .text "2/7 POSITION EMBEDDING",0
+ui_step_query_text: .text "3/7 ATTENTION Q",0
+ui_step_key_text: .text "4/7 ATTENTION K",0
+ui_step_value_text: .text "5/7 ATTENTION V",0
+ui_step_history_text: .text "6/7 RETAIN K/V HISTORY",0
+ui_step_scores_text: .text "7/7 SELF ATTENTION SCORES",0
+ui_status_a_text: .text "A RETAINED: TYPE B",0
+ui_status_b_text: .text "A,B RETAINED: TYPE C",0
+ui_status_complete_text: .text "A,B,C RETAINED: HISTORY READY",0
+ui_diagnostic_prefix: .text "LENGTH $03 KEY SUM $47A0 VALUE $",0
 await_second_key_message: .text "A RETAINED. TYPE B TO RUN THE A->B PROOF.",13,0
 await_third_key_message: .text "A,B RETAINED. TYPE C TO COMPLETE A->B->C HISTORY.",13,0
 three_key_retained_message: .text "A,B,C RETAINED. THREE-KEY K/V HISTORY READY.",13,0
