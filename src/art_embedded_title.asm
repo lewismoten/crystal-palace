@@ -43,9 +43,13 @@ non_game_not_petscii_q:
     jmp return_title
 non_game_not_space:
     cmp #'I'
-    beq return_title
+    bne non_game_not_upper_i
+    jmp return_title
+non_game_not_upper_i:
     cmp #'i'
-    beq return_title
+    bne non_game_not_lower_i
+    jmp return_title
+non_game_not_lower_i:
     jmp key_loop
 title_key:
     cmp #$91
@@ -54,7 +58,8 @@ title_key:
     beq title_down
     cmp #' '
     bne title_not_space
-    jmp show_game
+    jsr show_game
+    jmp key_loop
 title_not_space:
     cmp #'1'
     beq title_number_game
@@ -63,14 +68,18 @@ title_not_space:
     cmp #'0'
     bne title_not_number_game
 title_number_game:
-    jmp show_game
+    jsr show_game
+    jmp key_loop
 title_not_number_game:
     cmp #'I'
     beq title_info
     cmp #'i'
+    beq title_info
+    cmp #9                   ; PETSCII I in uppercase character mode
     bne title_not_info
- title_info:
-    jmp show_info
+title_info:
+    jsr show_info
+    jmp key_loop
 title_not_info:
     cmp #'Q'
     beq exit_basic
@@ -79,7 +88,12 @@ title_not_info:
     jmp key_loop
 title_up:
     jsr select_title_up
+    jsr wait_key_release
     jmp key_loop
+wait_key_release:
+    jsr GETIN
+    bne wait_key_release
+    rts
 select_title_up:
     lda title_mode
     beq up_to_two
@@ -96,6 +110,7 @@ store_title:
     rts
 title_down:
     jsr select_title_down
+    jsr wait_key_release
     jmp key_loop
 select_title_down:
     lda title_mode

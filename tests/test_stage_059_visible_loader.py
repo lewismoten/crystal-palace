@@ -18,9 +18,9 @@ def load_builder():
     return module
 
 
-def test_stage_068_declares_interactive_bitmap_board_repair():
+def test_stage_069_declares_title_dispatch_and_key_debounce():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (68, "interactive-bitmap-board-repair")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (69, "title-dispatch-and-key-debounce")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
 
 
@@ -138,3 +138,11 @@ def test_embedded_title_selection_cycles_without_bouncing_to_player_one(tmp_path
     call(mpu, symbols["select_title_down"]); assert mpu.memory[symbols["title_mode"]] == 0
     call(mpu, symbols["select_title_down"]); assert mpu.memory[symbols["title_mode"]] == 1
     call(mpu, symbols["select_title_up"]); assert mpu.memory[symbols["title_mode"]] == 0
+
+
+def test_title_actions_return_to_the_key_loop_without_falling_into_basic():
+    """Display routines end in RTS, so title dispatch must enter them via JSR."""
+    source = (ROOT / "src" / "art_embedded_title.asm").read_text()
+    assert "title_number_game:\n    jsr show_game\n    jmp key_loop" in source
+    assert "title_info:\n    jsr show_info\n    jmp key_loop" in source
+    assert "title_down:\n    jsr select_title_down\n    jsr wait_key_release\n    jmp key_loop" in source

@@ -10,8 +10,8 @@ from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 68
-CURRENT_DESCRIPTION = "interactive-bitmap-board-repair"
+CURRENT_STAGE = 69
+CURRENT_DESCRIPTION = "title-dispatch-and-key-debounce"
 PROGRAM_SOURCE = ROOT / "src" / "art_embedded_title.asm"
 ART = ROOT / "assets" / "crystal-palace-screen-states"
 
