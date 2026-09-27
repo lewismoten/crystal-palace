@@ -29,7 +29,7 @@ CRYSTAL_PALACE_ART = {
     "CPGBM.PRG": ("crystal-palace-game-blank.bitmap.bin", 0x6000),
     "CPGSC.PRG": ("crystal-palace-game-blank.screen.bin", 0x5000),
     "CPGCO.PRG": ("crystal-palace-game-blank.color.bin", 0x5400),
-    "CPGXB.PRG": ("crystal-palace-game-all-x.bitmap.bin", 0x6000),
+    "CPGXB.PRG": ("crystal-palace-game-all-x.bitmap.bin", 0x8000),
     "CPGXS.PRG": ("crystal-palace-game-all-x.screen.bin", 0x5000),
     "CPGXC.PRG": ("crystal-palace-game-all-x.color.bin", 0x5400),
     "CPGOB.PRG": ("crystal-palace-game-all-o.bitmap.bin", 0x6000),

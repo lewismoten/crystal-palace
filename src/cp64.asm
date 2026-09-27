@@ -4516,6 +4516,49 @@ ui_show_native_game:
     sta $d021
     rts
 
+; Patch one 16-by-24 bitmap cell from the supplied all-X source plane at
+; $8000 into the live blank game bitmap at $6000. computer_cell is 0..8.
+; Each source rectangle is exactly two character columns by three rows; the
+; unchanged cells remain the supplied blank base rather than an all-X mock.
+ui_patch_native_x_cell:
+    lda computer_cell
+    asl
+    tax
+    lda ui_x_source_offsets,x
+    sta vector_base
+    lda ui_x_source_offsets+1,x
+    sta vector_base+1
+    lda ui_x_destination_offsets,x
+    sta pointer
+    lda ui_x_destination_offsets+1,x
+    sta pointer+1
+    ldx #3
+ui_patch_native_x_row:
+    ldy #0
+ui_patch_native_x_byte:
+    lda (vector_base),y
+    sta (pointer),y
+    iny
+    cpy #16
+    bne ui_patch_native_x_byte
+    clc
+    lda vector_base
+    adc #$40
+    sta vector_base
+    lda vector_base+1
+    adc #1
+    sta vector_base+1
+    clc
+    lda pointer
+    adc #$40
+    sta pointer
+    lda pointer+1
+    adc #1
+    sta pointer+1
+    dex
+    bne ui_patch_native_x_row
+    rts
+
 ui_clear_dashboard_screen:
     ldx #0
 ui_clear_dashboard_loop:
@@ -5236,6 +5279,10 @@ computer_mask_lo: .byte 0
 computer_mask_hi: .byte 0
 ui_cell_offsets: .word $04d1,$04d7,$04df,$0521,$0527,$052f,$0571,$0577,$057f
 ui_vertical_offsets: .word $04d3,$04db,$0523,$052b,$0573,$057b
+; Supplied game cell rectangles as VIC bitmap byte locations: columns 15/16,
+; 19/20, 23/24 and rows 4-6, 7-9, 10-12. Sources are CPGXB at $8000.
+ui_x_source_offsets: .word $8578,$8598,$85b8,$8938,$8958,$8978,$8cf8,$8d18,$8d38
+ui_x_destination_offsets: .word $6578,$6598,$65b8,$6938,$6958,$6978,$6cf8,$6d18,$6d38
 softmax_lo: .byte $00,$20,$40,$60,$80,$a0,$c0,$e0,$00,$20,$40,$60,$80,$a0,$c0,$e0,$00,$20,$40,$60,$80,$a0,$c0,$e0,$ff,$1f,$3f,$5f,$7f,$9f,$bf,$df
 softmax_hi: .byte $40,$40,$40,$40,$40,$40,$40,$40,$41,$41,$41,$41,$41,$41,$41,$41,$42,$42,$42,$42,$42,$42,$42,$42,$42,$43,$43,$43,$43,$43,$43,$43
 router_sigmoid_q0_15: .binary "router_sigmoid_q0_15.bin"

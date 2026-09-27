@@ -116,3 +116,38 @@ def test_6502_native_title_and_game_art_activate_at_declared_vic_locations(tmp_p
     assert bytes(mpu.memory[0x4000 : 0x4000 + 1000]) == game_screen
     assert bytes(mpu.memory[0xD800 : 0xD800 + 1000]) == game_color
     assert (mpu.memory[0xD011] & 0x20, mpu.memory[0xD016] & 0x10, mpu.memory[0xD018], mpu.memory[0xDD00] & 3, mpu.memory[0xD021]) == (0x20, 0x10, 0x08, 2, 0)
+
+
+def test_6502_native_game_patches_one_x_cell_from_the_supplied_all_x_plane(tmp_path):
+    """A live mark changes only its supplied bitmap cell, never swaps in an all-X frame."""
+    import subprocess
+    import sys
+
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    assert {"ui_patch_native_x_cell", "computer_cell"} <= symbols.keys()
+    mpu = MPU(); image = prg.read_bytes(); load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+    blank = (ASSETS / "crystal-palace-game-blank.bitmap.bin").read_bytes()
+    all_x = (ASSETS / "crystal-palace-game-all-x.bitmap.bin").read_bytes()
+    mpu.memory[0x6000 : 0x6000 + 8000] = blank
+    mpu.memory[0x8000 : 0x8000 + 8000] = all_x
+    mpu.memory[symbols["computer_cell"]] = 4  # centre cell e
+
+    call(mpu, symbols["ui_patch_native_x_cell"])
+
+    # e spans character columns 19-20 and rows 7-9 (six 8-byte bitmap cells).
+    allowed = {((row * 40 + column) * 8 + scan) for row in range(7, 10) for column in range(19, 21) for scan in range(8)}
+    changed = {index for index, (before, after) in enumerate(zip(blank, mpu.memory[0x6000 : 0x6000 + 8000])) if before != after}
+    assert changed
+    assert changed <= allowed
+    assert bytes(mpu.memory[0x6000 : 0x6000 + 8000])[min(allowed) : max(allowed) + 1] != blank[min(allowed) : max(allowed) + 1]
