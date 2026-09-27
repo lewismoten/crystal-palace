@@ -170,6 +170,10 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 `cs64-048-fixed-dashboard-history.d64` fixes the Stage 047 browser scrolling regression. Once the board activates, accepted-token status, real work-stage text, and retained-history diagnostics are written directly to fixed screen and color-RAM panel slots; no interactive status or diagnostic path streams through KERNAL `CHROUT`. The board, seven real-work progress cells, status row, and diagnostic row retain explicit light-green color writes. Enter `A`, then `B`, then `C`: the fixed panel ends with `A,B,C RETAINED: HISTORY READY` and `LENGTH $03 KEY SUM $47A0 VALUE $` followed by the measured value sum. This remains a pageable three-token K/V-history proof, not a model prediction or playable policy.
 
+### Stage 049 full-progress dashboard history
+
+`cs64-049-full-progress-dashboard-history.d64` corrects the Stage 048 meter scale. The fixed 28-cell graphical meter assigns four cells to each of the seven real page/compute boundaries, so it reaches 100% at every A, B, and C retained-history boundary. It preserves Stage 048's direct screen/color-RAM dashboard: no scrolling status stream, no color inheritance, and end diagnostics remain fixed. This is still only a pageable three-token K/V-history proof, not a model prediction or playable policy.
+
 ### Browser test target
 
 The manual acceptance target is [C64 Online Emulator](https://c64online.com/c64-online-emulator/). Use its **Load Program** control to select the numbered `.d64` artifact; it accepts D64 files directly. This project treats a user-reported matching result from that emulator as a separate browser-emulator confirmation in addition to the assembled-6502 regression suite.

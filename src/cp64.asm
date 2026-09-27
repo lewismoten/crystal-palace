@@ -4216,13 +4216,18 @@ draw_upper_line:
     jmp show_real_progress
 
 ; A is the number of named real page/compute boundaries completed (0..7).
+; Each boundary owns four of the 28 cells, so seven completed boundaries fill
+; the whole meter rather than leaving a misleading 7/28 partial bar.
 show_real_progress:
     sta ui_progress_count
+    asl
+    asl
+    sta ui_progress_width
     ldx #0
 draw_progress:
     cpx #28
     beq progress_done
-    cpx ui_progress_count
+    cpx ui_progress_width
     bcc progress_filled
     lda #$40
     bne progress_store
@@ -4668,6 +4673,7 @@ sequence_length: .byte 0
 sequence_position: .byte 0
 history_offset: .byte 0
 ui_progress_count: .byte 0
+ui_progress_width: .byte 0
 history_key_sumlo: .byte 0
 history_key_sumhi: .byte 0
 history_value_sumlo: .byte 0

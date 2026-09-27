@@ -1394,7 +1394,9 @@ def test_6502_graphical_history_ui_marks_accepted_moves_and_real_progress(tmp_pa
         assert mpu.memory[0x0400 + expected_offset] == token - 0x60
     mpu.a = 7
     call(mpu, symbols["show_real_progress"])
-    assert [mpu.memory[0x0400 + offset] for offset in range(446, 453)] == [0xa0] * 7
+    # Seven real work boundaries own the whole 28-cell meter: completion must
+    # visibly reach 100%, not leave a 7/28 partial bar at the retain boundary.
+    assert [mpu.memory[0x0400 + offset] for offset in range(446, 474)] == [0xa0] * 28
 
     for index in range(192):
         mpu.memory[symbols["KEY_HISTORY"] + index] = index

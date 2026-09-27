@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_fixed_dashboard_history_boundary():
+def test_current_disk_stage_reports_full_progress_dashboard_history():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 48
-    assert builder.CURRENT_DESCRIPTION == "fixed-dashboard-history"
+    assert builder.CURRENT_STAGE == 49
+    assert builder.CURRENT_DESCRIPTION == "full-progress-dashboard-history"
