@@ -356,13 +356,13 @@ def test_stage_058_preview_uses_only_native_art_navigation_and_restores_title_mo
     call(mpu, symbols["preview_title_up"]); assert mpu.memory[symbols["preview_title_mode"]] == 2
 
 
-def test_stage_060_build_uses_scroll_safe_visible_loader_and_archives_the_named_disk(tmp_path):
-    """The release builder reserves Stage 060 for scroll-safe source-exact paging."""
+def test_stage_061_build_uses_silent_kernal_art_loader_and_archives_the_named_disk(tmp_path):
+    """The release builder reserves Stage 061 for silent source-exact paging."""
     import importlib.util
     import sys
 
     sys.path.insert(0, str(ROOT / "scripts"))
     spec = importlib.util.spec_from_file_location("build_disk", ROOT / "scripts" / "build_disk.py")
     builder = importlib.util.module_from_spec(spec); spec.loader.exec_module(builder)
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (60, "direct-screen-loader-scroll-fix")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (61, "silent-kernal-art-loader")
     assert builder.PROGRAM_SOURCE.name == "art_loader.asm"

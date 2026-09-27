@@ -17,12 +17,22 @@ CLRSCN = $e544
 SETNAM = $ffbd
 SETLFS = $ffba
 LOAD = $ffd5
+SETMSG = $ff90
 
 name_pointer = $fb
 list_pointer = $fd
+label_pointer = $f9
+label_color_pointer = $f7
 
 start:
     jsr preview_splash
+    ; KERNAL LOAD normally prints SEARCHING/LOADING through the screen editor.
+    ; After the custom charset becomes active those messages turn into glyph
+    ; noise and can scroll the source-exact $0400 title plane.  Disable KERNAL
+    ; device messages before the first disk request; splash + arriving pages
+    ; remain the visible, truthful load feedback.
+    lda #0
+    jsr SETMSG
     jsr preview_load_charset
     jsr preview_set_character_vic
     lda #1
@@ -135,6 +145,7 @@ name_ready:
     jsr SETLFS
     lda #0
     jsr LOAD
+    jsr preview_set_character_vic
     rts
 
 ; Table loader.  Disk pages write directly into their final VIC addresses.
@@ -147,6 +158,15 @@ preview_load_pages:
 page_loop:
     cpx preview_page_count
     beq page_done
+    stx preview_page_index
+    lda preview_label_every
+    bne page_label
+    txa
+    and #1
+    bne page_no_label
+page_label:
+    jsr preview_page_label
+page_no_label:
     ldy #0
     lda (list_pointer),y
     pha
@@ -167,6 +187,84 @@ page_next:
 page_done:
     rts
 
+; The temporary line is written into the next source page. ROM characters make
+; it readable; the following direct PRG page immediately replaces it.
+preview_page_label:
+    lda #$14
+    sta $d018
+    lda #0
+    sta label_pointer
+    sta label_color_pointer
+    lda preview_page_index
+    ldx preview_label_every
+    bne label_raw_index
+    lsr
+label_raw_index:
+    sta preview_label_number
+    clc
+    adc #4
+    sta label_pointer+1
+    clc
+    adc #$d4
+    sta label_color_pointer+1
+    lda preview_label_kind
+    beq label_title
+    cmp #1
+    beq label_info
+    cmp #2
+    beq label_bitmap
+    lda #<label_game_screen
+    ldy #>label_game_screen
+    bne label_text
+label_title:
+    lda #<label_title_screen
+    ldy #>label_title_screen
+    bne label_text
+label_info:
+    lda #<label_info_screen
+    ldy #>label_info_screen
+    bne label_text
+label_bitmap:
+    lda #<label_game_bitmap
+    ldy #>label_game_bitmap
+label_text:
+    sta list_pointer
+    sty list_pointer+1
+    ldy #0
+label_copy:
+    lda (list_pointer),y
+    beq label_done
+    sta (label_pointer),y
+    pha
+    lda #1
+    sta (label_color_pointer),y
+    pla
+    iny
+    bne label_copy
+label_done:
+    lda preview_label_number
+    clc
+    adc #'1'
+    sta (label_pointer),y
+    iny
+    lda #'/'
+    sta (label_pointer),y
+    iny
+    lda preview_label_total
+    clc
+    adc #'0'
+    sta (label_pointer),y
+    rts
+
+label_title_screen: .text "TITLE SCREEN "
+                   .byte 0
+label_info_screen: .text "INFO SCREEN "
+                  .byte 0
+label_game_bitmap: .text "GAME BITMAP "
+                  .byte 0
+label_game_screen: .text "GAME SCREEN "
+                  .byte 0
+
 preview_load_title:
     lda preview_title_mode
     beq title_zero
@@ -186,6 +284,11 @@ title_one:
 title_pages:
     lda #8
     sta preview_page_count
+    lda #0
+    sta preview_label_kind
+    sta preview_label_every
+    lda #4
+    sta preview_label_total
     ; restore the table pointer after setting the count
     lda preview_title_mode
     beq title_zero_ptr
@@ -210,6 +313,12 @@ title_call:
 preview_load_info:
     lda #8
     sta preview_page_count
+    lda #1
+    sta preview_label_kind
+    lda #0
+    sta preview_label_every
+    lda #4
+    sta preview_label_total
     lda #<info_pages
     ldy #>info_pages
     jsr preview_load_pages
@@ -221,11 +330,23 @@ preview_load_game:
     ; Bitmap remains disabled while eight true $6000-$7f3f pages are loaded.
     lda #8
     sta preview_page_count
+    lda #2
+    sta preview_label_kind
+    lda #1
+    sta preview_label_every
+    lda #8
+    sta preview_label_total
     lda #<game_bitmap_pages
     ldy #>game_bitmap_pages
     jsr preview_load_pages
     lda #8
     sta preview_page_count
+    lda #3
+    sta preview_label_kind
+    lda #0
+    sta preview_label_every
+    lda #4
+    sta preview_label_total
     lda #<game_screen_color_pages
     ldy #>game_screen_color_pages
     jsr preview_load_pages
@@ -296,6 +417,11 @@ preview_mode: .byte 0
 preview_title_mode: .byte 1
 preview_progress_count: .byte 0
 preview_page_count: .byte 0
+preview_page_index: .byte 0
+preview_label_kind: .byte 0
+preview_label_every: .byte 0
+preview_label_total: .byte 0
+preview_label_number: .byte 0
 name_char: .null "CPCHAR"
 name_t0s0: .null "CT0S0"
 name_t0s1: .null "CT0S1"
