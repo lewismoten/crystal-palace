@@ -18,9 +18,9 @@ def load_builder():
     return module
 
 
-def test_stage_062_declares_page_pointer_loader_fix():
+def test_stage_063_declares_disk_filename_loader_fix():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (62, "page-pointer-loader-fix")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (63, "disk-filename-loader-fix")
     assert builder.PROGRAM_SOURCE.name == "art_loader.asm"
 
 
@@ -54,6 +54,9 @@ def test_loader_source_has_splash_before_load_and_direct_page_progress_without_e
     assert "CHROUT" not in loader
     assert "preview_loading_label" not in source
     assert "name_t1s0" in source and "name_gbm7" in source and "name_ins3" in source
+    assert '.null "CPCHAR.PRG"' in source
+    assert '.null "CT1S0.PRG"' in source
+    assert '.null "CT1C3.PRG"' in source
 
 
 def test_loader_keeps_page_list_pointer_exclusive_to_source_page_names():
