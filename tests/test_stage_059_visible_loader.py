@@ -18,9 +18,9 @@ def load_builder():
     return module
 
 
-def test_stage_066_declares_interactive_title_controls():
+def test_stage_067_declares_title_control_legend_layout():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (66, "interactive-title-controls")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (67, "title-control-legend-layout")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
 
 
@@ -82,8 +82,8 @@ def test_assembled_embedded_title_copies_exact_planes_to_live_vic_memory(tmp_pat
     expected_colour = bytearray((ASSETS / "crystal-palace-title-player-1.color.bin").read_bytes())
     expected_screen[120:160] = b"\x00" * 40
     expected_colour[120:160] = b"\x00" * 40
-    expected_screen[912:928] = bytes((9, 0, 9, 14, 6, 15, 0, 0, 17, 0, 17, 21, 9, 20, 0, 0))
-    expected_colour[912:928] = b"\x07" * 16
+    expected_screen[882:898] = bytes((9, 0, 9, 14, 6, 15, 0, 0, 17, 0, 17, 21, 9, 20, 0, 0))
+    expected_colour[882:898] = b"\x07" * 16
     for offset in (371, 451, 531): expected_colour[offset] = 7
     assert bytes(mpu.memory[0x0400 : 0x0400 + 1000]) == bytes(expected_screen)
     assert bytes(mpu.memory[0xD800 : 0xD800 + 1000]) == bytes(expected_colour)

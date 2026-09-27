@@ -212,9 +212,9 @@ clear_top_line:
     ldx #0
 hint_loop:
     lda title_hints,x
-    sta $0790,x              ; lower left/right of supplied title frame
+    sta $0772,x              ; lower-left command legend, one contiguous line
     lda #7
-    sta $db90,x
+    sta $db72,x
     inx
     cpx #16
     bne hint_loop
