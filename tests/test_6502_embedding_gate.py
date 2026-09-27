@@ -161,7 +161,7 @@ def test_interactive_request_announces_input_and_each_long_work_stage():
     assert request.index("jsr ui_status_thinking") < request.index("jsr load_embedding")
     for step in ("step_token", "step_position", "step_query", "step_key", "step_value", "step_history", "step_scores", "step_two_key_scores", "step_head0", "step_head1", "step_head2", "step_head3", "step_head4", "step_head5", "step_head6", "step_head7", "step_residual_retain", "step_output_load", "step_output_project", "step_output_bias_load", "step_output_bias", "step_residual_add", "step_norm_load", "step_norm_materialize", "step_norm_bias_load", "step_norm_bias_materialize"):
         assert step in source
-    assert request.index("jsr ui_step_history") < request.index("jsr capture_legal_history")
+    assert request.index("jsr ui_step_history") < request.index("jsr capture_human_after_bos")
     assert request.index("jsr ui_step_scores") < request.index("jsr materialize_self_attention_scores")
     assert source.index("#<step_two_key_scores") < source.index("jsr materialize_two_token_causal_scores")
     for step in ("step_head0", "step_head1", "step_head2", "step_head3", "step_head4", "step_head5", "step_head6", "step_head7"):
@@ -1369,14 +1369,13 @@ def test_interactive_pipeline_pages_output_head_then_displays_raw_bounded_argmax
         assert text in source
 
 
-def test_interactive_a_only_arms_legal_history_without_emitting_a_token():
-    """The three-key slice must wait after A rather than emit a two-key output."""
+def test_interactive_human_a_enters_the_bos_two_key_model_route():
+    """Stage 053 accepts one human X after retained BOS, then executes the real route."""
     source = (ROOT / "src" / "cp64.asm").read_text()
-    request = source[source.index("jsr capture_legal_history") : source.index("attended_two_key:")]
-    assert "lda three_key_ready" in request
-    assert "jsr ui_status_a" in request
-    assert "jmp read_key" in request
-    assert "await_second_key_message: .text \"A RETAINED. TYPE B TO RUN THE A->B PROOF.\"" in source
+    request = source[source.index("jsr capture_human_after_bos") : source.index("attended_two_key:")]
+    assert "jmp attended_two_key" in request
+    assert "jsr ui_status_a" not in request
+    assert "ui_dashboard_prompt: .text \"TYPE A: MODEL PLAYS\"" in source
 
 
 def test_interactive_pipeline_rematerializes_predicted_original_embedding_after_argmax():
@@ -1527,6 +1526,57 @@ def test_6502_dashboard_explicitly_sets_black_vic_background_for_blue_o(tmp_path
     call(mpu, symbols["ui_set_dashboard_palette"])
     assert mpu.memory[0xd021] == 0x00
     assert mpu.memory[0xd020] == 0x0d
+
+
+def test_bos_then_human_dashboard_path_retains_bos_and_places_only_legal_model_e(tmp_path):
+    """Stage 053 starts the real two-key route with retained BOS K/V, not A/B UI history."""
+    source = (ROOT / "src" / "cp64.asm").read_text()
+    assert "jsr bootstrap_bos_history" in source
+    accepted = source[source.index("accepted_key:") : source.index("attended_two_key:")]
+    assert accepted.index("jsr ui_mark_accepted_human_move") < accepted.index("jsr capture_human_after_bos")
+    assert "jmp attended_two_key" in accepted
+    output = source[source.index("jsr select_output_argmax") : source.index("predicted_embedding_loaded:")]
+    assert output.index("jsr map_output_token_to_empty_cell") < output.index("jsr ui_mark_model_move")
+
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    assert {"capture_human_after_bos", "ui_mark_model_move", "KEY_HISTORY", "VALUE_HISTORY"} <= symbols.keys()
+    mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    for lane in range(64):
+        mpu.memory[symbols["KEY_HISTORY"] + lane] = lane
+        mpu.memory[symbols["VALUE_HISTORY"] + lane] = 0x80 + lane
+        mpu.memory[symbols["KEY_VECTOR"] + lane] = 0x40 + lane
+        mpu.memory[symbols["VALUE_VECTOR"] + lane] = 0xc0 + lane
+    call(mpu, symbols["capture_human_after_bos"])
+    assert list(mpu.memory[symbols["KEY_HISTORY"] : symbols["KEY_HISTORY"] + 128]) == list(range(64)) + [0x40 + lane for lane in range(64)]
+    assert list(mpu.memory[symbols["VALUE_HISTORY"] : symbols["VALUE_HISTORY"] + 128]) == [0x80 + lane for lane in range(64)] + [0xc0 + lane for lane in range(64)]
+
+    call(mpu, symbols["draw_history_ui"])
+    mpu.memory[symbols["board_occupied"]] = 1  # human X in cell a
+    mpu.memory[symbols["computer_cell"]] = 4   # declared token e
+    call(mpu, symbols["ui_mark_model_move"])
+    assert mpu.memory[0x0400 + 295] == 15
+    assert mpu.memory[0xd800 + 295] == 6
+
+
+def test_dashboard_mode_redirects_legacy_model_step_prints_to_fixed_status_ram(tmp_path):
+    """The full BOS/human model route cannot scroll over the direct board."""
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    assert {"print", "dashboard_active", "ui_status_text"} <= symbols.keys()
+    mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    call(mpu, symbols["draw_history_ui"])
+    board = list(mpu.memory[0x0400 + 192 : 0x0400 + 560])
+    mpu.memory[symbols["dashboard_active"]] = 1
+    mpu.a = symbols["step_output_argmax"] & 0xff; mpu.y = symbols["step_output_argmax"] >> 8
+    mpu.memory[0x00d1] = 24
+    call(mpu, symbols["print"])
+    assert mpu.memory[0x00d1] == 24
+    assert list(mpu.memory[0x0400 + 192 : 0x0400 + 560]) == board
 
 
 def test_6502_hex_diagnostic_nibbles_are_c64_screen_codes(tmp_path):

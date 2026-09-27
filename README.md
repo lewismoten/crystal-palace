@@ -4,9 +4,9 @@ CP64 is a Commodore 64 feasibility project for **the original Crystal-9 packed I
 
 ## Current executable milestone
 
-`build/cp64.d64` is a runnable C64 disk with a bounded **two-token attention, LayerNorm-affine, and router top-2 gate**. For `A`→`B`, it materializes all eight original C9W02 attention heads under the fixed-point two-key causal-softmax contract, applies original C9W04/C9W05 output projection and bias, adds the retained input residual, completes the fixed-point LayerNorm contract, pages C9W08/C9W09 to calculate all nine original router logits, and retains the greatest two logits with their original expert indices. All packets retain their original FP16 scale bytes and packed INT4 payloads.
+`build/cp64.d64` is a runnable C64 disk with a bounded **`<bos>`→`a` two-token attention, LayerNorm-affine, router top-2, MoE, and output-head gate**. At boot it materializes vocabulary row 1 (`<bos>`) at position 0 and explicitly retains its original projected K/V bytes. Typing `A` paints the human red X immediately, materializes `a` at position 1, then evaluates the original paged tensors through the existing fixed-point contract. Its source-byte and assembled-6502 route selects vocabulary ID `$08` (`e`), maps it to an empty board cell, and paints a blue O only after the declared-vocabulary and occupancy gate succeeds. All packets retain their original FP16 scale bytes and packed INT4 payloads.
 
-This is not yet a model move. Router normalization, selected expert execution, residuals, and output logits remain. It must not be represented as a tic-tac-toe-playing model until the 6502 evaluator is implemented and compared with Crystal-9's reference outputs.
+This is a bounded CP64 fixed-point output, not original packed-runtime bit parity or an exhaustive tic-tac-toe policy. It has one verified legal opening route (`<bos>`→`a` → `e`); all other legal histories remain out of scope.
 
 ## Model provenance
 
@@ -185,6 +185,10 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 ### Stage 052 explicit black dashboard background
 
 `cs64-052-black-dashboard-background-computer-pending.d64` explicitly writes VIC-II `$d021 = $00` (black) and `$d020 = $0d` (light-green border) before the fixed dashboard begins. Dashboard text stays light green and alternating human marks remain red `X` / blue `O`, so the blue O no longer depends on an emulator's inherited background. An assembled-6502 regression invokes the palette routine from a non-default VIC state and asserts both register values. This presentation-only correction retains `COMPUTER MOVE PENDING`: the runnable gate is still a source-byte A→B→C K/V-history proof, not a model-selected computer move or a playable policy.
+
+### Stage 053 `<bos>`→human legal model move
+
+`cs64-053-bos-human-model-e-legal-blue-o.d64` replaces the presentation-only pending marker with the first bounded model-derived computer mark. Bootstrapping uses original C9W00 vocabulary row 1 (`<bos>`) plus original C9W01 position row 0 and C9W02 projections, then retains all 64 K/V bytes explicitly. Enter `A`: CP64 immediately paints red X in cell `a`, materializes original row 4 at position 1, executes the established two-key fixed-point route through original C9W46/C9W47, and gets raw vocabulary index `$08` (`e`). The assembled-6502 route verifies that the result is mapped only from the declared vocabulary, rejects occupied/special cells, atomically reserves cell `e`, and paints blue O on the black direct-screen dashboard. The model-step print bridge writes to fixed status RAM after dashboard activation, so no KERNAL scroll can overwrite the board. This is one source-byte and assembled-6502-verified bounded opening, not exhaustive history or original-runtime parity.
 
 ### Browser test target
 

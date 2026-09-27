@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_black_dashboard_background_with_move_pending():
+def test_current_disk_stage_reports_bos_human_model_e_board_move():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 52
-    assert builder.CURRENT_DESCRIPTION == "black-dashboard-background-computer-pending"
+    assert builder.CURRENT_STAGE == 53
+    assert builder.CURRENT_DESCRIPTION == "bos-human-model-e-legal-blue-o"

@@ -10,8 +10,8 @@ from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 52
-CURRENT_DESCRIPTION = "black-dashboard-background-computer-pending"
+CURRENT_STAGE = 53
+CURRENT_DESCRIPTION = "bos-human-model-e-legal-blue-o"
 
 
 def stage_image_path(number: int, description: str) -> Path:

@@ -64,10 +64,18 @@ color_screen:
     bcc embedding_loaded
     jmp disk_error
 embedding_loaded:
+    ; The model context is an actual source-bound <bos> K/V page.  It is
+    ; retained before the human move is accepted, never synthesized from UI.
+    jsr bootstrap_bos_history
+    bcc bos_history_ready
+    jmp disk_error
+bos_history_ready:
     ; The loading screen used KERNAL text output. Replace it completely before
     ; activating the persistent direct-screen dashboard.
     jsr ui_clear_dashboard_screen
     jsr ui_draw_static_dashboard
+    lda #1
+    sta dashboard_active
     jsr draw_history_ui
 read_key:
     jsr GETIN
@@ -123,6 +131,8 @@ position_loaded:
     lda row
     sec
     sbc #4
+    clc
+    adc #1              ; position 0 belongs to the explicitly retained <bos>
     sta position_row
     jsr decode_position_scale
     bcc position_scale_ready
@@ -152,21 +162,12 @@ attention_input_loaded:
     jsr ui_step_history
     lda #6
     jsr show_real_progress
-    jsr capture_legal_history
+    jsr capture_human_after_bos
     jsr ui_step_scores
     lda #7
     jsr show_real_progress
     jsr materialize_self_attention_scores
-    lda three_key_ready
-    bne attended_three_key
-    lda sequence_length
-    cmp #1
-    bne await_third_key
-    jsr ui_status_a
-    jmp read_key
-await_third_key:
-    jsr ui_status_b
-    jmp read_key
+    jmp attended_two_key
 attended_three_key:
     ; Three retained original K/V pages are browser-testable at this boundary.
     ; Do not enter the two-key attention/output path until its three-key
@@ -470,6 +471,16 @@ output_bias_loaded:
     ldy #>step_output_argmax
     jsr print
     jsr select_output_argmax
+    ; A raw model token becomes a board mark only through the vocabulary and
+    ; empty-cell gate.  No tracer token or fallback may draw an O.
+    jsr map_output_token_to_empty_cell
+    bcs model_move_invalid
+    jsr ui_mark_model_move
+    jsr ui_status_model_move
+    jmp read_key
+model_move_invalid:
+    jsr ui_status_model_move_invalid
+    jmp read_key
     lda #<step_predicted_embedding_load
     ldy #>step_predicted_embedding_load
     jsr print
@@ -637,6 +648,43 @@ predicted_embedding_scale_ready:
     lda #13
     jsr CHROUT
     jmp read_key
+
+; Build the immutable first context position from declared vocabulary row 1
+; (<bos>) and position row 0. The following human request uses position 1.
+bootstrap_bos_history:
+    lda #1
+    sta row
+    jsr decode_scale
+    bcs bootstrap_bos_failed
+    lda #<VECTOR
+    sta vector_base
+    lda #>VECTOR
+    sta vector_base+1
+    jsr materialize_embedding
+    jsr load_position
+    bcs bootstrap_bos_failed
+    lda #0
+    sta position_row
+    jsr decode_position_scale
+    bcs bootstrap_bos_failed
+    jsr materialize_position
+    jsr add_position_to_vector
+    jsr retain_hidden_vector
+    jsr load_attention_input
+    bcs bootstrap_bos_failed
+    lda #$c9
+    sta projection_packed_offset
+    jsr project_query
+    jsr project_key
+    jsr project_value
+    lda #0
+    sta history_offset
+    jsr capture_history
+    clc
+    rts
+bootstrap_bos_failed:
+    sec
+    rts
 
 ; Load the original packed embedding tensor packet C9W00.PRG at $C000.
 load_embedding:
@@ -3366,6 +3414,18 @@ capture_reset:
     sta sequence_position
     rts
 
+; The first 64 bytes of both histories are retained <bos> projections. Store
+; the just-computed human K/V page at position one without touching that page.
+capture_human_after_bos:
+    lda #64
+    sta history_offset
+    jsr capture_history
+    lda #2
+    sta sequence_length
+    lda #1
+    sta sequence_position
+    rts
+
 input_is_next_legal:
     lda sequence_length
     cmp #3
@@ -4164,6 +4224,19 @@ print_thinking:
     jmp CHROUT
 
 print:
+    pha
+    tya
+    pha
+    lda dashboard_active
+    beq print_stream_restore
+    pla
+    tay
+    pla
+    jmp ui_status_text
+print_stream_restore:
+    pla
+    tay
+    pla
     sta pointer
     sty pointer+1
     ldy #0
@@ -4338,6 +4411,24 @@ ui_human_x:
     lda #$18             ; C64 screen-code X
     sta (pointer),y
     lda #$02             ; red
+    sta (color_pointer),y
+    rts
+
+; Called only after map_output_token_to_empty_cell has atomically reserved a
+; declared, empty board cell. The model mark is always blue O.
+ui_mark_model_move:
+    lda computer_cell
+    asl
+    tax
+    lda ui_cell_offsets,x
+    sta pointer
+    lda ui_cell_offsets+1,x
+    sta pointer+1
+    jsr ui_set_color_pointer
+    ldy #0
+    lda #$0f
+    sta (pointer),y
+    lda #$06
     sta (color_pointer),y
     rts
 
@@ -4560,6 +4651,14 @@ ui_status_b:
 ui_status_complete:
     lda #<ui_status_complete_text
     ldy #>ui_status_complete_text
+    jmp ui_status_text
+ui_status_model_move:
+    lda #<ui_status_model_move_text
+    ldy #>ui_status_model_move_text
+    jmp ui_status_text
+ui_status_model_move_invalid:
+    lda #<ui_status_model_move_invalid_text
+    ldy #>ui_status_model_move_invalid_text
 ui_status_text:
     pha
     tya
@@ -4646,6 +4745,7 @@ scale_error:
 
 row: .byte 0
 selected: .byte 0
+dashboard_active: .byte 0
 sumlo: .byte 0
 sumhi: .byte 0
 attended_sumlo: .byte 0
@@ -4855,7 +4955,7 @@ loaded: .text "C9W00 READY. TYPE A THROUGH I.",13,13,0
 thinking: .text "THINKING TOKEN ",0
 ui_dashboard_title: .text "CP64 CRYSTAL-9",0
 ui_dashboard_subtitle: .text "ORIGINAL INT4 K/V HISTORY",0
-ui_dashboard_prompt: .text "TYPE A, B, C",0
+ui_dashboard_prompt: .text "TYPE A: MODEL PLAYS",0
 ui_thinking_text: .text "THINKING TOKEN ",0
 ui_step_token_text: .text "1/7 TOKEN EMBEDDING",0
 ui_step_position_text: .text "2/7 POSITION EMBEDDING",0
@@ -4867,6 +4967,8 @@ ui_step_scores_text: .text "7/7 SELF ATTENTION SCORES",0
 ui_status_a_text: .text "A RETAINED: TYPE B",0
 ui_status_b_text: .text "A,B RETAINED: TYPE C",0
 ui_status_complete_text: .text "A,B,C RETAINED: COMPUTER MOVE PENDING",0
+ui_status_model_move_text: .text "MODEL TOKEN E: BLUE O PLACED",0
+ui_status_model_move_invalid_text: .text "MODEL TOKEN HAS NO EMPTY LEGAL CELL",0
 ui_diagnostic_prefix: .text "LENGTH $03 KEY SUM $",0
 ui_diagnostic_middle: .text " VALUE SUM $",0
 await_second_key_message: .text "A RETAINED. TYPE B TO RUN THE A->B PROOF.",13,0
