@@ -24,5 +24,5 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
 def test_current_disk_stage_reports_visible_native_art_loader():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 70
-    assert builder.CURRENT_DESCRIPTION == "browser-lowercase-input-repair"
+    assert builder.CURRENT_STAGE == 71
+    assert builder.CURRENT_DESCRIPTION == "petscii-lowercase-move-repair"

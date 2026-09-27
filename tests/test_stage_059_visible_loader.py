@@ -18,9 +18,9 @@ def load_builder():
     return module
 
 
-def test_stage_070_declares_browser_lowercase_input_repair():
+def test_stage_071_declares_petscii_lowercase_move_repair():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (70, "browser-lowercase-input-repair")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (71, "petscii-lowercase-move-repair")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
 
 
@@ -153,3 +153,5 @@ def test_game_dispatch_accepts_browser_lowercase_a_to_i():
     source = (ROOT / "src" / "art_embedded_title.asm").read_text()
     assert "cmp #'a'" in source
     assert "sbc #'a'" in source
+    assert "cmp #$c1" in source
+    assert "sbc #$c1" in source

@@ -214,6 +214,14 @@ game_not_q_lower:
     bne game_not_q_petscii
     jmp return_title
 game_not_q_petscii:
+    cmp #$c1                ; lowercase PETSCII A through I
+    bcc game_ascii_lowercase
+    cmp #$ca
+    bcs game_ascii_lowercase
+    sec
+    sbc #$c1
+    jmp game_index_ready
+game_ascii_lowercase:
     cmp #'a'
     bcc game_uppercase_key
     cmp #'j'
