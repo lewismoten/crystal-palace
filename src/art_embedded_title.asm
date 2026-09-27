@@ -603,9 +603,9 @@ draw_x:
     sta src
     lda x_bitmap_hi,x
     sta src+1
-    lda bitmap_out_lo,x
+    lda bitmap_destination_lo,x
     sta out
-    lda bitmap_out_hi,x
+    lda bitmap_destination_hi,x
     sta out+1
     jsr patch_bitmap
     ldx game_index
@@ -637,9 +637,9 @@ draw_o:
     sta src
     lda o_bitmap_hi,x
     sta src+1
-    lda bitmap_out_lo,x
+    lda bitmap_destination_lo,x
     sta out
-    lda bitmap_out_hi,x
+    lda bitmap_destination_hi,x
     sta out+1
     jsr patch_bitmap
     ldx game_index
@@ -719,8 +719,8 @@ patch_screen_dest_done:
     bne patch_screen_row
     rts
 
-bitmap_out_lo: .byte <$24cd, <$24d4, <$24dc, <$28b5, <$28bc, <$28c4, <$2c9d, <$2ca4, <$2cac
-bitmap_out_hi: .byte >$24cd, >$24d4, >$24dc, >$28b5, >$28bc, >$28c4, >$2c9d, >$2ca4, >$2cac
+bitmap_destination_lo: .byte <bitmap_destinations, <bitmap_destinations+384, <bitmap_destinations+768, <bitmap_destinations+1152, <bitmap_destinations+1536, <bitmap_destinations+1920, <bitmap_destinations+2304, <bitmap_destinations+2688, <bitmap_destinations+3072
+bitmap_destination_hi: .byte >bitmap_destinations, >bitmap_destinations+384, >bitmap_destinations+768, >bitmap_destinations+1152, >bitmap_destinations+1536, >bitmap_destinations+1920, >bitmap_destinations+2304, >bitmap_destinations+2688, >bitmap_destinations+3072
 screen_out_lo: .byte <$0486, <$048a, <$048e, <$04fe, <$0502, <$0506, <$059e, <$05a2, <$05a6
 screen_out_hi: .byte >$0486, >$048a, >$048e, >$04fe, >$0502, >$0506, >$059e, >$05a2, >$05a6
 colour_out_lo: .byte <$d886, <$d88a, <$d88e, <$d8fe, <$d902, <$d906, <$d99e, <$d9a2, <$d9a6
@@ -855,6 +855,7 @@ view_mode: .byte 0
 title_mode: .byte 1
 turn_mark: .byte 1
 game_index: .byte 0
+mark_byte: .byte 0
 board_state: .fill 9, 0
 c9w00_filename: .text "C9W00.PRG"
 embedding_row: .byte 0
@@ -909,3 +910,5 @@ x_cells_colour: .binary "../assets/crystal-palace-screen-states/cells/x-cells.co
 o_cells_bitmap: .binary "../assets/crystal-palace-screen-states/cells/o-cells.bitmap.bin"
 o_cells_screen: .binary "../assets/crystal-palace-screen-states/cells/o-cells.screen.bin"
 o_cells_colour: .binary "../assets/crystal-palace-screen-states/cells/o-cells.color.bin"
+* = $9800
+bitmap_destinations: .binary "../assets/crystal-palace-screen-states/cells/bitmap-destination-addresses.bin"

@@ -178,7 +178,11 @@ def test_embedded_preview_has_correct_game_vic_layout_and_live_a_to_i_marks(tmp_
 
     mpu.memory[symbols["game_index"]] = 0; call(mpu, symbols["draw_x"])
     assert mpu.memory[symbols["board_state"]] == 1
-    assert bytes(mpu.memory[0x2000 + 30 * 40 + 29 : 0x2000 + 30 * 40 + 37]) == (ROOT / "assets" / "crystal-palace-screen-states" / "cells" / "x-cells.bitmap.bin").read_bytes()[:8]
+    patch = (ROOT / "assets" / "crystal-palace-screen-states" / "cells" / "x-cells.bitmap.bin").read_bytes()
+    destinations = (ROOT / "assets" / "crystal-palace-screen-states" / "cells" / "bitmap-destination-addresses.bin").read_bytes()
+    for offset, value in enumerate(patch[:192]):
+        address = int.from_bytes(destinations[offset * 2 : offset * 2 + 2], "little")
+        assert mpu.memory[address] == value
     assert (mpu.memory[0x0400 + 4 * 40 + 15] >> 4) == 10  # source-exact light-red X
 
     mpu.memory[symbols["game_index"]] = 1; call(mpu, symbols["draw_o"])
