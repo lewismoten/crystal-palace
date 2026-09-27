@@ -1471,6 +1471,21 @@ def test_6502_human_marks_draw_before_model_work_as_alternating_red_x_blue_o(tmp
         assert mpu.memory[0xd800 + offset] == color
 
 
+def test_6502_dashboard_explicitly_sets_black_vic_background_for_blue_o(tmp_path):
+    """The fixed dashboard must not inherit a browser emulator's blue background."""
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    assert "ui_set_dashboard_palette" in symbols
+    mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    mpu.memory[0xd020] = 0x0e
+    mpu.memory[0xd021] = 0x06
+    call(mpu, symbols["ui_set_dashboard_palette"])
+    assert mpu.memory[0xd021] == 0x00
+    assert mpu.memory[0xd020] == 0x0d
+
+
 def test_6502_hex_diagnostic_nibbles_are_c64_screen_codes(tmp_path):
     """A-F must use screen codes 1-6, never their ASCII values 65-70."""
     prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"

@@ -44,6 +44,7 @@ vector_base = $fd
 
 start:
     jsr $e544
+    jsr ui_set_dashboard_palette
     ldx #0
 color_screen:
     lda #$0d
@@ -4179,6 +4180,14 @@ print_done:
 
 ; Clear both the loading text and its color RAM before direct dashboard writes.
 ; This avoids leaving KERNAL's pre-load status strings behind the board.
+; The VIC-II palette is explicit so browser defaults cannot hide the blue O.
+ui_set_dashboard_palette:
+    lda #$00             ; black character-mode background
+    sta $d021
+    lda #$0d             ; light-green border matches dashboard text
+    sta $d020
+    rts
+
 ui_clear_dashboard_screen:
     ldx #0
 ui_clear_dashboard_loop:

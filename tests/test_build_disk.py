@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_immediate_human_marks_and_fixed_diagnostics():
+def test_current_disk_stage_reports_black_dashboard_background_with_move_pending():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 51
-    assert builder.CURRENT_DESCRIPTION == "immediate-human-marks-fixed-diagnostics"
+    assert builder.CURRENT_STAGE == 52
+    assert builder.CURRENT_DESCRIPTION == "black-dashboard-background-computer-pending"
