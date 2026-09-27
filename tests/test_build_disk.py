@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_clean_centered_dashboard_history():
+def test_current_disk_stage_reports_immediate_human_marks_and_fixed_diagnostics():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 50
-    assert builder.CURRENT_DESCRIPTION == "clean-centered-dashboard-history"
+    assert builder.CURRENT_STAGE == 51
+    assert builder.CURRENT_DESCRIPTION == "immediate-human-marks-fixed-diagnostics"

@@ -178,6 +178,10 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 `cs64-050-clean-centered-dashboard-history.d64` clears the KERNAL loading/title screen and its color RAM before activating the direct-screen dashboard, then redraws the title, prompt, grid, progress meter, status, and diagnostics only in fixed panel slots. It also centers the first-column move markers within their cells. No pre-load text remains behind the grid.
 
+### Stage 051 immediate human marks and fixed diagnostics
+
+`cs64-051-immediate-human-marks-fixed-diagnostics.d64` validates the current bounded A→B→C history input before work begins, then immediately paints the accepted board cell: alternating red `X` / blue `O` marks rather than raw input letters. The mark is a direct screen/color-RAM write and remains visible while the seven genuine page/compute boundaries run. Its fixed diagnostic row now writes all four computed hexadecimal characters for both retained-byte sums using C64 screen codes, including `A`–`F`; for the accepted three-key fixture it shows `LENGTH $03 KEY SUM $47A0 VALUE SUM $57A0`. The dashboard explicitly reports `COMPUTER MOVE PENDING`: this remains a source-byte K/V-history gate, not a model-selected board move or playable policy.
+
 ### Browser test target
 
 The manual acceptance target is [C64 Online Emulator](https://c64online.com/c64-online-emulator/). Use its **Load Program** control to select the numbered `.d64` artifact; it accepts D64 files directly. This project treats a user-reported matching result from that emulator as a separate browser-emulator confirmation in addition to the assembled-6502 regression suite.

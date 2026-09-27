@@ -84,6 +84,9 @@ uppercase_key:
     ora #$20
 accepted_key:
     sta selected
+    jsr input_is_next_legal
+    bcc read_key
+    jsr ui_mark_accepted_human_move
     jsr ui_status_thinking
     lda #0
     jsr show_real_progress
@@ -3348,7 +3351,6 @@ capture_legal_history:
     asl a
     sta history_offset
     jsr capture_history
-    jsr mark_selected_move
     inc sequence_length
     lda sequence_length
     cmp #3
@@ -3361,6 +3363,20 @@ capture_reset:
     lda #0
     sta sequence_length
     sta sequence_position
+    rts
+
+input_is_next_legal:
+    lda sequence_length
+    cmp #3
+    beq input_not_legal
+    clc
+    adc #'a'
+    cmp selected
+    bne input_not_legal
+    sec
+    rts
+input_not_legal:
+    clc
     rts
 
 ; Retained emulator fixture for the accepted Stage 045 A->B parity matrix.
@@ -4286,9 +4302,9 @@ progress_store:
 progress_done:
     rts
 
-; Called only from the legal capture success path, so an arbitrary key cannot
-; paint a model move on the panel.
-mark_selected_move:
+; Called immediately after next-input validation and before disk/model work.
+; The retained-history length selects alternating human X/O presentation.
+ui_mark_accepted_human_move:
     lda selected
     sec
     sbc #'a'
@@ -4299,12 +4315,19 @@ mark_selected_move:
     lda ui_cell_offsets+1,x
     sta pointer+1
     jsr ui_set_color_pointer
-    lda selected
-    sec
-    sbc #$60             ; C64 screen-code A through I
     ldy #0
+    lda sequence_length
+    and #1
+    beq ui_human_x
+    lda #$0f             ; C64 screen-code O
     sta (pointer),y
-    lda #$0d
+    lda #$06             ; blue
+    sta (color_pointer),y
+    rts
+ui_human_x:
+    lda #$18             ; C64 screen-code X
+    sta (pointer),y
+    lda #$02             ; red
     sta (color_pointer),y
     rts
 
@@ -4400,8 +4423,8 @@ ui_hexbyte:
 ui_hexnibble:
     cmp #10
     bcc ui_decimal_nibble
-    clc
-    adc #55
+    sec
+    sbc #9              ; C64 screen-code A-F is 1-6, not ASCII $41-$46
     jmp ui_store_screen
 ui_decimal_nibble:
     clc
@@ -4487,6 +4510,13 @@ ui_clear_diagnostic_loop:
     jsr ui_set_color_pointer
     lda #<ui_diagnostic_prefix
     ldy #>ui_diagnostic_prefix
+    jsr ui_write
+    lda history_key_sumhi
+    jsr ui_hexbyte
+    lda history_key_sumlo
+    jsr ui_hexbyte
+    lda #<ui_diagnostic_middle
+    ldy #>ui_diagnostic_middle
     jsr ui_write
     lda history_value_sumhi
     jsr ui_hexbyte
@@ -4748,8 +4778,9 @@ ui_step_history_text: .text "6/7 RETAIN K/V HISTORY",0
 ui_step_scores_text: .text "7/7 SELF ATTENTION SCORES",0
 ui_status_a_text: .text "A RETAINED: TYPE B",0
 ui_status_b_text: .text "A,B RETAINED: TYPE C",0
-ui_status_complete_text: .text "A,B,C RETAINED: HISTORY READY",0
-ui_diagnostic_prefix: .text "LENGTH $03 KEY SUM $47A0 VALUE $",0
+ui_status_complete_text: .text "A,B,C RETAINED: COMPUTER MOVE PENDING",0
+ui_diagnostic_prefix: .text "LENGTH $03 KEY SUM $",0
+ui_diagnostic_middle: .text " VALUE SUM $",0
 await_second_key_message: .text "A RETAINED. TYPE B TO RUN THE A->B PROOF.",13,0
 await_third_key_message: .text "A,B RETAINED. TYPE C TO COMPLETE A->B->C HISTORY.",13,0
 three_key_retained_message: .text "A,B,C RETAINED. THREE-KEY K/V HISTORY READY.",13,0

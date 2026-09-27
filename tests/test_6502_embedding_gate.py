@@ -1380,7 +1380,7 @@ def test_6502_graphical_history_ui_marks_accepted_moves_and_real_progress(tmp_pa
     prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
     subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
     symbols = labels(labels_path)
-    assert {"draw_history_ui", "mark_selected_move", "show_real_progress", "sum_history_bytes"} <= symbols.keys()
+    assert {"draw_history_ui", "ui_mark_accepted_human_move", "show_real_progress", "sum_history_bytes"} <= symbols.keys()
     mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
     mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
 
@@ -1396,10 +1396,12 @@ def test_6502_graphical_history_ui_marks_accepted_moves_and_real_progress(tmp_pa
     assert bytes(mpu.memory[0x0400 + 2 : 0x0400 + 16]) == bytes(ch - 64 if 65 <= ch <= 90 else ch for ch in b"CP64 CRYSTAL-9")
     assert mpu.memory[0x0400 + 446] == 0x40  # graphical progress bar starts empty
 
-    for token, expected_offset in ((ord("a"), 209), (ord("b"), 215), (ord("c"), 223)):
+    for length, token, expected_offset, expected_code, expected_color in ((0, ord("a"), 209, 24, 2), (1, ord("b"), 215, 15, 6), (2, ord("c"), 223, 24, 2)):
+        mpu.memory[symbols["sequence_length"]] = length
         mpu.memory[symbols["selected"]] = token
-        call(mpu, symbols["mark_selected_move"])
-        assert mpu.memory[0x0400 + expected_offset] == token - 0x60
+        call(mpu, symbols["ui_mark_accepted_human_move"])
+        assert mpu.memory[0x0400 + expected_offset] == expected_code
+        assert mpu.memory[0xd800 + expected_offset] == expected_color
     mpu.a = 7
     call(mpu, symbols["show_real_progress"])
     # Seven real work boundaries own the whole 28-cell meter: completion must
@@ -1437,10 +1439,48 @@ def test_6502_dashboard_status_and_diagnostics_are_fixed_colored_screen_writes(t
     call(mpu, symbols["ui_status_complete"])
     call(mpu, symbols["ui_show_history_diagnostics"])
     screen = lambda text: bytes(ch - 64 if 65 <= ch <= 90 else ch for ch in text)
-    complete = screen(b"A,B,C RETAINED: HISTORY READY")
-    diagnostic = screen(b"LENGTH $03 KEY SUM $47A0 VALUE $")
+    complete = screen(b"A,B,C RETAINED: COMPUTER MOVE PENDING")
+    diagnostic = screen(b"LENGTH $03 KEY SUM $47A0 VALUE SUM $57A0")
     assert bytes(mpu.memory[0x0400 + 600 : 0x0400 + 600 + len(complete)]) == complete
     assert bytes(mpu.memory[0x0400 + 640 : 0x0400 + 640 + len(diagnostic)]) == diagnostic
-    assert bytes(mpu.memory[0x0400 + 640 + len(diagnostic) : 0x0400 + 644 + len(diagnostic)]) == b"57A0"
     for offset in range(600, 680):
         assert mpu.memory[0xd800 + offset] == 0x0d
+
+
+def test_6502_human_marks_draw_before_model_work_as_alternating_red_x_blue_o(tmp_path):
+    """A legal input must visibly become a game mark before any pageable work."""
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    assert {"ui_mark_accepted_human_move", "sequence_length"} <= symbols.keys()
+    source = (ROOT / "src" / "cp64.asm").read_text()
+    accepted_path = source[source.index("accepted_key:") : source.index("embedding_reloaded:")]
+    assert accepted_path.index("jsr ui_mark_accepted_human_move") < accepted_path.index("jsr ui_status_thinking") < accepted_path.index("jsr load_embedding")
+    mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    call(mpu, symbols["draw_history_ui"])
+    for length, token, offset, code, color in (
+        (0, ord("a"), 209, 24, 2),  # X, red
+        (1, ord("b"), 215, 15, 6),  # O, blue
+        (2, ord("c"), 223, 24, 2),  # X, red
+    ):
+        mpu.memory[symbols["sequence_length"]] = length
+        mpu.memory[symbols["selected"]] = token
+        call(mpu, symbols["ui_mark_accepted_human_move"])
+        assert mpu.memory[0x0400 + offset] == code
+        assert mpu.memory[0xd800 + offset] == color
+
+
+def test_6502_hex_diagnostic_nibbles_are_c64_screen_codes(tmp_path):
+    """A-F must use screen codes 1-6, never their ASCII values 65-70."""
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    mpu.memory[symbols["pointer"]] = 0x80; mpu.memory[symbols["pointer"] + 1] = 0x06
+    call(mpu, symbols["ui_set_color_pointer"])
+    for nibble, expected in enumerate((48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 1, 2, 3, 4, 5, 6)):
+        mpu.a = nibble
+        call(mpu, symbols["ui_hexnibble"])
+        assert mpu.memory[0x0680 + nibble] == expected
