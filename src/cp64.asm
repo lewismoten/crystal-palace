@@ -4477,6 +4477,37 @@ ui_show_native_title:
     sta $d021
     rts
 
+; Native title selection follows the supplied state planes: 1-player, then
+; 2-players, then AI-vs-AI (encoded 0). The page loader uses title_mode to
+; select its corresponding verbatim title plane.
+ui_title_select_down:
+    lda title_mode
+    cmp #1
+    bne ui_title_down_from_two
+    lda #2
+    sta title_mode
+    rts
+ui_title_down_from_two:
+    lda #0
+    sta title_mode
+    rts
+ui_title_select_up:
+    lda title_mode
+    beq ui_title_up_from_ai
+    cmp #2
+    bne ui_title_up_from_one
+    lda #1
+    sta title_mode
+    rts
+ui_title_up_from_ai:
+    lda #2
+    sta title_mode
+    rts
+ui_title_up_from_one:
+    lda #0
+    sta title_mode
+    rts
+
 ; Multicolor bitmap game page: bitmap $6000 and screen $4000 in VIC bank
 ; $4000. $5000/$5400 remain immutable staging planes for the next art page.
 ui_show_native_game:
@@ -5081,6 +5112,7 @@ scale_error:
 
 row: .byte 0
 selected: .byte 0
+title_mode: .byte 1
 dashboard_active: .byte 0
 sumlo: .byte 0
 sumhi: .byte 0

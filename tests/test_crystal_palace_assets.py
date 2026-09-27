@@ -151,3 +151,33 @@ def test_6502_native_game_patches_one_x_cell_from_the_supplied_all_x_plane(tmp_p
     assert changed
     assert changed <= allowed
     assert bytes(mpu.memory[0x6000 : 0x6000 + 8000])[min(allowed) : max(allowed) + 1] != blank[min(allowed) : max(allowed) + 1]
+
+
+def test_6502_title_selection_cycles_supplied_player_states(tmp_path):
+    """The native title's Up/Down state is 1-player, 2-players, AI-vs-AI."""
+    import subprocess
+    import sys
+
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    assert {"title_mode", "ui_title_select_down", "ui_title_select_up"} <= symbols.keys()
+    mpu = MPU(); image = prg.read_bytes(); load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+    mpu.memory[symbols["title_mode"]] = 1
+    call(mpu, symbols["ui_title_select_down"])
+    assert mpu.memory[symbols["title_mode"]] == 2
+    call(mpu, symbols["ui_title_select_down"])
+    assert mpu.memory[symbols["title_mode"]] == 0
+    call(mpu, symbols["ui_title_select_up"])
+    assert mpu.memory[symbols["title_mode"]] == 2
+    call(mpu, symbols["ui_title_select_up"])
+    assert mpu.memory[symbols["title_mode"]] == 1
