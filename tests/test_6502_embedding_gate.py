@@ -154,6 +154,35 @@ def test_interactive_request_restores_selected_token_after_disk_load():
     assert resume.index("lda selected") < resume.index("sbc #'a'")
 
 
+def test_6502_live_a_model_e_i_sequence_decodes_the_second_human_position_scale(tmp_path):
+    """A completed model turn starts a fresh <bos>+human pass, including I."""
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+
+    def page(name: str):
+        packet = (ROOT / "build" / "layers" / name).read_bytes()
+        mpu.memory[0xC000 : 0xC000 + len(packet) - 2] = packet[2:]
+
+    def decode_live_human(token: str):
+        # This is the actual request order after the first A->model-e turn:
+        # C9W00 reload, selected row, then C9W01 and the next human position.
+        mpu.memory[symbols["selected"]] = ord(token)
+        page("C9W00.PRG"); mpu.memory[symbols["row"]] = ord(token) - ord("a") + 4
+        call(mpu, symbols["decode_scale"])
+        assert not (mpu.p & mpu.CARRY)
+        call(mpu, symbols["materialize_embedding"])
+        page("C9W01.PRG")
+        call(mpu, symbols["prepare_human_position_after_bos"])
+        assert mpu.memory[symbols["position_row"]] == 1
+        call(mpu, symbols["decode_position_scale"])
+        assert not (mpu.p & mpu.CARRY), f"{token} entered scale_error after A->model-e"
+
+    decode_live_human("a")
+    decode_live_human("i")
+
+
 def test_interactive_request_announces_input_and_each_long_work_stage():
     source = (ROOT / "src" / "cp64.asm").read_text()
     request = source[source.index("accepted_key:") : source.index("jmp read_key", source.index("accepted_key:"))]

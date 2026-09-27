@@ -128,12 +128,10 @@ scale_ready:
     bcc position_loaded
     jmp disk_error
 position_loaded:
-    lda row
-    sec
-    sbc #4
-    clc
-    adc #1              ; position 0 belongs to the explicitly retained <bos>
-    sta position_row
+    ; Every accepted board turn starts from the retained <bos> context, so its
+    ; human token is always source position row 1.  The board-cell token is not
+    ; a position index (I would otherwise address non-existent C9W01 row 9).
+    jsr prepare_human_position_after_bos
     jsr decode_position_scale
     bcc position_scale_ready
     jmp scale_error
@@ -1364,6 +1362,13 @@ decode_position_scale:
     lda position_row
     sta row
     jmp decode_scale
+
+; The interactive route is exactly <bos> -> selected human token on each turn.
+; Inputs A-I select C9W00 vocabulary rows, never C9W01 position rows.
+prepare_human_position_after_bos:
+    lda #1
+    sta position_row
+    rts
 
 ; Materialize a 32-value original position row at $C140 and retain its checksum.
 materialize_position:

@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_resumable_model_turn_dashboard():
+def test_current_disk_stage_reports_second_human_position_fix():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 54
-    assert builder.CURRENT_DESCRIPTION == "resumable-model-turns-metered-expert-pages"
+    assert builder.CURRENT_STAGE == 55
+    assert builder.CURRENT_DESCRIPTION == "fix-second-human-position-scale"

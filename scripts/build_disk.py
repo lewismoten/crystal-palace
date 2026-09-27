@@ -10,8 +10,8 @@ from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 54
-CURRENT_DESCRIPTION = "resumable-model-turns-metered-expert-pages"
+CURRENT_STAGE = 55
+CURRENT_DESCRIPTION = "fix-second-human-position-scale"
 
 
 def stage_image_path(number: int, description: str) -> Path:
