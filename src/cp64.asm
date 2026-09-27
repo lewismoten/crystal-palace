@@ -356,7 +356,13 @@ router_bias_loaded:
     ldy #>step_router_normalize
     jsr print
     jsr normalize_router_top2
+    lda #<step_expert_input
+    ldy #>step_expert_input
+    jsr print
     jsr retain_expert_input
+    lda #<step_e1_w1_load
+    ldy #>step_e1_w1_load
+    jsr print
     ldx #<expert1_weight1_filename
     ldy #>expert1_weight1_filename
     lda #14
@@ -365,7 +371,13 @@ router_bias_loaded:
     bcc expert1_weight1_loaded
     jmp disk_error
 expert1_weight1_loaded:
+    lda #<step_e1_w1_project
+    ldy #>step_e1_w1_project
+    jsr print
     jsr project_selected_expert_first
+    lda #<step_e1_b1_load
+    ldy #>step_e1_b1_load
+    jsr print
     ldx #<expert1_bias1_filename
     ldy #>expert1_bias1_filename
     lda #15
@@ -374,8 +386,14 @@ expert1_weight1_loaded:
     bcc expert1_bias1_loaded
     jmp disk_error
 expert1_bias1_loaded:
+    lda #<step_e1_b1_silu
+    ldy #>step_e1_b1_silu
+    jsr print
     jsr add_selected_expert_first_bias
     jsr apply_selected_expert_silu
+    lda #<step_e1_w2_load
+    ldy #>step_e1_w2_load
+    jsr print
     ldx #<expert1_weight2_filename
     ldy #>expert1_weight2_filename
     lda #16
@@ -384,7 +402,13 @@ expert1_bias1_loaded:
     bcc expert1_weight2_loaded
     jmp disk_error
 expert1_weight2_loaded:
+    lda #<step_e1_w2_project
+    ldy #>step_e1_w2_project
+    jsr print
     jsr project_selected_expert_second
+    lda #<step_e1_b2_load
+    ldy #>step_e1_b2_load
+    jsr print
     ldx #<expert1_bias2_filename
     ldy #>expert1_bias2_filename
     lda #17
@@ -393,8 +417,14 @@ expert1_weight2_loaded:
     bcc expert1_bias2_loaded
     jmp disk_error
 expert1_bias2_loaded:
+    lda #<step_e1_final
+    ldy #>step_e1_final
+    jsr print
     jsr add_selected_expert_second_bias
     jsr retain_expert_one_output
+    lda #<step_e4_w1_load
+    ldy #>step_e4_w1_load
+    jsr print
     ldx #<expert4_weight1_filename
     ldy #>expert4_weight1_filename
     lda #26
@@ -403,7 +433,13 @@ expert1_bias2_loaded:
     bcc expert4_weight1_loaded
     jmp disk_error
 expert4_weight1_loaded:
+    lda #<step_e4_w1_project
+    ldy #>step_e4_w1_project
+    jsr print
     jsr project_selected_expert_first
+    lda #<step_e4_b1_load
+    ldy #>step_e4_b1_load
+    jsr print
     ldx #<expert4_bias1_filename
     ldy #>expert4_bias1_filename
     lda #27
@@ -412,8 +448,14 @@ expert4_weight1_loaded:
     bcc expert4_bias1_loaded
     jmp disk_error
 expert4_bias1_loaded:
+    lda #<step_e4_b1_silu
+    ldy #>step_e4_b1_silu
+    jsr print
     jsr add_selected_expert_first_bias
     jsr apply_selected_expert_silu
+    lda #<step_e4_w2_load
+    ldy #>step_e4_w2_load
+    jsr print
     ldx #<expert4_weight2_filename
     ldy #>expert4_weight2_filename
     lda #28
@@ -422,7 +464,13 @@ expert4_bias1_loaded:
     bcc expert4_weight2_loaded
     jmp disk_error
 expert4_weight2_loaded:
+    lda #<step_e4_w2_project
+    ldy #>step_e4_w2_project
+    jsr print
     jsr project_selected_expert_second
+    lda #<step_e4_b2_load
+    ldy #>step_e4_b2_load
+    jsr print
     ldx #<expert4_bias2_filename
     ldy #>expert4_bias2_filename
     lda #29
@@ -431,6 +479,9 @@ expert4_weight2_loaded:
     bcc expert4_bias2_loaded
     jmp disk_error
 expert4_bias2_loaded:
+    lda #<step_e4_final
+    ldy #>step_e4_final
+    jsr print
     jsr add_selected_expert_second_bias
     jsr merge_selected_expert_outputs
     lda #<step_expert_residual
@@ -3427,12 +3478,14 @@ capture_human_after_bos:
     rts
 
 input_is_next_legal:
-    lda sequence_length
-    cmp #3
-    beq input_not_legal
-    clc
-    adc #'a'
-    cmp selected
+    ; A completed model turn starts a fresh BOS+human pass. Legal input is any
+    ; declared empty cell, not the retired A/B/C tracer-sequence position.
+    jsr selected_board_mask
+    lda board_occupied
+    and computer_mask_lo
+    bne input_not_legal
+    lda board_occupied_hi
+    and computer_mask_hi
     bne input_not_legal
     sec
     rts
@@ -4232,7 +4285,7 @@ print:
     pla
     tay
     pla
-    jmp ui_status_text
+    jmp ui_step_status
 print_stream_restore:
     pla
     tay
@@ -4317,9 +4370,12 @@ draw_cells:
     sta pointer+1
     jsr ui_set_color_pointer
     ldy #0
-    lda #$2e             ; empty board square
+    txa
+    lsr                 ; cell index 0..8
+    clc
+    adc #$01            ; C64 screen codes A through I
     sta (pointer),y
-    lda #$0d
+    lda #$0c            ; dim grey address label
     sta (color_pointer),y
     inx
     inx
@@ -4355,13 +4411,12 @@ draw_upper_line:
     lda #0
     jmp show_real_progress
 
-; A is the number of named real page/compute boundaries completed (0..7).
-; Each boundary owns four of the 28 cells, so seven completed boundaries fill
-; the whole meter rather than leaving a misleading 7/28 partial bar.
+; A is the named real page/compute boundary (0..60).  The table maps every
+; genuine boundary onto the 28 fixed meter cells; no timer fills this meter.
 show_real_progress:
     sta ui_progress_count
-    asl
-    asl
+    tax
+    lda ui_progress_widths,x
     sta ui_progress_width
     ldx #0
 draw_progress:
@@ -4384,8 +4439,48 @@ progress_store:
 progress_done:
     rts
 
+; Dashboard model-step strings begin N/60.  Advance the fixed meter immediately
+; before ui_status_text announces that real load or compute boundary.
+ui_step_status:
+    sta vector_base
+    sty vector_base+1
+    ldy #0
+    lda (vector_base),y
+    cmp #'0'
+    bcc ui_step_status_write
+    cmp #'9'+1
+    bcs ui_step_status_write
+    sec
+    sbc #'0'
+    sta ui_progress_count
+    iny
+    lda (vector_base),y
+    cmp #'/'
+    beq ui_step_status_progress
+    sec
+    sbc #'0'
+    sta ui_progress_width
+    lda ui_progress_count
+    asl
+    sta ui_progress_count
+    asl
+    asl
+    asl
+    clc
+    adc ui_progress_count
+    clc
+    adc ui_progress_width
+    sta ui_progress_count
+ui_step_status_progress:
+    lda ui_progress_count
+    jsr show_real_progress
+ui_step_status_write:
+    lda vector_base
+    ldy vector_base+1
+    jmp ui_status_text
+
 ; Called immediately after next-input validation and before disk/model work.
-; The retained-history length selects alternating human X/O presentation.
+; Human inputs are always bright X; model outputs are always bright O.
 ui_mark_accepted_human_move:
     jsr reserve_selected_human_cell
     lda selected
@@ -4399,23 +4494,14 @@ ui_mark_accepted_human_move:
     sta pointer+1
     jsr ui_set_color_pointer
     ldy #0
-    lda sequence_length
-    and #1
-    beq ui_human_x
-    lda #$0f             ; C64 screen-code O
-    sta (pointer),y
-    lda #$06             ; blue
-    sta (color_pointer),y
-    rts
-ui_human_x:
     lda #$18             ; C64 screen-code X
     sta (pointer),y
-    lda #$02             ; red
+    lda #$0a             ; light red
     sta (color_pointer),y
     rts
 
 ; Called only after map_output_token_to_empty_cell has atomically reserved a
-; declared, empty board cell. The model mark is always blue O.
+; declared, empty board cell. The model mark is always light-blue O.
 ui_mark_model_move:
     lda computer_cell
     asl
@@ -4428,13 +4514,22 @@ ui_mark_model_move:
     ldy #0
     lda #$0f
     sta (pointer),y
-    lda #$06
+    lda #$0e             ; light blue
     sta (color_pointer),y
     rts
 
 ; Input validation has already confined selected to a declared a-i symbol.
 ; Reserve its state bit before drawing so model legality never depends on VRAM.
 reserve_selected_human_cell:
+    jsr selected_board_mask
+    lda board_occupied
+    ora computer_mask_lo
+    sta board_occupied
+    lda board_occupied_hi
+    ora computer_mask_hi
+    sta board_occupied_hi
+    rts
+selected_board_mask:
     lda selected
     sec
     sbc #'a'
@@ -4451,12 +4546,6 @@ human_mask_shift:
     dex
     jmp human_mask_shift
 human_mask_ready:
-    lda board_occupied
-    ora computer_mask_lo
-    sta board_occupied
-    lda board_occupied_hi
-    ora computer_mask_hi
-    sta board_occupied_hi
     rts
 
 ; Convert the declared Crystal-9 output vocabulary ID to its a-i board-cell
@@ -4927,6 +5016,7 @@ sequence_position: .byte 0
 history_offset: .byte 0
 ui_progress_count: .byte 0
 ui_progress_width: .byte 0
+ui_progress_widths: .byte 0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,7,8,8,9,9,10,10,11,11,12,12,13,13,14,14,14,15,15,16,16,17,17,18,18,19,19,20,20,21,21,21,22,22,23,23,24,24,25,25,26,26,27,27,28
 history_key_sumlo: .byte 0
 history_key_sumhi: .byte 0
 history_value_sumlo: .byte 0
@@ -4977,50 +5067,67 @@ three_key_retained_message: .text "A,B,C RETAINED. THREE-KEY K/V HISTORY READY."
 history_length_result: .text "HISTORY LENGTH $",0
 history_key_sum_result: .text " KEY BYTE SUM $",0
 history_value_sum_result: .text " VALUE BYTE SUM $",0
-step_token: .text "1/44 TOKEN EMBEDDING",13,0
-step_position: .text "2/44 POSITION EMBEDDING",13,0
-step_query: .text "3/44 ATTENTION Q",13,0
-step_key: .text "4/44 ATTENTION K",13,0
-step_value: .text "5/44 ATTENTION V",13,0
-step_history: .text "6/44 RETAIN K/V HISTORY",13,0
-step_scores: .text "7/44 SELF ATTENTION SCORES",13,0
-step_two_key_scores: .text "8/44 TWO-KEY CAUSAL SCORES",13,0
-step_head0: .text "9/44 CAUSAL SOFTMAX + V HEAD 0",13,0
-step_head1: .text "10/44 CAUSAL SOFTMAX + V HEAD 1",13,0
-step_head2: .text "11/44 CAUSAL SOFTMAX + V HEAD 2",13,0
-step_head3: .text "12/44 CAUSAL SOFTMAX + V HEAD 3",13,0
-step_head4: .text "13/44 CAUSAL SOFTMAX + V HEAD 4",13,0
-step_head5: .text "14/44 CAUSAL SOFTMAX + V HEAD 5",13,0
-step_head6: .text "15/44 CAUSAL SOFTMAX + V HEAD 6",13,0
-step_head7: .text "16/44 CAUSAL SOFTMAX + V HEAD 7",13,0
-step_residual_retain: .text "17/44 RETAIN ATTENTION RESIDUAL",13,0
-step_output_load: .text "18/44 LOAD ATTENTION OUTPUT WEIGHT",13,0
-step_output_project: .text "19/44 ATTENTION OUTPUT PROJECTION",13,0
-step_output_bias_load: .text "20/44 LOAD ATTENTION OUTPUT BIAS",13,0
-step_output_bias: .text "21/44 ADD ATTENTION OUTPUT BIAS",13,0
-step_residual_add: .text "22/44 ADD ATTENTION RESIDUAL",13,0
-step_norm_center: .text "23/44 CENTER LAYERNORM INPUT",13,0
-step_norm_variance: .text "24/44 LAYERNORM VARIANCE",13,0
-step_norm_isqrt: .text "25/44 LAYERNORM NEAREST ISQRT",13,0
-step_norm_normalize: .text "26/44 NORMALIZE LAYERNORM",13,0
-step_norm_load: .text "27/44 LOAD NORM WEIGHT",13,0
-step_norm_materialize: .text "28/44 MATERIALIZE NORM WEIGHT",13,0
-step_norm_bias_load: .text "29/44 LOAD NORM BIAS",13,0
-step_norm_bias_materialize: .text "30/44 MATERIALIZE NORM BIAS",13,0
-step_norm_affine: .text "31/44 APPLY NORM AFFINE",13,0
-step_router_load: .text "32/44 LOAD ROUTER WEIGHT C9W08",13,0
-step_router_project: .text "33/44 ROUTER AFFINE LOGITS",13,0
-step_router_bias_load: .text "34/44 LOAD ROUTER BIAS C9W09",13,0
-step_router_bias: .text "35/44 ADD ROUTER BIAS",13,0
-step_router_top2: .text "36/44 STABLE TOP-2 LOGIT INDICES",13,0
-step_router_normalize: .text "37/44 NORMALIZE TOP-2 WEIGHTS",13,0
-step_expert_residual: .text "38/44 ADD SELECTED-EXPERT RESIDUAL",13,0
-step_output_head_load: .text "39/44 LOAD OUTPUT HEAD C9W46",13,0
-step_output_head_project: .text "40/44 OUTPUT HEAD AFFINE",13,0
-step_head_bias_load: .text "41/44 LOAD OUTPUT BIAS C9W47",13,0
-step_output_head_bias: .text "42/44 ADD OUTPUT HEAD BIAS",13,0
-step_output_argmax: .text "43/44 RAW NEXT-TOKEN ARGMAX",13,0
-step_predicted_embedding_load: .text "44/44 LOAD PREDICTED TOKEN C9W00",13,0
+step_token: .text "1/60 TOKEN EMBEDDING",13,0
+step_position: .text "2/60 POSITION EMBEDDING",13,0
+step_query: .text "3/60 ATTENTION Q",13,0
+step_key: .text "4/60 ATTENTION K",13,0
+step_value: .text "5/60 ATTENTION V",13,0
+step_history: .text "6/60 RETAIN K/V HISTORY",13,0
+step_scores: .text "7/60 SELF ATTENTION SCORES",13,0
+step_two_key_scores: .text "8/60 TWO-KEY CAUSAL SCORES",13,0
+step_head0: .text "9/60 CAUSAL SOFTMAX + V HEAD 0",13,0
+step_head1: .text "10/60 CAUSAL SOFTMAX + V HEAD 1",13,0
+step_head2: .text "11/60 CAUSAL SOFTMAX + V HEAD 2",13,0
+step_head3: .text "12/60 CAUSAL SOFTMAX + V HEAD 3",13,0
+step_head4: .text "13/60 CAUSAL SOFTMAX + V HEAD 4",13,0
+step_head5: .text "14/60 CAUSAL SOFTMAX + V HEAD 5",13,0
+step_head6: .text "15/60 CAUSAL SOFTMAX + V HEAD 6",13,0
+step_head7: .text "16/60 CAUSAL SOFTMAX + V HEAD 7",13,0
+step_residual_retain: .text "17/60 RETAIN ATTENTION RESIDUAL",13,0
+step_output_load: .text "18/60 LOAD ATTENTION OUTPUT WEIGHT",13,0
+step_output_project: .text "19/60 ATTENTION OUTPUT PROJECTION",13,0
+step_output_bias_load: .text "20/60 LOAD ATTENTION OUTPUT BIAS",13,0
+step_output_bias: .text "21/60 ADD ATTENTION OUTPUT BIAS",13,0
+step_residual_add: .text "22/60 ADD ATTENTION RESIDUAL",13,0
+step_norm_center: .text "23/60 CENTER LAYERNORM INPUT",13,0
+step_norm_variance: .text "24/60 LAYERNORM VARIANCE",13,0
+step_norm_isqrt: .text "25/60 LAYERNORM NEAREST ISQRT",13,0
+step_norm_normalize: .text "26/60 NORMALIZE LAYERNORM",13,0
+step_norm_load: .text "27/60 LOAD NORM WEIGHT",13,0
+step_norm_materialize: .text "28/60 MATERIALIZE NORM WEIGHT",13,0
+step_norm_bias_load: .text "29/60 LOAD NORM BIAS",13,0
+step_norm_bias_materialize: .text "30/60 MATERIALIZE NORM BIAS",13,0
+step_norm_affine: .text "31/60 APPLY NORM AFFINE",13,0
+step_router_load: .text "32/60 LOAD ROUTER WEIGHT C9W08",13,0
+step_router_project: .text "33/60 ROUTER AFFINE LOGITS",13,0
+step_router_bias_load: .text "34/60 LOAD ROUTER BIAS C9W09",13,0
+step_router_bias: .text "35/60 ADD ROUTER BIAS",13,0
+step_router_top2: .text "36/60 STABLE TOP-2 LOGIT INDICES",13,0
+step_router_normalize: .text "37/60 NORMALIZE TOP-2 WEIGHTS",13,0
+step_expert_input: .text "38/60 RETAIN EXPERT INPUT",13,0
+step_e1_w1_load: .text "39/60 LOAD EXPERT 1 WEIGHT 1",13,0
+step_e1_w1_project: .text "40/60 EXPERT 1 FIRST AFFINE",13,0
+step_e1_b1_load: .text "41/60 LOAD EXPERT 1 BIAS 1",13,0
+step_e1_b1_silu: .text "42/60 EXPERT 1 BIAS + SILU",13,0
+step_e1_w2_load: .text "43/60 LOAD EXPERT 1 WEIGHT 2",13,0
+step_e1_w2_project: .text "44/60 EXPERT 1 SECOND AFFINE",13,0
+step_e1_b2_load: .text "45/60 LOAD EXPERT 1 BIAS 2",13,0
+step_e1_final: .text "46/60 EXPERT 1 FINAL + RETAIN",13,0
+step_e4_w1_load: .text "47/60 LOAD EXPERT 4 WEIGHT 1",13,0
+step_e4_w1_project: .text "48/60 EXPERT 4 FIRST AFFINE",13,0
+step_e4_b1_load: .text "49/60 LOAD EXPERT 4 BIAS 1",13,0
+step_e4_b1_silu: .text "50/60 EXPERT 4 BIAS + SILU",13,0
+step_e4_w2_load: .text "51/60 LOAD EXPERT 4 WEIGHT 2",13,0
+step_e4_w2_project: .text "52/60 EXPERT 4 SECOND AFFINE",13,0
+step_e4_b2_load: .text "53/60 LOAD EXPERT 4 BIAS 2",13,0
+step_e4_final: .text "54/60 EXPERT 4 FINAL + MERGE",13,0
+step_expert_residual: .text "55/60 ADD SELECTED-EXPERT RESIDUAL",13,0
+step_output_head_load: .text "56/60 LOAD OUTPUT HEAD C9W46",13,0
+step_output_head_project: .text "57/60 OUTPUT HEAD AFFINE",13,0
+step_head_bias_load: .text "58/60 LOAD OUTPUT BIAS C9W47",13,0
+step_output_head_bias: .text "59/60 ADD OUTPUT HEAD BIAS",13,0
+step_output_argmax: .text "60/60 RAW NEXT-TOKEN ARGMAX",13,0
+step_predicted_embedding_load: .text "60/60 PREDICTED TOKEN C9W00 (POST-MOVE DIAGNOSTIC)",13,0
 scale_result: .text "FP16 SCALE AS Q8.8 $",0
 result: .text "TOKEN ",0
 embedding_checksum: .text " EMBEDDING CHECKSUM $",0

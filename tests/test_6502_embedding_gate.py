@@ -1365,7 +1365,24 @@ def test_interactive_pipeline_pages_output_head_then_displays_raw_bounded_argmax
     assert request.index("jsr add_selected_expert_residual") < request.index("jsr load_packet_checked")
     assert request.count("jsr load_packet_checked") == 2
     assert request.index("jsr project_output_head") < request.index("jsr add_output_head_bias") < request.index("jsr select_output_argmax")
-    for text in ("38/44 ADD SELECTED-EXPERT RESIDUAL", "39/44 LOAD OUTPUT HEAD C9W46", "40/44 OUTPUT HEAD AFFINE", "41/44 LOAD OUTPUT BIAS C9W47", "42/44 ADD OUTPUT HEAD BIAS", "43/44 RAW NEXT-TOKEN ARGMAX", "RAW BOUNDED NEXT-TOKEN INDEX $"):
+    for text in ("55/60 ADD SELECTED-EXPERT RESIDUAL", "56/60 LOAD OUTPUT HEAD C9W46", "57/60 OUTPUT HEAD AFFINE", "58/60 LOAD OUTPUT BIAS C9W47", "59/60 ADD OUTPUT HEAD BIAS", "60/60 RAW NEXT-TOKEN ARGMAX", "RAW BOUNDED NEXT-TOKEN INDEX $"):
+        assert text in source
+
+
+def test_full_model_expert_pages_have_named_metered_boundaries_after_router_37():
+    """Every slow selected-expert page/compute step is visible after 37/60."""
+    source = (ROOT / "src" / "cp64.asm").read_text()
+    for text in (
+        "38/60 RETAIN EXPERT INPUT", "39/60 LOAD EXPERT 1 WEIGHT 1",
+        "40/60 EXPERT 1 FIRST AFFINE", "41/60 LOAD EXPERT 1 BIAS 1",
+        "42/60 EXPERT 1 BIAS + SILU", "43/60 LOAD EXPERT 1 WEIGHT 2",
+        "44/60 EXPERT 1 SECOND AFFINE", "45/60 LOAD EXPERT 1 BIAS 2",
+        "46/60 EXPERT 1 FINAL + RETAIN", "47/60 LOAD EXPERT 4 WEIGHT 1",
+        "48/60 EXPERT 4 FIRST AFFINE", "49/60 LOAD EXPERT 4 BIAS 1",
+        "50/60 EXPERT 4 BIAS + SILU", "51/60 LOAD EXPERT 4 WEIGHT 2",
+        "52/60 EXPERT 4 SECOND AFFINE", "53/60 LOAD EXPERT 4 BIAS 2",
+        "54/60 EXPERT 4 FINAL + MERGE", "55/60 ADD SELECTED-EXPERT RESIDUAL",
+    ):
         assert text in source
 
 
@@ -1384,7 +1401,7 @@ def test_interactive_pipeline_rematerializes_predicted_original_embedding_after_
     request = source[source.index("output_bias_loaded:") : source.index("lda #<scale_result")]
     assert request.index("jsr select_output_argmax") < request.index("jsr load_embedding")
     assert request.index("jsr load_embedding") < request.index("jsr decode_scale") < request.index("jsr materialize_embedding")
-    for text in ("44/44 LOAD PREDICTED TOKEN C9W00", "PREDICTED TOKEN EMBEDDING CHECKSUM $"):
+    for text in ("60/60 PREDICTED TOKEN C9W00 (POST-MOVE DIAGNOSTIC)", "PREDICTED TOKEN EMBEDDING CHECKSUM $"):
         assert text in source
 
 
@@ -1434,11 +1451,11 @@ def test_6502_graphical_history_ui_marks_accepted_moves_and_real_progress(tmp_pa
     call(mpu, symbols["ui_draw_static_dashboard"])
     assert mpu.memory[0x0400 + 207] == 0x20
     call(mpu, symbols["draw_history_ui"])
-    assert [mpu.memory[0x0400 + offset] for offset in (209, 215, 223, 289, 295, 303, 369, 375, 383)] == [0x2e] * 9
+    assert [mpu.memory[0x0400 + offset] for offset in (209, 215, 223, 289, 295, 303, 369, 375, 383)] == list(range(1, 10))
     assert bytes(mpu.memory[0x0400 + 2 : 0x0400 + 16]) == bytes(ch - 64 if 65 <= ch <= 90 else ch for ch in b"CP64 CRYSTAL-9")
     assert mpu.memory[0x0400 + 446] == 0x40  # graphical progress bar starts empty
 
-    for length, token, expected_offset, expected_code, expected_color in ((0, ord("a"), 209, 24, 2), (1, ord("b"), 215, 15, 6), (2, ord("c"), 223, 24, 2)):
+    for length, token, expected_offset, expected_code, expected_color in ((0, ord("a"), 209, 24, 10), (1, ord("b"), 215, 24, 10), (2, ord("c"), 223, 24, 10)):
         mpu.memory[symbols["sequence_length"]] = length
         mpu.memory[symbols["selected"]] = token
         call(mpu, symbols["ui_mark_accepted_human_move"])
@@ -1446,9 +1463,8 @@ def test_6502_graphical_history_ui_marks_accepted_moves_and_real_progress(tmp_pa
         assert mpu.memory[0xd800 + expected_offset] == expected_color
     mpu.a = 7
     call(mpu, symbols["show_real_progress"])
-    # Seven real work boundaries own the whole 28-cell meter: completion must
-    # visibly reach 100%, not leave a 7/28 partial bar at the retain boundary.
-    assert [mpu.memory[0x0400 + offset] for offset in range(446, 474)] == [0xa0] * 28
+    # A 60-boundary model maps its truthful seventh boundary to three cells.
+    assert [mpu.memory[0x0400 + offset] for offset in range(446, 474)] == [0xa0] * 3 + [0x40] * 25
 
     for index in range(192):
         mpu.memory[symbols["KEY_HISTORY"] + index] = index
@@ -1489,7 +1505,7 @@ def test_6502_dashboard_status_and_diagnostics_are_fixed_colored_screen_writes(t
         assert mpu.memory[0xd800 + offset] == 0x0d
 
 
-def test_6502_human_marks_draw_before_model_work_as_alternating_red_x_blue_o(tmp_path):
+def test_6502_human_marks_draw_before_model_work_as_bright_red_x(tmp_path):
     """A legal input must visibly become a game mark before any pageable work."""
     prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
     subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
@@ -1502,9 +1518,9 @@ def test_6502_human_marks_draw_before_model_work_as_alternating_red_x_blue_o(tmp
     mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
     call(mpu, symbols["draw_history_ui"])
     for length, token, offset, code, color in (
-        (0, ord("a"), 209, 24, 2),  # X, red
-        (1, ord("b"), 215, 15, 6),  # O, blue
-        (2, ord("c"), 223, 24, 2),  # X, red
+        (0, ord("a"), 209, 24, 10),  # X, light red
+        (1, ord("b"), 215, 24, 10),  # X, light red
+        (2, ord("c"), 223, 24, 10),  # X, light red
     ):
         mpu.memory[symbols["sequence_length"]] = length
         mpu.memory[symbols["selected"]] = token
@@ -1558,7 +1574,45 @@ def test_bos_then_human_dashboard_path_retains_bos_and_places_only_legal_model_e
     mpu.memory[symbols["computer_cell"]] = 4   # declared token e
     call(mpu, symbols["ui_mark_model_move"])
     assert mpu.memory[0x0400 + 295] == 15
-    assert mpu.memory[0xd800 + 295] == 6
+    assert mpu.memory[0xd800 + 295] == 14
+
+
+def test_6502_model_o_returns_to_an_empty_human_b_turn(tmp_path):
+    """After the full A -> model-e opening, B is a new red-X model request."""
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    call(mpu, symbols["draw_history_ui"])
+    # The completed opening reserves a and e; B must not remain blocked by the
+    # old A/B/C history collector's sequence-length state.
+    mpu.memory[symbols["board_occupied"]] = (1 << 0) | (1 << 4)
+    mpu.memory[symbols["board_occupied_hi"]] = 0
+    mpu.memory[symbols["sequence_length"]] = 2
+    mpu.memory[symbols["selected"]] = ord("b")
+    call(mpu, symbols["input_is_next_legal"])
+    assert mpu.p & mpu.CARRY
+    call(mpu, symbols["ui_mark_accepted_human_move"])
+    assert mpu.memory[0x0400 + 215] == 24
+    assert mpu.memory[0xd800 + 215] == 10
+
+
+def test_6502_dashboard_draws_all_dim_address_labels_then_bright_marks(tmp_path):
+    """All nine address labels are explicit dim cells until X/O replaces one."""
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    call(mpu, symbols["draw_history_ui"])
+    offsets = (209, 215, 223, 289, 295, 303, 369, 375, 383)
+    assert [mpu.memory[0x0400 + offset] for offset in offsets] == list(range(1, 10))
+    assert [mpu.memory[0xd800 + offset] for offset in offsets] == [12] * 9
+    mpu.memory[symbols["selected"]] = ord("a")
+    call(mpu, symbols["ui_mark_accepted_human_move"])
+    mpu.memory[symbols["computer_cell"]] = 4
+    call(mpu, symbols["ui_mark_model_move"])
+    assert (mpu.memory[0x0400 + 209], mpu.memory[0xd800 + 209]) == (24, 10)
+    assert (mpu.memory[0x0400 + 295], mpu.memory[0xd800 + 295]) == (15, 14)
 
 
 def test_dashboard_mode_redirects_legacy_model_step_prints_to_fixed_status_ram(tmp_path):
