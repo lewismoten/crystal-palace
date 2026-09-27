@@ -18,9 +18,9 @@ def load_builder():
     return module
 
 
-def test_stage_067_declares_title_control_legend_layout():
+def test_stage_068_declares_interactive_bitmap_board_repair():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (67, "title-control-legend-layout")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (68, "interactive-bitmap-board-repair")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
 
 
@@ -80,10 +80,61 @@ def test_assembled_embedded_title_copies_exact_planes_to_live_vic_memory(tmp_pat
     call(mpu, symbols["show_title"])
     expected_screen = bytearray((ASSETS / "crystal-palace-title-player-1.screen.bin").read_bytes())
     expected_colour = bytearray((ASSETS / "crystal-palace-title-player-1.color.bin").read_bytes())
-    expected_screen[120:160] = b"\x00" * 40
-    expected_colour[120:160] = b"\x00" * 40
-    expected_screen[882:898] = bytes((9, 0, 9, 14, 6, 15, 0, 0, 17, 0, 17, 21, 9, 20, 0, 0))
-    expected_colour[882:898] = b"\x07" * 16
+    expected_screen[882:888] = bytes((9, 0, 9, 14, 6, 15))
+    expected_colour[882:888] = b"\x07" * 6
+    expected_screen[922:928] = bytes((17, 0, 17, 21, 9, 20))
+    expected_colour[922:928] = b"\x07" * 6
     for offset in (371, 451, 531): expected_colour[offset] = 7
     assert bytes(mpu.memory[0x0400 : 0x0400 + 1000]) == bytes(expected_screen)
     assert bytes(mpu.memory[0xD800 : 0xD800 + 1000]) == bytes(expected_colour)
+
+
+def test_embedded_preview_has_correct_game_vic_layout_and_live_a_to_i_marks(tmp_path):
+    """The browser-facing preview must use the supplied bitmap bank and accept A–I."""
+    import subprocess
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+
+    prg, labels_path = tmp_path / "CP64.PRG", tmp_path / "embedded.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "art_embedded_title.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    assert {"show_game", "game_key", "draw_x", "draw_o", "game_bitmap_copy"} <= symbols.keys()
+    image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+    call(mpu, symbols["show_game"])
+    assert bytes(mpu.memory[0x2000 : 0x3F40]) == (ASSETS / "crystal-palace-game-blank.bitmap.bin").read_bytes()
+    assert bytes(mpu.memory[0x0400 : 0x07E8]) == (ASSETS / "crystal-palace-game-blank.screen.bin").read_bytes()
+    assert (mpu.memory[0xD011] & 0x20, mpu.memory[0xD016] & 0x10, mpu.memory[0xD018], mpu.memory[0xDD00] & 3) == (0x20, 0x10, 0x18, 3)
+
+    mpu.memory[symbols["game_index"]] = 0; call(mpu, symbols["draw_x"])
+    assert mpu.memory[symbols["board_state"]] == 1
+    assert bytes(mpu.memory[0x2000 + 30 * 40 + 29 : 0x2000 + 30 * 40 + 37]) == (ROOT / "assets" / "crystal-palace-screen-states" / "cells" / "x-cells.bitmap.bin").read_bytes()[:8]
+    assert (mpu.memory[0x0400 + 4 * 40 + 15] >> 4) == 10  # source-exact light-red X
+
+    mpu.memory[symbols["game_index"]] = 1; call(mpu, symbols["draw_o"])
+    assert mpu.memory[symbols["board_state"] + 1] == 2
+    assert (mpu.memory[0x0400 + 4 * 40 + 19] >> 4) == 3  # source-exact cyan O
+
+
+def test_embedded_title_selection_cycles_without_bouncing_to_player_one(tmp_path):
+    import subprocess
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+
+    prg, labels_path = tmp_path / "CP64.PRG", tmp_path / "embedded.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "art_embedded_title.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+    mpu.memory[symbols["title_mode"]] = 1
+    call(mpu, symbols["select_title_down"]); assert mpu.memory[symbols["title_mode"]] == 2
+    call(mpu, symbols["select_title_down"]); assert mpu.memory[symbols["title_mode"]] == 0
+    call(mpu, symbols["select_title_down"]); assert mpu.memory[symbols["title_mode"]] == 1
+    call(mpu, symbols["select_title_up"]); assert mpu.memory[symbols["title_mode"]] == 0

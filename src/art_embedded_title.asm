@@ -22,12 +22,26 @@ key_loop:
     beq key_loop
     ldx view_mode            ; preserve GETIN's key in A
     beq title_key
+    cpx #1
+    bne key_not_game
+    jmp game_key
+key_not_game:
     cmp #'Q'
-    beq return_title
+    bne non_game_not_upper_q
+    jmp return_title
+non_game_not_upper_q:
     cmp #'q'
-    beq return_title
+    bne non_game_not_lower_q
+    jmp return_title
+non_game_not_lower_q:
+    cmp #17                  ; PETSCII Q in uppercase character mode
+    bne non_game_not_petscii_q
+    jmp return_title
+non_game_not_petscii_q:
     cmp #' '
-    beq return_title
+    bne non_game_not_space
+    jmp return_title
+non_game_not_space:
     cmp #'I'
     beq return_title
     cmp #'i'
@@ -64,30 +78,39 @@ title_not_info:
     beq exit_basic
     jmp key_loop
 title_up:
+    jsr select_title_up
+    jmp key_loop
+select_title_up:
     lda title_mode
     beq up_to_two
     cmp #2
     beq up_to_one
     lda #0
-    bne store_title
+    jmp store_title
 up_to_two: lda #2
     bne store_title
 up_to_one: lda #1
 store_title:
     sta title_mode
     jsr show_title
-    jmp key_loop
+    rts
 title_down:
+    jsr select_title_down
+    jmp key_loop
+select_title_down:
     lda title_mode
+    beq down_to_one
     cmp #1
     beq down_to_two
     lda #0
-    bne store_title_down
+    jmp store_title_down
+down_to_one: lda #1
+    jmp store_title_down
 down_to_two: lda #2
 store_title_down:
     sta title_mode
     jsr show_title
-    jmp key_loop
+    rts
 return_title:
     jsr show_title
     jmp key_loop
@@ -140,15 +163,246 @@ show_info:
     jmp set_title_vic
 
 show_game:
+    jsr game_bitmap_copy
     lda #<game_screen
     ldy #>game_screen
     jsr copy_screen
     lda #<game_colour
     ldy #>game_colour
     jsr copy_colour
+    lda #0
+    ldx #8
+clear_board:
+    sta board_state,x
+    dex
+    bpl clear_board
+    lda #1
+    sta turn_mark
     lda #1
     sta view_mode
     jmp set_game_vic
+
+game_key:
+    cmp #'Q'
+    bne game_not_q_upper
+    jmp return_title
+game_not_q_upper:
+    cmp #'q'
+    bne game_not_q_lower
+    jmp return_title
+game_not_q_lower:
+    cmp #17                  ; PETSCII Q in uppercase character mode
+    bne game_not_q_petscii
+    jmp return_title
+game_not_q_petscii:
+    cmp #'A'
+    bcc game_screen_code
+    cmp #'J'
+    bcs game_screen_code
+    sec
+    sbc #'A'
+    jmp game_index_ready
+game_screen_code:
+    cmp #1
+    bcc game_key_done
+    cmp #10
+    bcs game_key_done
+    sec
+    sbc #1
+game_index_ready:
+    tax
+    lda board_state,x
+    bne game_key_done
+    txa
+    sta game_index
+    lda turn_mark
+    cmp #1
+    beq game_draw_x
+    jsr draw_o
+    lda #1
+    sta turn_mark
+    jmp game_key_done
+game_draw_x:
+    jsr draw_x
+    lda #2
+    sta turn_mark
+game_key_done:
+    jmp key_loop
+
+game_bitmap_copy:
+    lda #<$6000
+    sta src
+    lda #>$6000
+    sta src+1
+    lda #<$2000
+    sta out
+    lda #>$2000
+    sta out+1
+    ldx #31
+bitmap_page:
+    ldy #0
+bitmap_byte:
+    lda (src),y
+    sta (out),y
+    iny
+    bne bitmap_byte
+    inc src+1
+    inc out+1
+    dex
+    bne bitmap_page
+    ldy #0
+bitmap_tail:
+    cpy #64
+    beq bitmap_done
+    lda (src),y
+    sta (out),y
+    iny
+    bne bitmap_tail
+bitmap_done:
+    rts
+
+draw_x:
+    ldx game_index
+    lda #1
+    sta board_state,x
+    lda x_bitmap_lo,x
+    sta src
+    lda x_bitmap_hi,x
+    sta src+1
+    lda bitmap_out_lo,x
+    sta out
+    lda bitmap_out_hi,x
+    sta out+1
+    jsr patch_bitmap
+    ldx game_index
+    lda x_screen_lo,x
+    sta src
+    lda x_screen_hi,x
+    sta src+1
+    lda screen_out_lo,x
+    sta out
+    lda screen_out_hi,x
+    sta out+1
+    jsr patch_screen
+    ldx game_index
+    lda x_colour_lo,x
+    sta src
+    lda x_colour_hi,x
+    sta src+1
+    lda colour_out_lo,x
+    sta out
+    lda colour_out_hi,x
+    sta out+1
+    jmp patch_screen
+
+draw_o:
+    ldx game_index
+    lda #2
+    sta board_state,x
+    lda o_bitmap_lo,x
+    sta src
+    lda o_bitmap_hi,x
+    sta src+1
+    lda bitmap_out_lo,x
+    sta out
+    lda bitmap_out_hi,x
+    sta out+1
+    jsr patch_bitmap
+    ldx game_index
+    lda o_screen_lo,x
+    sta src
+    lda o_screen_hi,x
+    sta src+1
+    lda screen_out_lo,x
+    sta out
+    lda screen_out_hi,x
+    sta out+1
+    jsr patch_screen
+    ldx game_index
+    lda o_colour_lo,x
+    sta src
+    lda o_colour_hi,x
+    sta src+1
+    lda colour_out_lo,x
+    sta out
+    lda colour_out_hi,x
+    sta out+1
+    jmp patch_screen
+
+patch_bitmap:
+    ldx #24
+patch_bitmap_row:
+    ldy #0
+patch_bitmap_byte:
+    lda (src),y
+    sta (out),y
+    iny
+    cpy #8
+    bne patch_bitmap_byte
+    clc
+    lda src
+    adc #8
+    sta src
+    bcc patch_bitmap_source_done
+    inc src+1
+patch_bitmap_source_done:
+    clc
+    lda out
+    adc #40
+    sta out
+    bcc patch_bitmap_dest_done
+    inc out+1
+patch_bitmap_dest_done:
+    dex
+    bne patch_bitmap_row
+    rts
+
+patch_screen:
+    ldx #4
+patch_screen_row:
+    ldy #0
+patch_screen_byte:
+    lda (src),y
+    sta (out),y
+    iny
+    cpy #4
+    bne patch_screen_byte
+    clc
+    lda src
+    adc #4
+    sta src
+    bcc patch_screen_source_done
+    inc src+1
+patch_screen_source_done:
+    clc
+    lda out
+    adc #40
+    sta out
+    bcc patch_screen_dest_done
+    inc out+1
+patch_screen_dest_done:
+    dex
+    bne patch_screen_row
+    rts
+
+bitmap_out_lo: .byte <$24cd, <$24d4, <$24dc, <$28b5, <$28bc, <$28c4, <$2c9d, <$2ca4, <$2cac
+bitmap_out_hi: .byte >$24cd, >$24d4, >$24dc, >$28b5, >$28bc, >$28c4, >$2c9d, >$2ca4, >$2cac
+screen_out_lo: .byte <$0486, <$048a, <$048e, <$04fe, <$0502, <$0506, <$059e, <$05a2, <$05a6
+screen_out_hi: .byte >$0486, >$048a, >$048e, >$04fe, >$0502, >$0506, >$059e, >$05a2, >$05a6
+colour_out_lo: .byte <$d886, <$d88a, <$d88e, <$d8fe, <$d902, <$d906, <$d99e, <$d9a2, <$d9a6
+colour_out_hi: .byte >$d886, >$d88a, >$d88e, >$d8fe, >$d902, >$d906, >$d99e, >$d9a2, >$d9a6
+x_bitmap_lo: .byte <x_cells_bitmap, <x_cells_bitmap+192, <x_cells_bitmap+384, <x_cells_bitmap+576, <x_cells_bitmap+768, <x_cells_bitmap+960, <x_cells_bitmap+1152, <x_cells_bitmap+1344, <x_cells_bitmap+1536
+x_bitmap_hi: .byte >x_cells_bitmap, >x_cells_bitmap+192, >x_cells_bitmap+384, >x_cells_bitmap+576, >x_cells_bitmap+768, >x_cells_bitmap+960, >x_cells_bitmap+1152, >x_cells_bitmap+1344, >x_cells_bitmap+1536
+o_bitmap_lo: .byte <o_cells_bitmap, <o_cells_bitmap+192, <o_cells_bitmap+384, <o_cells_bitmap+576, <o_cells_bitmap+768, <o_cells_bitmap+960, <o_cells_bitmap+1152, <o_cells_bitmap+1344, <o_cells_bitmap+1536
+o_bitmap_hi: .byte >o_cells_bitmap, >o_cells_bitmap+192, >o_cells_bitmap+384, >o_cells_bitmap+576, >o_cells_bitmap+768, >o_cells_bitmap+960, >o_cells_bitmap+1152, >o_cells_bitmap+1344, >o_cells_bitmap+1536
+x_screen_lo: .byte <x_cells_screen, <x_cells_screen+16, <x_cells_screen+32, <x_cells_screen+48, <x_cells_screen+64, <x_cells_screen+80, <x_cells_screen+96, <x_cells_screen+112, <x_cells_screen+128
+x_screen_hi: .byte >x_cells_screen, >x_cells_screen+16, >x_cells_screen+32, >x_cells_screen+48, >x_cells_screen+64, >x_cells_screen+80, >x_cells_screen+96, >x_cells_screen+112, >x_cells_screen+128
+x_colour_lo: .byte <x_cells_colour, <x_cells_colour+16, <x_cells_colour+32, <x_cells_colour+48, <x_cells_colour+64, <x_cells_colour+80, <x_cells_colour+96, <x_cells_colour+112, <x_cells_colour+128
+x_colour_hi: .byte >x_cells_colour, >x_cells_colour+16, >x_cells_colour+32, >x_cells_colour+48, >x_cells_colour+64, >x_cells_colour+80, >x_cells_colour+96, >x_cells_colour+112, >x_cells_colour+128
+o_screen_lo: .byte <o_cells_screen, <o_cells_screen+16, <o_cells_screen+32, <o_cells_screen+48, <o_cells_screen+64, <o_cells_screen+80, <o_cells_screen+96, <o_cells_screen+112, <o_cells_screen+128
+o_screen_hi: .byte >o_cells_screen, >o_cells_screen+16, >o_cells_screen+32, >o_cells_screen+48, >o_cells_screen+64, >o_cells_screen+80, >o_cells_screen+96, >o_cells_screen+112, >o_cells_screen+128
+o_colour_lo: .byte <o_cells_colour, <o_cells_colour+16, <o_cells_colour+32, <o_cells_colour+48, <o_cells_colour+64, <o_cells_colour+80, <o_cells_colour+96, <o_cells_colour+112, <o_cells_colour+128
+o_colour_hi: .byte >o_cells_colour, >o_cells_colour+16, >o_cells_colour+32, >o_cells_colour+48, >o_cells_colour+64, >o_cells_colour+80, >o_cells_colour+96, >o_cells_colour+112, >o_cells_colour+128
 
 copy_screen:
     sta src
@@ -194,32 +448,33 @@ copytail:
     jmp copytail
 copydone: rts
 
-; Requested title affordances: remove the stray line above the title, make the
-; three number choices bright, and state the two non-obvious keyboard commands.
+; Requested title affordances: bright direct-selection keys, with INFO above QUIT.
 patch_title_hints:
-    ldx #0
-clear_top_line:
-    lda #0
-    sta $0478,x              ; row 3, above the large CRYSTAL PALACE title
-    sta $d878,x
-    inx
-    cpx #40
-    bne clear_top_line
     lda #7                   ; bright yellow
     sta $d973                ; row 9, col 11: 1-player number
     sta $d9c3                ; row 11, col 11: 2-player number
     sta $da13                ; row 13, col 11: 0-player number
     ldx #0
-hint_loop:
-    lda title_hints,x
-    sta $0772,x              ; lower-left command legend, one contiguous line
+hint_info_loop:
+    lda title_info_hint,x
+    sta $0772,x              ; row 22: I INFO
     lda #7
     sta $db72,x
     inx
-    cpx #16
-    bne hint_loop
+    cpx #6
+    bne hint_info_loop
+    ldx #0
+hint_quit_loop:
+    lda title_quit_hint,x
+    sta $079a,x              ; row 23: Q QUIT, below INFO
+    lda #7
+    sta $db9a,x
+    inx
+    cpx #6
+    bne hint_quit_loop
     rts
-title_hints: .byte 9,0,9,14,6,15,0,0,17,0,17,21,9,20,0,0
+title_info_hint: .byte 9,0,9,14,6,15
+title_quit_hint: .byte 17,0,17,21,9,20
 
 set_title_vic:
     lda $dd00
@@ -240,7 +495,7 @@ set_title_vic:
 set_game_vic:
     lda $dd00
     and #$fc
-    ora #$02
+    ora #$03
     sta $dd00
     lda $d011
     ora #$20
@@ -248,7 +503,7 @@ set_game_vic:
     lda $d016
     ora #$10
     sta $d016
-    lda #$08
+    lda #$18
     sta $d018
     lda #0
     sta $d021
@@ -264,6 +519,9 @@ set_text_vic:
 
 view_mode: .byte 0
 title_mode: .byte 1
+turn_mark: .byte 1
+game_index: .byte 0
+board_state: .fill 9, 0
 
 * = $3800
 .binary "../assets/crystal-palace-screen-states/crystal-palace-charset.bin"
@@ -289,3 +547,11 @@ info_colour: .binary "../assets/crystal-palace-screen-states/crystal-palace-info
 game_screen: .binary "../assets/crystal-palace-screen-states/crystal-palace-game-blank.screen.bin"
 * = $8400
 game_colour: .binary "../assets/crystal-palace-screen-states/crystal-palace-game-blank.color.bin"
+* = $8800
+x_cells_bitmap: .binary "../assets/crystal-palace-screen-states/cells/x-cells.bitmap.bin"
+x_cells_screen: .binary "../assets/crystal-palace-screen-states/cells/x-cells.screen.bin"
+x_cells_colour: .binary "../assets/crystal-palace-screen-states/cells/x-cells.color.bin"
+* = $9000
+o_cells_bitmap: .binary "../assets/crystal-palace-screen-states/cells/o-cells.bitmap.bin"
+o_cells_screen: .binary "../assets/crystal-palace-screen-states/cells/o-cells.screen.bin"
+o_cells_colour: .binary "../assets/crystal-palace-screen-states/cells/o-cells.color.bin"

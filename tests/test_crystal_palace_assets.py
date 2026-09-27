@@ -356,13 +356,13 @@ def test_stage_058_preview_uses_only_native_art_navigation_and_restores_title_mo
     call(mpu, symbols["preview_title_up"]); assert mpu.memory[symbols["preview_title_mode"]] == 2
 
 
-def test_stage_067_build_uses_title_control_legend_layout_and_archives_the_named_disk(tmp_path):
-    """The release builder reserves Stage 067 for browser-independent controls."""
+def test_stage_068_build_uses_interactive_bitmap_board_repair_and_archives_the_named_disk(tmp_path):
+    """The release builder reserves Stage 068 for browser-facing board repair."""
     import importlib.util
     import sys
 
     sys.path.insert(0, str(ROOT / "scripts"))
     spec = importlib.util.spec_from_file_location("build_disk", ROOT / "scripts" / "build_disk.py")
     builder = importlib.util.module_from_spec(spec); spec.loader.exec_module(builder)
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (67, "title-control-legend-layout")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (68, "interactive-bitmap-board-repair")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
