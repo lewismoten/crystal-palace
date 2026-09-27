@@ -18,9 +18,9 @@ def load_builder():
     return module
 
 
-def test_stage_069_declares_title_dispatch_and_key_debounce():
+def test_stage_070_declares_browser_lowercase_input_repair():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (69, "title-dispatch-and-key-debounce")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (70, "browser-lowercase-input-repair")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
 
 
@@ -146,3 +146,10 @@ def test_title_actions_return_to_the_key_loop_without_falling_into_basic():
     assert "title_number_game:\n    jsr show_game\n    jmp key_loop" in source
     assert "title_info:\n    jsr show_info\n    jmp key_loop" in source
     assert "title_down:\n    jsr select_title_down\n    jsr wait_key_release\n    jmp key_loop" in source
+    assert "wait_key_release:\n    lda #0\n    sta $c6" in source
+
+
+def test_game_dispatch_accepts_browser_lowercase_a_to_i():
+    source = (ROOT / "src" / "art_embedded_title.asm").read_text()
+    assert "cmp #'a'" in source
+    assert "sbc #'a'" in source

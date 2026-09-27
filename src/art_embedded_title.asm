@@ -91,8 +91,12 @@ title_up:
     jsr wait_key_release
     jmp key_loop
 wait_key_release:
+    lda #0
+    sta $c6                 ; flush queued browser key-repeat characters
+wait_key_release_poll:
     jsr GETIN
-    bne wait_key_release
+    bne wait_key_release_poll
+    sta $c6
     rts
 select_title_up:
     lda title_mode
@@ -210,6 +214,14 @@ game_not_q_lower:
     bne game_not_q_petscii
     jmp return_title
 game_not_q_petscii:
+    cmp #'a'
+    bcc game_uppercase_key
+    cmp #'j'
+    bcs game_uppercase_key
+    sec
+    sbc #'a'
+    jmp game_index_ready
+game_uppercase_key:
     cmp #'A'
     bcc game_screen_code
     cmp #'J'
