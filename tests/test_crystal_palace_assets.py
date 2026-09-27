@@ -64,17 +64,22 @@ def test_build_packages_native_art_as_fixed_address_prgs_without_model_window_ov
     builder = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(builder)
     art = builder.crystal_palace_art_prgs(tmp_path)
-    assert len(art) == 18
-    for disk_name, (asset_name, load_address) in builder.CRYSTAL_PALACE_ART.items():
+    assert len(art) == 49
+    for disk_name, spec in builder.CRYSTAL_PALACE_ART.items():
+        asset_name, load_address, *slice_spec = spec
         payload = art[disk_name].read_bytes()
         assert int.from_bytes(payload[:2], "little") == load_address
-        assert payload[2:] == (ASSETS / asset_name).read_bytes()
+        source = (ASSETS / asset_name).read_bytes()
+        if slice_spec:
+            offset, length = slice_spec
+            source = source[offset : offset + length]
+        assert payload[2:] == source
         assert not (load_address < 0xCA00 and load_address + len(payload) - 2 > 0xC000)
         assert not (load_address < 0xCA00 and load_address + len(payload) - 2 > 0xC100)
 
 
-def test_all_o_bitmap_uses_the_safe_native_patch_source_buffer():
-    """The all-O bitmap must page beside the blank board, never replace it."""
+def test_blank_game_bitmap_is_split_into_final_address_source_pages():
+    """Stage 059 presents the supplied blank board without a full staging load."""
     import importlib.util
     import sys
 
@@ -84,7 +89,8 @@ def test_all_o_bitmap_uses_the_safe_native_patch_source_buffer():
     builder = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(builder)
 
-    assert builder.CRYSTAL_PALACE_ART["CPGOB.PRG"] == ("crystal-palace-game-all-o.bitmap.bin", 0x8000)
+    assert builder.CRYSTAL_PALACE_ART["CGB0.PRG"] == ("crystal-palace-game-blank.bitmap.bin", 0x6000, 0, 1000)
+    assert builder.CRYSTAL_PALACE_ART["CGB7.PRG"] == ("crystal-palace-game-blank.bitmap.bin", 0x7b58, 7000, 1000)
 
 
 def test_6502_native_title_and_game_art_activate_at_declared_vic_locations(tmp_path):
@@ -350,13 +356,13 @@ def test_stage_058_preview_uses_only_native_art_navigation_and_restores_title_mo
     call(mpu, symbols["preview_title_up"]); assert mpu.memory[symbols["preview_title_mode"]] == 2
 
 
-def test_stage_058_build_uses_preview_program_and_archives_the_named_disk(tmp_path):
-    """The release builder must reserve stage 058 only for the native-art preview."""
+def test_stage_059_build_uses_visible_loader_and_archives_the_named_disk(tmp_path):
+    """The release builder reserves Stage 059 for source-exact visible paging."""
     import importlib.util
     import sys
 
     sys.path.insert(0, str(ROOT / "scripts"))
     spec = importlib.util.spec_from_file_location("build_disk", ROOT / "scripts" / "build_disk.py")
     builder = importlib.util.module_from_spec(spec); spec.loader.exec_module(builder)
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (58, "crystal-palace-native-art-preview")
-    assert builder.PROGRAM_SOURCE.name == "art_preview.asm"
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (59, "visible-native-art-loader")
+    assert builder.PROGRAM_SOURCE.name == "art_loader.asm"

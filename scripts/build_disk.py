@@ -10,33 +10,27 @@ from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 58
-CURRENT_DESCRIPTION = "crystal-palace-native-art-preview"
-PROGRAM_SOURCE = ROOT / "src" / "art_preview.asm"
+CURRENT_STAGE = 59
+CURRENT_DESCRIPTION = "visible-native-art-loader"
+PROGRAM_SOURCE = ROOT / "src" / "art_loader.asm"
 ART = ROOT / "assets" / "crystal-palace-screen-states"
 
 # These are immutable source planes wrapped only in standard two-byte PRG load
 # addresses. They are staging buffers, never C9W packet/data-window addresses.
-CRYSTAL_PALACE_ART = {
-    "CPCHAR.PRG": ("crystal-palace-charset.bin", 0x3800),
-    "CPT0S.PRG": ("crystal-palace-title-player-0.screen.bin", 0x5000),
-    "CPT0C.PRG": ("crystal-palace-title-player-0.color.bin", 0x5400),
-    "CPT1S.PRG": ("crystal-palace-title-player-1.screen.bin", 0x5000),
-    "CPT1C.PRG": ("crystal-palace-title-player-1.color.bin", 0x5400),
-    "CPT2S.PRG": ("crystal-palace-title-player-2.screen.bin", 0x5000),
-    "CPT2C.PRG": ("crystal-palace-title-player-2.color.bin", 0x5400),
-    "CPINS.PRG": ("crystal-palace-info.screen.bin", 0x5000),
-    "CPINC.PRG": ("crystal-palace-info.color.bin", 0x5400),
-    "CPGBM.PRG": ("crystal-palace-game-blank.bitmap.bin", 0x6000),
-    "CPGSC.PRG": ("crystal-palace-game-blank.screen.bin", 0x5000),
-    "CPGCO.PRG": ("crystal-palace-game-blank.color.bin", 0x5400),
-    "CPGXB.PRG": ("crystal-palace-game-all-x.bitmap.bin", 0x8000),
-    "CPGXS.PRG": ("crystal-palace-game-all-x.screen.bin", 0x5000),
-    "CPGXC.PRG": ("crystal-palace-game-all-x.color.bin", 0x5400),
-    "CPGOB.PRG": ("crystal-palace-game-all-o.bitmap.bin", 0x8000),
-    "CPGOS.PRG": ("crystal-palace-game-all-o.screen.bin", 0x5000),
-    "CPGOC.PRG": ("crystal-palace-game-all-o.color.bin", 0x5400),
-}
+CRYSTAL_PALACE_ART = {"CPCHAR.PRG": ("crystal-palace-charset.bin", 0x3800)}
+for variant in range(3):
+    prefix = f"crystal-palace-title-player-{variant}"
+    for plane, base, letter in (("screen", 0x0400, "S"), ("color", 0xD800, "C")):
+        for page, offset in enumerate((0, 256, 512, 768)):
+            CRYSTAL_PALACE_ART[f"CT{variant}{letter}{page}.PRG"] = (f"{prefix}.{plane}.bin", base + offset, offset, 1000 - offset if page == 3 else 256)
+for plane, base, letter in (("screen", 0x0400, "S"), ("color", 0xD800, "C")):
+    for page, offset in enumerate((0, 256, 512, 768)):
+        CRYSTAL_PALACE_ART[f"CI{letter}{page}.PRG"] = (f"crystal-palace-info.{plane}.bin", base + offset, offset, 1000 - offset if page == 3 else 256)
+for page in range(8):
+    CRYSTAL_PALACE_ART[f"CGB{page}.PRG"] = ("crystal-palace-game-blank.bitmap.bin", 0x6000 + page * 1000, page * 1000, 1000)
+for plane, base, letter in (("screen", 0x4000, "S"), ("color", 0xD800, "C")):
+    for page, offset in enumerate((0, 256, 512, 768)):
+        CRYSTAL_PALACE_ART[f"CG{letter}{page}.PRG"] = (f"crystal-palace-game-blank.{plane}.bin", base + offset, offset, 1000 - offset if page == 3 else 256)
 
 
 def stage_image_path(number: int, description: str) -> Path:
@@ -50,8 +44,12 @@ def crystal_palace_art_prgs(destination: Path) -> dict[str, Path]:
     """Create reproducible PRG wrappers around verbatim supplied UI planes."""
     destination.mkdir(parents=True, exist_ok=True)
     result = {}
-    for disk_name, (asset_name, load_address) in CRYSTAL_PALACE_ART.items():
+    for disk_name, spec in CRYSTAL_PALACE_ART.items():
+        asset_name, load_address, *slice_spec = spec
         payload = (ART / asset_name).read_bytes()
+        if slice_spec:
+            offset, length = slice_spec
+            payload = payload[offset : offset + length]
         path = destination / disk_name
         path.write_bytes(load_address.to_bytes(2, "little") + payload)
         result[disk_name] = path

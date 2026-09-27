@@ -4,7 +4,7 @@ CP64 is a Commodore 64 feasibility project for **the original Crystal-9 packed I
 
 ## Current executable milestone
 
-`build/cp64.d64` is currently **Stage 058, Crystal Palace native-art preview**. It pages the repository-verified native title variants, blank multicolor bitmap game room, info page, and shared charset. It deliberately does not load or invoke a Crystal-9 packet, inference routine, legal-move path, or winner logic.
+`build/cp64.d64` is currently **Stage 059, visible native-art loader**. It immediately presents a standard-ROM loading splash, then pages repository-verified title, blank multicolor bitmap game-room, info, and charset bytes directly to their final VIC-II locations. It deliberately does not load or invoke a Crystal-9 packet, inference routine, legal-move path, or winner logic.
 
 The prior bounded model route remains source and regression evidence, not the current browser-preview executable. Model-driven legal moves, live-compute lights/compositing, win detection, and restart behavior remain unfinished.
 
@@ -64,11 +64,11 @@ build/cs64-037-router-normalization.d64
 
 `cp64.d64` is a compatibility copy of the current numbered gate. A number is reserved only after its gate builds and passes its reference tests.
 
-### Stage 058 native-art browser preview
+### Stage 059 visible native-art browser loader
 
-`cs64-058-crystal-palace-native-art-preview.d64` is an **art/navigation preview, not playable model gameplay**. It starts on the supplied player-1 title variant. On the title: **Up/Down** cycle raw variants `1`, `2`, `0`; **Space** opens the supplied blank multicolor bitmap game room; **I** opens native info; **Q** exits. On game/info: **Space**, **I**, or **Q** returns to the title. It restores character mode and black background on return/exit. No status text is overlaid because the supplied artwork must remain byte-exact.
+`cs64-059-visible-native-art-loader.d64` is an **art/navigation preview, not playable model gameplay**. Reset immediately draws the standard-ROM `CRYSTAL PALACE 9` / `LOADING NATIVE DISPLAY` splash before its first disk operation, with a monotonically advancing boundary count. It then loads source-exact title and info screen/colour PRG pages directly to `$0400`/`$d800` (four 256/256/256/232-byte pairs), so each completed pair reveals the next contiguous native region. Space loads the blank native game room as eight genuine 1,000-byte `$6000` bitmap pages followed by four direct screen/colour pairs; bitmap mode is enabled only after all final bytes have arrived. **Up/Down** cycle supplied title variants `1`, `2`, `0`; **Space** opens game; **I** opens info; **Q** exits/returns as in Stage 058.
 
-The disk packages CP64, all 48 original C9W packets, and 18 required native art PRGs. Stage-058 assembled-6502 regressions assert native title/game/info screen and colour planes, game bitmap, charset retention, VIC-II bank/mode transitions, and title cycling. D64 readback verifies every art PRG payload equals its repository source plane.
+The disk packages CP64, all 48 original C9W packets, and 49 source-exact art PRGs. D64 readback verifies every C9W packet, CP64, and every art page against its source bytes; final title/info/game planes are the concatenated immutable source planes. This is pageable display loading only: it does not claim whole-model residency, inference, gameplay, or model-driven moves.
 
 ### Stage 014 acceptance
 

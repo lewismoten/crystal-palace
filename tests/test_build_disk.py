@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_native_art_preview():
+def test_current_disk_stage_reports_visible_native_art_loader():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 58
-    assert builder.CURRENT_DESCRIPTION == "crystal-palace-native-art-preview"
+    assert builder.CURRENT_STAGE == 59
+    assert builder.CURRENT_DESCRIPTION == "visible-native-art-loader"
