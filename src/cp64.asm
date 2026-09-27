@@ -519,9 +519,12 @@ output_bias_loaded:
     lda #<step_output_argmax
     ldy #>step_output_argmax
     jsr print
+    ; Preserve the unmasked bounded argmax for the diagnostic, then select only
+    ; among declared, presently empty board-token IDs. The board move is a
+    ; masked model-logit argmax, not a handcrafted fallback.
     jsr select_output_argmax
-    ; A raw model token becomes a board mark only through the vocabulary and
-    ; empty-cell gate.  No tracer token or fallback may draw an O.
+    jsr select_legal_output_argmax
+    bcs model_move_invalid
     jsr map_output_token_to_empty_cell
     bcs model_move_invalid
     jsr ui_mark_model_move
@@ -2096,6 +2099,84 @@ output_argmax_next:
     iny
     cpx #13
     bne output_argmax_row
+    rts
+
+; Signed Q8.8 argmax over only the currently legal declared board tokens.
+; IDs 0..3 are special tokens; IDs 4..12 are a..i. Equality retains the lower
+; ID. Carry set means every declared board cell is occupied; the caller then
+; reserves the selected cell through the existing atomic board gate.
+select_legal_output_argmax:
+    lda #0
+    sta output_legal_found
+    ldx #4
+legal_output_row:
+    stx output_candidate_index
+    lda #1
+    sta computer_mask_lo
+    lda #0
+    sta computer_mask_hi
+    txa
+    sec
+    sbc #4
+    tax
+legal_output_mask_shift:
+    cpx #0
+    beq legal_output_mask_ready
+    asl computer_mask_lo
+    rol computer_mask_hi
+    dex
+    jmp legal_output_mask_shift
+legal_output_mask_ready:
+    lda board_occupied
+    and computer_mask_lo
+    bne legal_output_next
+    lda board_occupied_hi
+    and computer_mask_hi
+    bne legal_output_next
+    ldx output_candidate_index
+    txa
+    asl
+    tay
+    lda OUTPUT_LOGITS,y
+    sta output_candidate_lo
+    iny
+    lda OUTPUT_LOGITS,y
+    sta output_candidate_hi
+    lda output_legal_found
+    beq legal_output_replace
+    lda output_candidate_hi
+    eor #$80
+    sta output_compare_hi
+    lda output_argmax_hi
+    eor #$80
+    cmp output_compare_hi
+    bcc legal_output_replace
+    bne legal_output_next
+    lda output_argmax_lo
+    cmp output_candidate_lo
+    bcs legal_output_next
+legal_output_replace:
+    lda output_candidate_lo
+    sta output_argmax_lo
+    lda output_candidate_hi
+    sta output_argmax_hi
+    ldx output_candidate_index
+    stx output_argmax_index
+    lda #1
+    sta output_legal_found
+legal_output_next:
+    ldx output_candidate_index
+    inx
+    cpx #13
+    beq legal_output_done
+    jmp legal_output_row
+legal_output_done:
+    lda output_legal_found
+    beq legal_output_none
+    clc
+    rts
+legal_output_none:
+    sec
     rts
 
 ; C9W09 has one FP16 scale and nine packed INT4 router-bias values.
@@ -4969,6 +5050,8 @@ output_argmax_hi: .byte 0
 output_candidate_lo: .byte 0
 output_candidate_hi: .byte 0
 output_compare_hi: .byte 0
+output_candidate_index: .byte 0
+output_legal_found: .byte 0
 packet_name_lo: .byte 0
 packet_name_hi: .byte 0
 packet_expected_id: .byte 0
@@ -5064,7 +5147,7 @@ ui_step_scores_text: .text "7/7 SELF ATTENTION SCORES",0
 ui_status_a_text: .text "A RETAINED: TYPE B",0
 ui_status_b_text: .text "A,B RETAINED: TYPE C",0
 ui_status_complete_text: .text "A,B,C RETAINED: COMPUTER MOVE PENDING",0
-ui_status_model_move_text: .text "MODEL TOKEN E: BLUE O PLACED",0
+ui_status_model_move_text: .text "MODEL LEGAL TOKEN: BLUE O PLACED",0
 ui_status_model_move_invalid_text: .text "MODEL TOKEN HAS NO EMPTY LEGAL CELL",0
 ui_diagnostic_prefix: .text "LENGTH $03 KEY SUM $",0
 ui_diagnostic_middle: .text " VALUE SUM $",0

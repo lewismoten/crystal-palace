@@ -1360,6 +1360,40 @@ def test_6502_maps_only_original_move_token_ids_to_empty_board_cells(tmp_path):
         assert mpu.p & mpu.CARRY
 
 
+def test_6502_masks_occupied_and_special_output_logits_for_a_e_i_board_history(tmp_path):
+    """A/E/I keeps the model's next legal ID, rather than rejecting raw argmax E."""
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
+    mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
+    assert {"select_legal_output_argmax", "OUTPUT_LOGITS", "board_occupied", "computer_cell"} <= symbols.keys()
+
+    # Independent host oracle for the complete declared vocabulary: IDs 0..3
+    # are special, and A/E/I occupy declared board-token IDs 4, 8, and 12.
+    # Equality retains the lower token ID, matching raw argmax's tie contract.
+    a_e_i_mask_fixture_logits_q8_8 = [900, 800, 700, 600, 256, 700, 511, 512, 1024, 768, 767, 766, 1023]
+    occupied_ids = {4, 8, 12}
+    legal_ids = [token_id for token_id in range(4, 13) if token_id not in occupied_ids]
+    expected_id = max(legal_ids, key=lambda token_id: (a_e_i_mask_fixture_logits_q8_8[token_id], -token_id))
+    assert expected_id == 9
+    source = (ROOT / "src" / "cp64.asm").read_text()
+    assert 'ui_status_model_move_text: .text "MODEL LEGAL TOKEN: BLUE O PLACED"' in source
+    for token_id, logit in enumerate(a_e_i_mask_fixture_logits_q8_8):
+        mpu.memory[symbols["OUTPUT_LOGITS"] + token_id * 2 : symbols["OUTPUT_LOGITS"] + token_id * 2 + 2] = (logit & 0xffff).to_bytes(2, "little")
+    mpu.memory[symbols["board_occupied"]] = (1 << 0) | (1 << 4)
+    mpu.memory[symbols["board_occupied_hi"]] = 1
+
+    call(mpu, symbols["select_legal_output_argmax"])
+    assert not (mpu.p & mpu.CARRY)
+    assert mpu.memory[symbols["output_argmax_index"]] == expected_id
+    assert int.from_bytes(mpu.memory[symbols["output_argmax_lo"] : symbols["output_argmax_lo"] + 2], "little", signed=True) == a_e_i_mask_fixture_logits_q8_8[expected_id]
+    call(mpu, symbols["map_output_token_to_empty_cell"])
+    assert not (mpu.p & mpu.CARRY)
+    assert mpu.memory[symbols["computer_cell"]] == expected_id - 4
+    assert mpu.memory[symbols["board_occupied"]] == ((1 << 0) | (1 << 4) | (1 << 5))
+    assert mpu.memory[symbols["board_occupied_hi"]] == 1
+
+
 def test_6502_accepted_human_cell_reserves_the_same_board_bit_before_rendering(tmp_path):
     """The legal-empty check is stateful, not inferred from a PETSCII glyph."""
     prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
