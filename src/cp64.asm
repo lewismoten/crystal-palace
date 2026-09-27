@@ -63,16 +63,11 @@ color_screen:
     bcc embedding_loaded
     jmp disk_error
 embedding_loaded:
-    lda #<loaded
-    ldy #>loaded
-    jsr print
+    ; The loading screen used KERNAL text output. Replace it completely before
+    ; activating the persistent direct-screen dashboard.
+    jsr ui_clear_dashboard_screen
+    jsr ui_draw_static_dashboard
     jsr draw_history_ui
-    ldx #10                 ; Keep normal CHROUT text below the fixed UI.
-ui_text_below:
-    lda #13
-    jsr CHROUT
-    dex
-    bne ui_text_below
 read_key:
     jsr GETIN
     beq read_key
@@ -4166,6 +4161,53 @@ print_byte:
 print_done:
     rts
 
+; Clear both the loading text and its color RAM before direct dashboard writes.
+; This avoids leaving KERNAL's pre-load status strings behind the board.
+ui_clear_dashboard_screen:
+    ldx #0
+ui_clear_dashboard_loop:
+    lda #$20
+    sta $0400,x
+    sta $0500,x
+    sta $0600,x
+    sta $06e8,x
+    lda #$0d
+    sta COLOR,x
+    sta COLOR+$100,x
+    sta COLOR+$200,x
+    sta COLOR+$2e8,x
+    dex
+    bne ui_clear_dashboard_loop
+    rts
+
+; Fixed header/prompt slots use the same direct screen/color writer as runtime
+; status text; no KERNAL cursor state survives into the interactive dashboard.
+ui_draw_static_dashboard:
+    lda #$02
+    sta pointer
+    lda #$04
+    sta pointer+1
+    jsr ui_set_color_pointer
+    lda #<ui_dashboard_title
+    ldy #>ui_dashboard_title
+    jsr ui_write
+    lda #$2a
+    sta pointer
+    lda #$04
+    sta pointer+1
+    jsr ui_set_color_pointer
+    lda #<ui_dashboard_subtitle
+    ldy #>ui_dashboard_subtitle
+    jsr ui_write
+    lda #$52
+    sta pointer
+    lda #$04
+    sta pointer+1
+    jsr ui_set_color_pointer
+    lda #<ui_dashboard_prompt
+    ldy #>ui_dashboard_prompt
+    jmp ui_write
+
 ; Fixed character-mode panel. Screen RAM writes keep this compatible with
 ; ordinary PETSCII terminals while avoiding a bitmap-mode requirement.
 draw_history_ui:
@@ -4678,7 +4720,7 @@ history_key_sumlo: .byte 0
 history_key_sumhi: .byte 0
 history_value_sumlo: .byte 0
 history_value_sumhi: .byte 0
-ui_cell_offsets: .word $04cf,$04d7,$04df,$051f,$0527,$052f,$056f,$0577,$057f
+ui_cell_offsets: .word $04d1,$04d7,$04df,$0521,$0527,$052f,$0571,$0577,$057f
 ui_vertical_offsets: .word $04d3,$04db,$0523,$052b,$0573,$057b
 softmax_lo: .byte $00,$20,$40,$60,$80,$a0,$c0,$e0,$00,$20,$40,$60,$80,$a0,$c0,$e0,$00,$20,$40,$60,$80,$a0,$c0,$e0,$ff,$1f,$3f,$5f,$7f,$9f,$bf,$df
 softmax_hi: .byte $40,$40,$40,$40,$40,$40,$40,$40,$41,$41,$41,$41,$41,$41,$41,$41,$42,$42,$42,$42,$42,$42,$42,$42,$42,$43,$43,$43,$43,$43,$43,$43
@@ -4693,6 +4735,9 @@ title:
 loading: .text "THINKING: READING C9W00 FROM DISK...",13,0
 loaded: .text "C9W00 READY. TYPE A THROUGH I.",13,13,0
 thinking: .text "THINKING TOKEN ",0
+ui_dashboard_title: .text "CP64 CRYSTAL-9",0
+ui_dashboard_subtitle: .text "ORIGINAL INT4 K/V HISTORY",0
+ui_dashboard_prompt: .text "TYPE A, B, C",0
 ui_thinking_text: .text "THINKING TOKEN ",0
 ui_step_token_text: .text "1/7 TOKEN EMBEDDING",0
 ui_step_position_text: .text "2/7 POSITION EMBEDDING",0

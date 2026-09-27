@@ -174,6 +174,10 @@ To exercise the stage-014 parity gate, run `./.venv/bin/pytest tests/test_6502_e
 
 `cs64-049-full-progress-dashboard-history.d64` corrects the Stage 048 meter scale. The fixed 28-cell graphical meter assigns four cells to each of the seven real page/compute boundaries, so it reaches 100% at every A, B, and C retained-history boundary. It preserves Stage 048's direct screen/color-RAM dashboard: no scrolling status stream, no color inheritance, and end diagnostics remain fixed. This is still only a pageable three-token K/V-history proof, not a model prediction or playable policy.
 
+### Stage 050 clean centered dashboard history
+
+`cs64-050-clean-centered-dashboard-history.d64` clears the KERNAL loading/title screen and its color RAM before activating the direct-screen dashboard, then redraws the title, prompt, grid, progress meter, status, and diagnostics only in fixed panel slots. It also centers the first-column move markers within their cells. No pre-load text remains behind the grid.
+
 ### Browser test target
 
 The manual acceptance target is [C64 Online Emulator](https://c64online.com/c64-online-emulator/). Use its **Load Program** control to select the numbered `.d64` artifact; it accepts D64 files directly. This project treats a user-reported matching result from that emulator as a separate browser-emulator confirmation in addition to the assembled-6502 regression suite.

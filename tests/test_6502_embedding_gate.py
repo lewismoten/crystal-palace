@@ -1384,11 +1384,19 @@ def test_6502_graphical_history_ui_marks_accepted_moves_and_real_progress(tmp_pa
     mpu = MPU(); image = prg.read_bytes(); load_address = int.from_bytes(image[:2], "little")
     mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
 
+    # The loading/title stream may have populated the screen before the direct
+    # dashboard starts. It must be cleared, then replaced with fixed panel text.
+    mpu.memory[0x0400 + 207] = ord("X")
+    assert {"ui_clear_dashboard_screen", "ui_draw_static_dashboard"} <= symbols.keys()
+    call(mpu, symbols["ui_clear_dashboard_screen"])
+    call(mpu, symbols["ui_draw_static_dashboard"])
+    assert mpu.memory[0x0400 + 207] == 0x20
     call(mpu, symbols["draw_history_ui"])
-    assert [mpu.memory[0x0400 + offset] for offset in (207, 215, 223, 287, 295, 303, 367, 375, 383)] == [0x2e] * 9
+    assert [mpu.memory[0x0400 + offset] for offset in (209, 215, 223, 289, 295, 303, 369, 375, 383)] == [0x2e] * 9
+    assert bytes(mpu.memory[0x0400 + 2 : 0x0400 + 16]) == bytes(ch - 64 if 65 <= ch <= 90 else ch for ch in b"CP64 CRYSTAL-9")
     assert mpu.memory[0x0400 + 446] == 0x40  # graphical progress bar starts empty
 
-    for token, expected_offset in ((ord("a"), 207), (ord("b"), 215), (ord("c"), 223)):
+    for token, expected_offset in ((ord("a"), 209), (ord("b"), 215), (ord("c"), 223)):
         mpu.memory[symbols["selected"]] = token
         call(mpu, symbols["mark_selected_move"])
         assert mpu.memory[0x0400 + expected_offset] == token - 0x60
