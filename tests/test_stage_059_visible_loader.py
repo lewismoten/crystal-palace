@@ -18,9 +18,9 @@ def load_builder():
     return module
 
 
-def test_stage_061_declares_silent_kernal_art_loader():
+def test_stage_062_declares_page_pointer_loader_fix():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (61, "silent-kernal-art-loader")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (62, "page-pointer-loader-fix")
     assert builder.PROGRAM_SOURCE.name == "art_loader.asm"
 
 
@@ -56,16 +56,11 @@ def test_loader_source_has_splash_before_load_and_direct_page_progress_without_e
     assert "name_t1s0" in source and "name_gbm7" in source and "name_ins3" in source
 
 
-def test_loader_announces_each_native_page_pair_with_direct_screen_text():
-    """Post-charset loads keep a real, ROM-readable page label without CHROUT."""
+def test_loader_keeps_page_list_pointer_exclusive_to_source_page_names():
+    """A temporary label must never overwrite the filename-table pointer."""
     source = (ROOT / "src" / "art_loader.asm").read_text()
     pages = source[source.index("preview_load_pages:") : source.index("preview_load_title:")]
-    assert "jsr preview_page_label" in pages
-    label = source[source.index("preview_page_label:") : source.index("preview_load_title:")]
-    assert "TITLE SCREEN " in source
-    assert "INFO SCREEN " in source
-    assert "GAME BITMAP " in source
-    assert "sta $d018" in label
-    assert "sta (label_pointer),y" in label
-    assert "sta (label_color_pointer),y" in label
-    assert "CHROUT" not in label
+    assert "preview_page_label" not in source
+    assert "label_pointer" not in source
+    assert "list_pointer" in pages
+    assert "sta list_pointer" in pages

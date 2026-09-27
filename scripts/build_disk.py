@@ -10,8 +10,8 @@ from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 61
-CURRENT_DESCRIPTION = "silent-kernal-art-loader"
+CURRENT_STAGE = 62
+CURRENT_DESCRIPTION = "page-pointer-loader-fix"
 PROGRAM_SOURCE = ROOT / "src" / "art_loader.asm"
 ART = ROOT / "assets" / "crystal-palace-screen-states"
 
