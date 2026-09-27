@@ -4849,6 +4849,12 @@ reserve_selected_human_cell:
     lda board_occupied_hi
     ora computer_mask_hi
     sta board_occupied_hi
+    lda human_cells
+    ora computer_mask_lo
+    sta human_cells
+    lda human_cells+1
+    ora computer_mask_hi
+    sta human_cells+1
     rts
 selected_board_mask:
     lda selected
@@ -4907,10 +4913,56 @@ computer_mask_ready:
     lda board_occupied_hi
     ora computer_mask_hi
     sta board_occupied_hi
+    lda computer_cells
+    ora computer_mask_lo
+    sta computer_cells
+    lda computer_cells+1
+    ora computer_mask_hi
+    sta computer_cells+1
     clc
     rts
 computer_cell_invalid:
     sec
+    rts
+
+; Return A=1 for an X line, A=2 for an O line, or A=0 when play continues.
+; Ownership is explicit state, independent of the native bitmap compositing.
+board_winner:
+    ldx #0
+board_winner_human_loop:
+    lda human_cells
+    and board_winner_masks_lo,x
+    cmp board_winner_masks_lo,x
+    bne board_winner_human_next
+    lda human_cells+1
+    and board_winner_masks_hi,x
+    cmp board_winner_masks_hi,x
+    beq board_winner_human
+board_winner_human_next:
+    inx
+    cpx #8
+    bne board_winner_human_loop
+    ldx #0
+board_winner_computer_loop:
+    lda computer_cells
+    and board_winner_masks_lo,x
+    cmp board_winner_masks_lo,x
+    bne board_winner_computer_next
+    lda computer_cells+1
+    and board_winner_masks_hi,x
+    cmp board_winner_masks_hi,x
+    beq board_winner_computer
+board_winner_computer_next:
+    inx
+    cpx #8
+    bne board_winner_computer_loop
+    lda #0
+    rts
+board_winner_human:
+    lda #1
+    rts
+board_winner_computer:
+    lda #2
     rts
 
 ; Dashboard text is direct screen/color RAM output; it never moves KERNAL's
@@ -5349,6 +5401,8 @@ history_value_sumhi: .byte 0
 ; separate from the visual board so a stale character cannot authorize a move.
 board_occupied: .byte 0
 board_occupied_hi: .byte 0
+human_cells: .word 0
+computer_cells: .word 0
 computer_cell: .byte 0
 computer_mask_lo: .byte 0
 computer_mask_hi: .byte 0
@@ -5358,6 +5412,8 @@ ui_vertical_offsets: .word $04d3,$04db,$0523,$052b,$0573,$057b
 ; 19/20, 23/24 and rows 4-6, 7-9, 10-12. Sources are CPGXB at $8000.
 ui_x_source_offsets: .word $8578,$8598,$85b8,$8938,$8958,$8978,$8cf8,$8d18,$8d38
 ui_x_destination_offsets: .word $6578,$6598,$65b8,$6938,$6958,$6978,$6cf8,$6d18,$6d38
+board_winner_masks_lo: .byte $07,$38,$c0,$49,$92,$24,$11,$54
+board_winner_masks_hi: .byte $00,$00,$01,$00,$00,$01,$01,$00
 softmax_lo: .byte $00,$20,$40,$60,$80,$a0,$c0,$e0,$00,$20,$40,$60,$80,$a0,$c0,$e0,$00,$20,$40,$60,$80,$a0,$c0,$e0,$ff,$1f,$3f,$5f,$7f,$9f,$bf,$df
 softmax_hi: .byte $40,$40,$40,$40,$40,$40,$40,$40,$41,$41,$41,$41,$41,$41,$41,$41,$42,$42,$42,$42,$42,$42,$42,$42,$42,$43,$43,$43,$43,$43,$43,$43
 router_sigmoid_q0_15: .binary "router_sigmoid_q0_15.bin"

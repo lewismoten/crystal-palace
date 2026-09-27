@@ -228,3 +228,32 @@ def test_6502_title_selection_cycles_supplied_player_states(tmp_path):
     assert mpu.memory[symbols["title_mode"]] == 2
     call(mpu, symbols["ui_title_select_up"])
     assert mpu.memory[symbols["title_mode"]] == 1
+
+
+def test_6502_board_winner_distinguishes_native_x_o_rows_columns_and_diagonals(tmp_path):
+    """Terminal board state must come from marks, never from a display frame."""
+    import subprocess
+    import sys
+
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    assert {"board_winner", "human_cells", "computer_cells"} <= symbols.keys()
+    mpu = MPU(); image = prg.read_bytes(); load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+
+    for human, computer, expected in ((0b000000111, 0, 1), (0, 0b001010100, 2), (0b100010001, 0, 1), (0, 0b001010100, 2), (0b000010001, 0b000100010, 0)):
+        mpu.memory[symbols["human_cells"]] = human & 0xff
+        mpu.memory[symbols["human_cells"] + 1] = human >> 8
+        mpu.memory[symbols["computer_cells"]] = computer & 0xff
+        mpu.memory[symbols["computer_cells"] + 1] = computer >> 8
+        call(mpu, symbols["board_winner"])
+        assert mpu.a == expected
