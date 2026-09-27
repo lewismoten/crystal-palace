@@ -4925,6 +4925,20 @@ computer_cell_invalid:
     sec
     rts
 
+; Clear every logical board field before loading the supplied blank game plane.
+; The bitmap alone is not game state: legal masking and winner detection must
+; start with no retained ownership bits after a restart.
+reset_board_state:
+    lda #0
+    sta board_occupied
+    sta board_occupied_hi
+    sta human_cells
+    sta human_cells+1
+    sta computer_cells
+    sta computer_cells+1
+    sta computer_cell
+    rts
+
 ; Return A=1 for an X line, A=2 for an O line, or A=0 when play continues.
 ; Ownership is explicit state, independent of the native bitmap compositing.
 board_winner:

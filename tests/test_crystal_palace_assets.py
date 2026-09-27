@@ -257,3 +257,35 @@ def test_6502_board_winner_distinguishes_native_x_o_rows_columns_and_diagonals(t
         mpu.memory[symbols["computer_cells"] + 1] = computer >> 8
         call(mpu, symbols["board_winner"])
         assert mpu.a == expected
+
+
+def test_6502_restart_state_clears_every_board_ownership_bit(tmp_path):
+    """A restart cannot retain a hidden occupied cell or a prior winner."""
+    import subprocess
+    import sys
+
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+
+    prg = tmp_path / "CP64.PRG"; labels_path = tmp_path / "cp64.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "cp64.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+    assert {"reset_board_state", "board_occupied", "human_cells", "computer_cells", "computer_cell"} <= symbols.keys()
+    mpu = MPU(); image = prg.read_bytes(); load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+    for name in ("board_occupied", "board_occupied_hi", "human_cells", "computer_cells"):
+        mpu.memory[symbols[name]] = 0xff
+        mpu.memory[symbols[name] + 1] = 0xff
+    mpu.memory[symbols["computer_cell"]] = 8
+
+    call(mpu, symbols["reset_board_state"])
+
+    assert bytes(mpu.memory[symbols["board_occupied"] : symbols["board_occupied"] + 2]) == b"\0\0"
+    assert bytes(mpu.memory[symbols["human_cells"] : symbols["human_cells"] + 2]) == b"\0\0"
+    assert bytes(mpu.memory[symbols["computer_cells"] : symbols["computer_cells"] + 2]) == b"\0\0"
+    assert mpu.memory[symbols["computer_cell"]] == 0
