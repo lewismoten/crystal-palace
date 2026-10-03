@@ -20,9 +20,9 @@ def load_builder():
     return module
 
 
-def test_stage_073_declares_vic_cell_address_repair():
+def test_stage_074_declares_restored_art_and_real_progress():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (73, "vic-cell-address-repair")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (74, "restored-art-and-real-progress")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
 
 
@@ -188,6 +188,11 @@ def test_embedded_preview_has_correct_game_vic_layout_and_live_a_to_i_marks(tmp_
     mpu.memory[symbols["game_index"]] = 1; call(mpu, symbols["draw_o"])
     assert mpu.memory[symbols["board_state"] + 1] == 2
     assert (mpu.memory[0x0400 + 4 * 40 + 19] >> 4) == 3  # source-exact cyan O
+    call(mpu, symbols["progress_stage_one"])
+    assert bytes(mpu.memory[0x0690 : 0x0690 + 30]) == bytes([48] * 10 + [42] * 20)
+    assert bytes(mpu.memory[0xDA90 : 0xDA90 + 30]) == bytes([7] * 10 + [12] * 20)
+    call(mpu, symbols["progress_stage_three"])
+    assert bytes(mpu.memory[0x0690 : 0x0690 + 30]) == bytes([48] * 30)
 
 
 def test_title_and_info_restore_after_live_board_patches(tmp_path):
@@ -206,8 +211,10 @@ def test_title_and_info_restore_after_live_board_patches(tmp_path):
     mpu.memory[load : load + len(image) - 2] = image[2:]
     call(mpu, symbols["show_game"])
     call(mpu, symbols["draw_x"])
+    mpu.memory[0x3800 : 0x4000] = b"\x00" * 2048
     mpu.memory[symbols["title_mode"]] = 1
     call(mpu, symbols["show_title"])
+    assert bytes(mpu.memory[0x3800 : 0x4000]) == (ASSETS / "crystal-palace-charset.bin").read_bytes()
     title = bytearray((ASSETS / "crystal-palace-title-player-1.screen.bin").read_bytes())
     title[882:888] = bytes((9, 0, 9, 14, 6, 15))
     title[922:928] = bytes((17, 0, 17, 21, 9, 20))

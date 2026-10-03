@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_vic_cell_address_repair():
+def test_current_disk_stage_reports_restored_art_and_real_progress():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 73
-    assert builder.CURRENT_DESCRIPTION == "vic-cell-address-repair"
+    assert builder.CURRENT_STAGE == 74
+    assert builder.CURRENT_DESCRIPTION == "restored-art-and-real-progress"

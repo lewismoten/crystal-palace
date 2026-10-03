@@ -10,8 +10,8 @@ from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 73
-CURRENT_DESCRIPTION = "vic-cell-address-repair"
+CURRENT_STAGE = 74
+CURRENT_DESCRIPTION = "restored-art-and-real-progress"
 PROGRAM_SOURCE = ROOT / "src" / "art_embedded_title.asm"
 ART = ROOT / "assets" / "crystal-palace-screen-states"
 

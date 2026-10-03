@@ -24,6 +24,7 @@ start:
     sta title_mode
     jsr show_title
 key_loop:
+    jsr ambient_console_lights
     jsr GETIN
     beq key_loop
     ldx view_mode            ; preserve GETIN's key in A
@@ -144,6 +145,7 @@ exit_basic:
     jmp $fce2
 
 show_title:
+    jsr restore_title_charset
     lda title_mode
     beq title_zero
     cmp #1
@@ -177,6 +179,7 @@ title_done:
     jmp set_title_vic
 
 show_info:
+    jsr restore_title_charset
     lda #<info_screen
     ldy #>info_screen
     jsr copy_screen
@@ -265,8 +268,10 @@ game_key_done:
 ; Accepted board keys remain human X marks.  This bridge only pages and decodes
 ; the selected original token row; it neither selects nor paints a model move.
 materialize_selected_embedding:
+    jsr progress_stage_one
     jsr load_c9w00
     bcs embedding_bridge_failed
+    jsr progress_stage_two
     lda game_index            ; KERNAL LOAD owns A, so recover the selected cell.
     clc
     adc #4                    ; board a-i maps to Crystal-9 vocabulary rows 4-12.
@@ -274,6 +279,7 @@ materialize_selected_embedding:
     jsr decode_embedding_scale
     bcs embedding_bridge_failed
     jsr materialize_embedding_row
+    jsr progress_stage_three
     clc
     rts
 embedding_bridge_failed:
@@ -785,6 +791,87 @@ copytail:
     jmp copytail
 copydone: rts
 
+; The title and info routes rely on the supplied custom charset at $3800.
+; Restore it from a separate immutable in-PRG copy before leaving bitmap mode.
+restore_title_charset:
+    lda #<title_charset_backup
+    sta src
+    lda #>title_charset_backup
+    sta src+1
+    lda #<$3800
+    sta out
+    lda #>$3800
+    sta out+1
+    ldx #8
+restore_charset_page:
+    ldy #0
+restore_charset_byte:
+    lda (src),y
+    sta (out),y
+    iny
+    bne restore_charset_byte
+    inc src+1
+    inc out+1
+    dex
+    bne restore_charset_page
+    rts
+
+; Ambient console indicators are presentation-only; model progress stays in
+; the explicit per-move meter routines below.
+ambient_console_lights:
+    lda $d012
+    and #$3f
+    bne ambient_lights_done
+    ldx $d012
+    txa
+    and #$03
+    tax
+    lda ambient_light_lo,x
+    sta out
+    lda ambient_light_hi,x
+    sta out+1
+    lda #7
+    ldy #0
+    sta (out),y
+ambient_lights_done:
+    rts
+ambient_light_lo: .byte <$da7a, <$da87, <$dad2, <$dadb
+ambient_light_hi: .byte >$da7a, >$da87, >$dad2, >$dadb
+
+; This is not an invented AI animation.  Each third marks a completed real
+; boundary: accepted move, original C9W00 disk page, then row decode.
+PROGRESS_SCREEN = $0690
+PROGRESS_COLOR = $da90
+progress_stage_one:
+    lda #10
+    bne render_progress
+progress_stage_two:
+    lda #20
+    bne render_progress
+progress_stage_three:
+    lda #30
+render_progress:
+    sta progress_filled
+    ldx #0
+progress_cell:
+    cpx progress_filled
+    bcc progress_lit
+    lda #42                  ; custom-charset '-': inactive segment
+    sta PROGRESS_SCREEN,x
+    lda #12                  ; dim grey
+    sta PROGRESS_COLOR,x
+    jmp progress_next
+progress_lit:
+    lda #48                  ; custom-charset '=': completed segment
+    sta PROGRESS_SCREEN,x
+    lda #7                   ; bright yellow
+    sta PROGRESS_COLOR,x
+progress_next:
+    inx
+    cpx #30
+    bne progress_cell
+    rts
+
 ; Requested title affordances: bright direct-selection keys, with INFO above QUIT.
 patch_title_hints:
     lda #7                   ; bright yellow
@@ -859,6 +946,7 @@ title_mode: .byte 1
 turn_mark: .byte 1
 game_index: .byte 0
 mark_byte: .byte 0
+progress_filled: .byte 0
 board_state: .fill 9, 0
 c9w00_filename: .text "C9W00.PRG"
 embedding_row: .byte 0
@@ -915,3 +1003,5 @@ o_cells_screen: .binary "../assets/crystal-palace-screen-states/cells/o-cells.sc
 o_cells_colour: .binary "../assets/crystal-palace-screen-states/cells/o-cells.color.bin"
 * = $9800
 bitmap_destinations: .binary "../assets/crystal-palace-screen-states/cells/bitmap-destination-addresses.bin"
+* = $b000
+title_charset_backup: .binary "../assets/crystal-palace-screen-states/crystal-palace-charset.bin"
