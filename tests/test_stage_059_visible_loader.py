@@ -20,9 +20,9 @@ def load_builder():
     return module
 
 
-def test_stage_079_declares_archive_ram_banking_fix():
+def test_stage_080_declares_archive_layout_and_board_planes():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (79, "archive-ram-banking-fix")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (80, "archive-layout-and-board-planes")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
 
 
@@ -223,9 +223,43 @@ def test_title_and_info_restore_after_live_board_patches(tmp_path):
     title[922:926] = bytes((17, 21, 9, 20))
     assert bytes(mpu.memory[0x0400 : 0x07E8]) == bytes(title)
     call(mpu, symbols["show_info"])
-    source_info = (ASSETS / "crystal-palace-info.screen.bin").read_bytes()
+    source_info = bytearray((ASSETS / "crystal-palace-info.screen.bin").read_bytes())
+    source_info[23 * 40 + 24 : 23 * 40 + 39] = bytes((17, 38, 0, 17, 21, 9, 20, 0, 0, 0, 0, 0, 0, 0, 0))
     assert bytes(mpu.memory[0x0400 : 0x047D]) == source_info[:125]
-    assert bytes(mpu.memory[0x0725 : 0x07E8]) == source_info[805:]
+    assert bytes(mpu.memory[0x0725 : 0x07E8]) == bytes(source_info[805:])
+
+
+def test_middle_mark_does_not_repaint_the_top_mark_shared_attribute_row(tmp_path):
+    """Rows d-f begin one raster line into the preceding character row.
+
+    That row belongs to a-c's final diagonal byte. Its screen/color attributes
+    must not be copied from d-f's empty leading source row, or a later O changes
+    the earlier X's border/colour definition.
+    """
+    import subprocess
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+
+    prg, labels_path = tmp_path / "CP64.PRG", tmp_path / "embedded.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "art_embedded_title.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+    call(mpu, symbols["show_game"])
+
+    mpu.memory[symbols["game_index"]] = 0  # a: last mark scanline is character row 6
+    call(mpu, symbols["draw_x"])
+    shared_screen = bytes(mpu.memory[0x0400 + 6 * 40 + 14 : 0x0400 + 6 * 40 + 18])
+    shared_colour = bytes(mpu.memory[0xD800 + 6 * 40 + 14 : 0xD800 + 6 * 40 + 18])
+
+    mpu.memory[symbols["game_index"]] = 3  # d: first source attribute row is empty
+    call(mpu, symbols["draw_o"])
+
+    assert bytes(mpu.memory[0x0400 + 6 * 40 + 14 : 0x0400 + 6 * 40 + 18]) == shared_screen
+    assert bytes(mpu.memory[0xD800 + 6 * 40 + 14 : 0xD800 + 6 * 40 + 18]) == shared_colour
 
 
 def test_sequential_a_to_i_x_patches_stay_in_the_game_planes_and_leave_title_info_restorable(tmp_path):
@@ -252,9 +286,10 @@ def test_sequential_a_to_i_x_patches_stay_in_the_game_planes_and_leave_title_inf
     call(mpu, symbols["show_title"])
     assert bytes(mpu.memory[0x3800 : 0x4000]) == (ASSETS / "crystal-palace-charset.bin").read_bytes()
     call(mpu, symbols["show_info"])
-    source_info = (ASSETS / "crystal-palace-info.screen.bin").read_bytes()
+    source_info = bytearray((ASSETS / "crystal-palace-info.screen.bin").read_bytes())
+    source_info[23 * 40 + 24 : 23 * 40 + 39] = bytes((17, 38, 0, 17, 21, 9, 20, 0, 0, 0, 0, 0, 0, 0, 0))
     assert bytes(mpu.memory[0x0400 : 0x047D]) == source_info[:125]
-    assert bytes(mpu.memory[0x0725 : 0x07E8]) == source_info[805:]
+    assert bytes(mpu.memory[0x0725 : 0x07E8]) == bytes(source_info[805:])
 
 
 def test_charset_restore_reads_the_ram_copy_hidden_under_basic_rom_on_real_c64s():
@@ -316,6 +351,52 @@ def test_archive_compiler_uses_the_supplied_charset_alphabet_and_blank_slot():
     assert compiler.screen_code(" ") == 0
     chars, _, _ = compiler.compile_data()
     assert chars[:7] == bytes((3, 18, 25, 19, 20, 1, 12))  # CRYSTAL
+
+
+def test_archive_compiler_uses_verified_charset_punctuation_zero_padding_and_wraps_urls():
+    """The supplied charset—not PETSCII—defines the archive's punctuation slots."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("compile_info_markdown", ROOT / "scripts" / "compile_info_markdown.py")
+    compiler = importlib.util.module_from_spec(spec); spec.loader.exec_module(compiler)
+    charset = (ASSETS / "crystal-palace-charset.bin").read_bytes()
+
+    assert charset[0 * 8 : 1 * 8] == b"\x00" * 8
+    assert charset[39 * 8 : 40 * 8] == bytes((0, 0, 0, 0, 0, 16, 16, 0))  # period
+    assert charset[42 * 8 : 43 * 8] == bytes((0, 0, 0, 124, 0, 0, 0, 0))  # hyphen
+    assert compiler.screen_code(".") == 39
+    assert compiler.screen_code("-") == 42
+    assert compiler.screen_code(":") == 38
+    assert compiler.screen_code("/") == 41
+
+    chars, _, _ = compiler.compile_data()
+    assert 32 not in chars  # padding must be the verified blank glyph 0, never glyph 32
+    text_lines = ["".join(character for character, _ in line) for line in compiler.parse_markdown(compiler.SOURCE.read_text())]
+    assert text_lines[-2:] == [". github.com/lewismoten/cryst", "al-palace"]
+
+
+def test_archive_footer_is_q_quit_at_the_absolute_bottom(tmp_path):
+    """The quit affordance belongs in the fixed footer, outside the scroll region."""
+    import subprocess
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+
+    subprocess.run([sys.executable, str(ROOT / "scripts" / "compile_info_markdown.py")], check=True)
+    prg, labels_path = tmp_path / "CP64.PRG", tmp_path / "embedded.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "art_embedded_title.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+
+    call(mpu, symbols["show_info"])
+
+    footer = 23 * 40 + 24
+    assert bytes(mpu.memory[0x0400 + footer : 0x0400 + footer + 7]) == bytes((17, 38, 0, 17, 21, 9, 20))
+    assert bytes(mpu.memory[0xD800 + footer : 0xD800 + footer + 7]) == bytes((1, 12, 12, 12, 12, 12, 12))
+    assert bytes(mpu.memory[0x0400 + footer + 7 : 0x0400 + footer + 15]) == b"\0" * 8
 
 
 def test_archive_renderer_banks_in_ram_for_the_a600_compiled_text():
@@ -460,3 +541,8 @@ def test_archive_markdown_is_compiled_and_scrolls_a_fixed_panel(tmp_path):
     assert bytes(mpu.memory[0x047D : 0x047D + 29]) != first
     for _ in range(80): call(mpu, symbols["archive_scroll_down"])
     assert mpu.memory[symbols["info_scroll"]] == 24
+    # The final wrapped URL reaches the last content row; no blank viewport rows
+    # or clipped tail remain at the absolute end of the archive.
+    last_row = 0x047D + 16 * 40
+    assert bytes(mpu.memory[last_row : last_row + 9]) == bytes((1, 12, 42, 16, 1, 12, 1, 3, 5))  # AL-PALACE
+    assert bytes(mpu.memory[last_row + 9 : last_row + 29]) == b"\0" * 20

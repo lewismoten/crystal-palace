@@ -11,8 +11,8 @@ from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 79
-CURRENT_DESCRIPTION = "archive-ram-banking-fix"
+CURRENT_STAGE = 80
+CURRENT_DESCRIPTION = "archive-layout-and-board-planes"
 PROGRAM_SOURCE = ROOT / "src" / "art_embedded_title.asm"
 ART = ROOT / "assets" / "crystal-palace-screen-states"
 

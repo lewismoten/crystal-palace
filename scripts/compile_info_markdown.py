@@ -21,10 +21,14 @@ def screen_code(character: str) -> int:
         return ord(character) - ord("A") + 1
     if character == " ":
         return 0
-    # The supplied charset follows the C64 punctuation slots for this limited
-    # viewer vocabulary. Unsupported Markdown punctuation becomes spacing,
-    # rather than displaying a random graphics glyph.
-    return {".": 46, "-": 45, "|": 0}.get(character, 0)
+    # These are verified against the supplied charset bitmap, rather than the
+    # normal PETSCII punctuation positions.  In particular, 45/46 are parens,
+    # while the archive's hyphen and period are 42/39.
+    return {
+        "?": 37, ":": 38, ".": 39, ",": 40, "/": 41, "-": 42,
+        "!": 43, "(": 45, ")": 46, '"': 47, "“": 47, "”": 47,
+        ";": 38, "|": 0,
+    }.get(character, 0)
 
 
 def inline(text: str, base: str = "body") -> list[tuple[str, str]]:
@@ -48,16 +52,35 @@ def wrap(parts: list[tuple[str, str]], width: int = WIDTH) -> list[list[tuple[st
     result: list[list[tuple[str, str]]] = []
     current: list[tuple[str, str]] = []
     word: list[tuple[str, str]] = []
+    def append_word() -> None:
+        """Append one styled word, splitting it only when the viewport requires."""
+        nonlocal current, word
+        while word:
+            separator = 1 if current else 0
+            available = width - len(current) - separator
+            if len(word) <= width and len(word) > available and current:
+                result.append(current)
+                current = word
+                word = []
+            elif len(word) <= available:
+                if current:
+                    current.append((" ", current[-1][1]))
+                current.extend(word)
+                word = []
+            elif current:
+                current.append((" ", current[-1][1]))
+                current.extend(word[:available])
+                word = word[available:]
+                result.append(current)
+                current = []
+            else:
+                result.append(word[:width])
+                word = word[width:]
+
     for pair in parts + [(" ", "body")]:
         if pair[0].isspace():
             if word:
-                if current and len(current) + 1 + len(word) > width:
-                    result.append(current)
-                    current = []
-                elif current:
-                    current.append((" ", "body"))
-                current.extend(word[:width])
-                word = []
+                append_word()
             if pair[0] == "\n" and current:
                 result.append(current)
                 current = []
@@ -122,7 +145,7 @@ def compile_data() -> tuple[bytes, bytes, int]:
     for line in lines:
         line = line[:WIDTH]
         chars.extend(screen_code(char) for char, _ in line)
-        chars.extend(b" " * (WIDTH - len(line)))
+        chars.extend(bytes(WIDTH - len(line)))
         colours.extend(COLOUR[style] for _, style in line)
         colours.extend(bytes((COLOUR["body"],)) * (WIDTH - len(line)))
     return bytes(chars), bytes(colours), len(lines)

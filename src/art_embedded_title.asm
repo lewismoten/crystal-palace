@@ -299,6 +299,7 @@ show_info_charset_ready:
     jsr copy_colour
     lda #0
     sta info_scroll
+    jsr patch_info_footer
     jsr render_info_markdown
     lda #2
     sta view_mode
@@ -339,6 +340,25 @@ INFO_TEXT_SCREEN = $047d           ; row 3, column 5
 INFO_TEXT_COLOUR = $d87d
 INFO_SCROLLBAR_SCREEN = $049a ; row 3, column 34
 INFO_SCROLLBAR_COLOUR = $d89a
+INFO_FOOTER_SCREEN = $07b0    ; row 23, column 24: fixed archive bottom
+INFO_FOOTER_COLOUR = $dbb0
+INFO_FOOTER_WIDTH = 15
+patch_info_footer:
+    ldx #0
+info_footer_loop:
+    lda info_quit_footer,x
+    sta INFO_FOOTER_SCREEN,x
+    lda #12                  ; descriptive text in medium grey
+    cpx #0
+    bne info_footer_store_colour
+    lda #1                   ; bright white direct key
+info_footer_store_colour:
+    sta INFO_FOOTER_COLOUR,x
+    inx
+    cpx #INFO_FOOTER_WIDTH
+    bne info_footer_loop
+    rts
+info_quit_footer: .byte 17,38,0,17,21,9,20,0,0,0,0,0,0,0,0 ; Q: QUIT
 archive_scroll_up:
     lda info_scroll
     beq archive_scroll_done
@@ -1044,7 +1064,35 @@ patch_bitmap_destination_done:
     bne patch_bitmap_byte
     rts
 
+; Each source patch is a 4×4 character rectangle.  The middle board row
+; (d-f) begins at raster line 55, i.e. its leading character row is shared
+; with a-c's final raster line.  That leading source row has no middle-mark
+; pixels, so do not repaint its screen/color attributes: they belong to the
+; preceding cell's boundary byte.  The bitmap patch remains the exact 100-byte
+; raster stream and still writes all 25 scanlines.
 patch_screen:
+    ldx game_index
+    cpx #3
+    bcc patch_screen_full
+    cpx #6
+    bcs patch_screen_full
+    clc
+    lda src
+    adc #4
+    sta src
+    bcc patch_screen_source_skip_done
+    inc src+1
+patch_screen_source_skip_done:
+    clc
+    lda out
+    adc #40
+    sta out
+    bcc patch_screen_destination_skip_done
+    inc out+1
+patch_screen_destination_skip_done:
+    ldx #3
+    bne patch_screen_row
+patch_screen_full:
     ldx #4
 patch_screen_row:
     ldy #0

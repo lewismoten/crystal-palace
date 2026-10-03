@@ -4,9 +4,9 @@ A Commodore 64 feasibility project for running **the original Crystal-9 packed I
 
 The present executable is an engineering preview, not a claim of finished playable model parity. It combines source-exact Crystal Palace screen art with bounded, source-byte-backed Crystal-9 proof gates.
 
-## Current milestone — Stage 079
+## Current milestone — Stage 080
 
-`cs64-079-archive-ram-banking-fix.d64` is the current disk image produced locally by the build. It reads compiled INFO archive rows from RAM beneath BASIC ROM on a real C64, uses the supplied charset's blank/letter slots, handles archive Cursor Down before the ambiguous screen-code Q, and validates disk directory/file chains and BAM allocation before publishing.
+`cs64-080-archive-layout-and-board-planes.d64` is the current disk image produced locally by the build. It reads INFO rows under BASIC ROM correctly, uses the supplied punctuation and blank glyphs, renders a fixed `Q: QUIT` archive footer, prevents middle-row marks from rewriting top-row cell attributes, and uses rotationally optimized 1541 directory/data-sector chains. It validates disk directory/file chains and BAM allocation before publishing.
 
 There is no progress meter on a human mark. Rendering a supplied X/O patch is immediate, and showing a completed brown/orange/red/yellow line without an actual computer inference was misleading. A future meter may appear only across real original-weight disk/compute boundaries and will finish yellow from left to right.
 
