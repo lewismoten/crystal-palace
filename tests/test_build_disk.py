@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_original_c9w00_embedding_bridge():
+def test_current_disk_stage_reports_vic_cell_address_repair():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 72
-    assert builder.CURRENT_DESCRIPTION == "original-c9w00-embedding-bridge"
+    assert builder.CURRENT_STAGE == 73
+    assert builder.CURRENT_DESCRIPTION == "vic-cell-address-repair"

@@ -663,32 +663,35 @@ draw_o:
     sta out+1
     jmp patch_screen
 
+; Cell patches are stored linearly, but C64 bitmap RAM is character-row
+; interleaved.  `out` therefore indexes a little-endian address stream.
 patch_bitmap:
-    ldx #24
-patch_bitmap_row:
-    ldy #0
+    ldx #192
 patch_bitmap_byte:
+    ldy #0
     lda (src),y
-    sta (out),y
+    sta mark_byte
+    lda (out),y
+    sta dest
     iny
-    cpy #8
-    bne patch_bitmap_byte
-    clc
-    lda src
-    adc #8
-    sta src
-    bcc patch_bitmap_source_done
+    lda (out),y
+    sta dest+1
+    lda mark_byte
+    ldy #0
+    sta (dest),y
+    inc src
+    bne patch_bitmap_source_done
     inc src+1
 patch_bitmap_source_done:
     clc
     lda out
-    adc #40
+    adc #2
     sta out
-    bcc patch_bitmap_dest_done
+    bcc patch_bitmap_destination_done
     inc out+1
-patch_bitmap_dest_done:
+patch_bitmap_destination_done:
     dex
-    bne patch_bitmap_row
+    bne patch_bitmap_byte
     rts
 
 patch_screen:

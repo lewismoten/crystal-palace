@@ -20,9 +20,9 @@ def load_builder():
     return module
 
 
-def test_stage_072_declares_original_c9w00_embedding_bridge():
+def test_stage_073_declares_vic_cell_address_repair():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (72, "original-c9w00-embedding-bridge")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (73, "vic-cell-address-repair")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
 
 
@@ -188,6 +188,32 @@ def test_embedded_preview_has_correct_game_vic_layout_and_live_a_to_i_marks(tmp_
     mpu.memory[symbols["game_index"]] = 1; call(mpu, symbols["draw_o"])
     assert mpu.memory[symbols["board_state"] + 1] == 2
     assert (mpu.memory[0x0400 + 4 * 40 + 19] >> 4) == 3  # source-exact cyan O
+
+
+def test_title_and_info_restore_after_live_board_patches(tmp_path):
+    """Q/I must restore their full supplied planes after a move changed the board."""
+    import subprocess
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+
+    prg, labels_path = tmp_path / "CP64.PRG", tmp_path / "embedded.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "art_embedded_title.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+    call(mpu, symbols["show_game"])
+    call(mpu, symbols["draw_x"])
+    mpu.memory[symbols["title_mode"]] = 1
+    call(mpu, symbols["show_title"])
+    title = bytearray((ASSETS / "crystal-palace-title-player-1.screen.bin").read_bytes())
+    title[882:888] = bytes((9, 0, 9, 14, 6, 15))
+    title[922:928] = bytes((17, 0, 17, 21, 9, 20))
+    assert bytes(mpu.memory[0x0400 : 0x07E8]) == bytes(title)
+    call(mpu, symbols["show_info"])
+    assert bytes(mpu.memory[0x0400 : 0x07E8]) == (ASSETS / "crystal-palace-info.screen.bin").read_bytes()
 
 
 def test_embedded_title_selection_cycles_without_bouncing_to_player_one(tmp_path):

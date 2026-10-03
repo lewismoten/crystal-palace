@@ -356,13 +356,13 @@ def test_stage_058_preview_uses_only_native_art_navigation_and_restores_title_mo
     call(mpu, symbols["preview_title_up"]); assert mpu.memory[symbols["preview_title_mode"]] == 2
 
 
-def test_stage_072_build_uses_original_c9w00_embedding_bridge_and_archives_the_named_disk(tmp_path):
-    """The release builder reserves Stage 072 for the real original-weight bridge."""
+def test_stage_073_build_uses_vic_cell_address_repair(tmp_path):
+    """The release builder reserves Stage 073 for the visible cell repair."""
     import importlib.util
     import sys
 
     sys.path.insert(0, str(ROOT / "scripts"))
     spec = importlib.util.spec_from_file_location("build_disk", ROOT / "scripts" / "build_disk.py")
     builder = importlib.util.module_from_spec(spec); spec.loader.exec_module(builder)
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (72, "original-c9w00-embedding-bridge")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (73, "vic-cell-address-repair")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
