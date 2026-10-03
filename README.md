@@ -4,13 +4,13 @@ A Commodore 64 feasibility project for running **the original Crystal-9 packed I
 
 The present executable is an engineering preview, not a claim of finished playable model parity. It combines source-exact Crystal Palace screen art with bounded, source-byte-backed Crystal-9 proof gates.
 
-## Current milestone — Stage 076
+## Current milestone — Stage 077
 
-`cs64-076-validated-d64-and-plane-previews.d64` is the current disk image produced locally by the build. It embeds the supplied title, archive/info, game-room, and custom-character planes; restores the custom charset when returning from the bitmap playfield; adds a visible horizontal raster line below the tic-tac-toe grid; and validates the disk directory/file chains before publishing.
+`cs64-077-browser-input-and-scrollable-archive.d64` is the current disk image produced locally by the build. It accepts RETURN/Enter on the title, debounces browser Cursor Down repeats without relying on a synthetic keyboard matrix, routes C64 screen-code `A`–`I` input through an assembled subroutine, and overlays compiled `ARCHIVE.md` text with a scroll marker inside the supplied INFO frame. It validates the disk directory/file chains and BAM allocation before publishing.
 
-The line has a strict meaning: it completes across the three immediate, actual X/O render operations (bitmap patch, screen patch, colour patch). It is **not** a timer animation and does not imply that full model inference or a computer move has completed. Console highlights are ambient presentation only.
+There is no progress meter on a human mark. Rendering a supplied X/O patch is immediate, and showing a completed brown/orange/red/yellow line without an actual computer inference was misleading. A future meter may appear only across real original-weight disk/compute boundaries and will finish yellow from left to right.
 
-The interactive browser path no longer calls KERNAL disk loads after each A–I key: that unconfirmed path is retained as an independently tested original-data bridge, not allowed to crash the board. Full legal-history model gameplay remains unestablished.
+The interactive browser path no longer calls KERNAL disk loads after each A–I key: that unconfirmed path is retained as an independently tested original-data bridge, not allowed to crash the board. Full legal-history model gameplay remains unestablished. See [`docs/D64_MANIFEST.md`](docs/D64_MANIFEST.md) for the exact 49-file disk layout and allocation rules.
 
 ## Screen-state source art
 

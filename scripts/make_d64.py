@@ -136,12 +136,23 @@ def validate_d64(image_path: Path) -> dict[str, object]:
                 file_track, file_sector = next_track, next_sector
         track, sector = image[directory], image[directory + 1]
     multiply_referenced = sorted(address for address, names in file_sectors.items() if len(names) > 1)
+    bam_claimed = {(BAM_TRACK, BAM_SECTOR), *directory_sectors, *file_sectors}
+    bam_unclaimed_used: list[tuple[int, int]] = []
+    for candidate_track in range(1, 36):
+        entry = bam + 4 + (candidate_track - 1) * 4
+        bitmap = image[entry + 1] | image[entry + 2] << 8 | image[entry + 3] << 16
+        for candidate_sector in range(sectors_on_track(candidate_track)):
+            is_free = bool(bitmap & (1 << candidate_sector))
+            address = (candidate_track, candidate_sector)
+            if not is_free and address not in bam_claimed:
+                bam_unclaimed_used.append(address)
     return {
         "active_files": active_files,
         "directory_sectors": sorted(directory_sectors),
         "file_sectors_on_directory_track": file_sectors_on_directory_track,
         "multiply_referenced_file_sectors": multiply_referenced,
         "malformed_entries": malformed_entries,
+        "bam_unclaimed_used_sectors": bam_unclaimed_used,
         "header_dos_type": image[bam + 0xA5 : bam + 0xA7],
     }
 
@@ -158,11 +169,11 @@ def build_d64_files(files: dict[str, Path], output_path: Path, disk_name: str = 
 
     image = bytearray(174_848)
     free = {(track, sector) for track in range(1, 36) for sector in range(sectors_on_track(track))}
-    # Track 18 is DOS metadata territory.  Even spare sectors on that track
-    # must never enter a file chain: disk tools rightfully treat that as a
-    # directory-track crossing and can no longer trust the image.
-    reserved = {(DIRECTORY_TRACK, sector) for sector in range(sectors_on_track(DIRECTORY_TRACK))}
-    free -= reserved
+    # A directory sector becomes allocated only when it is actually linked.
+    # Spare track-18 sectors remain BAM-free but are excluded from file chains:
+    # this is both DOS-correct and avoids Doctor's unreachable-used-sector alarm.
+    free.remove((BAM_TRACK, BAM_SECTOR))
+    free -= {(DIRECTORY_TRACK, DIRECTORY_SECTOR + index) for index in range(directory_sectors)}
     payloads = [(name, path.read_bytes()) for name, path in files.items()]
     if any(len(payload) < 3 for _, payload in payloads):
         raise ValueError("every PRG must contain a two-byte load address and code")
@@ -172,7 +183,8 @@ def build_d64_files(files: dict[str, Path], output_path: Path, disk_name: str = 
         interleave = 10 if math.gcd(10, sectors) == 1 else 7
         return [(track, sector) for sector in interleaved_sectors(track, sectors, interleave) if (track, sector) in free]
 
-    available = [address for track in range(1, 36) for address in rotational_order(track)]
+    track_order = [track for distance in range(1, 18) for track in (DIRECTORY_TRACK - distance, DIRECTORY_TRACK + distance) if 1 <= track <= 35]
+    available = [address for track in track_order for address in rotational_order(track) if track != DIRECTORY_TRACK]
     if needed > len(available):
         raise ValueError("files do not fit on a standard 35-track D64")
 
@@ -214,7 +226,7 @@ def build_d64_files(files: dict[str, Path], output_path: Path, disk_name: str = 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_bytes(image)
     report = validate_d64(output_path)
-    if report["file_sectors_on_directory_track"] or report["multiply_referenced_file_sectors"] or report["malformed_entries"] or report["header_dos_type"] != b"2A":
+    if report["file_sectors_on_directory_track"] or report["multiply_referenced_file_sectors"] or report["malformed_entries"] or report["bam_unclaimed_used_sectors"] or report["header_dos_type"] != b"2A":
         raise ValueError(f"D64 validation failed: {report}")
 
 

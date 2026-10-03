@@ -20,9 +20,9 @@ def load_builder():
     return module
 
 
-def test_stage_076_declares_validated_d64_and_plane_previews():
+def test_stage_077_declares_browser_input_and_scrollable_archive():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (76, "validated-d64-and-plane-previews")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (77, "browser-input-and-scrollable-archive")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
 
 
@@ -116,7 +116,7 @@ def test_assembled_embedded_c9w00_loader_rejects_wrong_packet_header(tmp_path):
 
 def test_embedded_title_uses_declared_vic_addresses_and_direct_plane_copies():
     source = (ROOT / "src" / "art_embedded_title.asm").read_text()
-    assert "* = $3800" in source and "* = $4000" in source and "* = $4400" in source
+    assert "* = $3800" in source and "* = $4000" in source and "* = $4c00" in source
     assert "lda #$1e" in source and "sta $d018" in source
     assert "show_title:" in source and "show_info:" in source and "show_game:" in source
     assert "ldx view_mode" in source
@@ -147,11 +147,12 @@ def test_assembled_embedded_title_copies_exact_planes_to_live_vic_memory(tmp_pat
     call(mpu, symbols["show_title"])
     expected_screen = bytearray((ASSETS / "crystal-palace-title-player-1.screen.bin").read_bytes())
     expected_colour = bytearray((ASSETS / "crystal-palace-title-player-1.color.bin").read_bytes())
-    expected_screen[882:888] = bytes((9, 0, 9, 14, 6, 15))
-    expected_colour[882:888] = b"\x07" * 6
-    expected_screen[922:928] = bytes((17, 0, 17, 21, 9, 20))
-    expected_colour[922:928] = b"\x07" * 6
+    expected_screen[882:886] = bytes((9, 14, 6, 15))
+    expected_colour[882:886] = bytes((7, 1, 1, 1))
+    expected_screen[922:926] = bytes((17, 21, 9, 20))
+    expected_colour[922:926] = bytes((7, 1, 1, 1))
     for offset in (371, 451, 531): expected_colour[offset] = 7
+    for offset in (242, 282, 321, 322): expected_colour[offset] = 11
     assert bytes(mpu.memory[0x0400 : 0x0400 + 1000]) == bytes(expected_screen)
     assert bytes(mpu.memory[0xD800 : 0xD800 + 1000]) == bytes(expected_colour)
 
@@ -169,25 +170,21 @@ def test_embedded_preview_has_correct_game_vic_layout_and_live_a_to_i_marks(tmp_
     prg, labels_path = tmp_path / "CP64.PRG", tmp_path / "embedded.lbl"
     subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "art_embedded_title.asm")], check=True, capture_output=True, text=True)
     symbols = labels(labels_path)
-    assert {"show_game", "game_key", "draw_x", "draw_o", "game_bitmap_copy", "progress_reset"} <= symbols.keys()
+    assert {"show_game", "game_key", "process_game_key", "draw_x", "draw_o", "game_bitmap_copy"} <= symbols.keys()
     image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
     mpu.memory[load : load + len(image) - 2] = image[2:]
     call(mpu, symbols["show_game"])
-    expected_bitmap = bytearray((ASSETS / "crystal-palace-game-blank.bitmap.bin").read_bytes())
-    for segment in range(12):
-        expected_bitmap[0x11F4 + segment * 8 : 0x11F8 + segment * 8] = b"\0" * 4
-    assert bytes(mpu.memory[0x2000 : 0x3F40]) == bytes(expected_bitmap)
-    expected_screen = bytearray((ASSETS / "crystal-palace-game-blank.screen.bin").read_bytes())
-    for segment in range(12):
-        expected_screen[574 + segment] &= 0x0F
-    assert bytes(mpu.memory[0x0400 : 0x07E8]) == bytes(expected_screen)
+    expected_bitmap = (ASSETS / "crystal-palace-game-blank.bitmap.bin").read_bytes()
+    assert bytes(mpu.memory[0x2000 : 0x3F40]) == expected_bitmap
+    expected_screen = (ASSETS / "crystal-palace-game-blank.screen.bin").read_bytes()
+    assert bytes(mpu.memory[0x0400 : 0x07E8]) == expected_screen
     assert (mpu.memory[0xD011] & 0x20, mpu.memory[0xD016] & 0x10, mpu.memory[0xD018], mpu.memory[0xDD00] & 3) == (0x20, 0x10, 0x18, 3)
 
     mpu.memory[symbols["game_index"]] = 0; call(mpu, symbols["draw_x"])
     assert mpu.memory[symbols["board_state"]] == 1
     patch = (ROOT / "assets" / "crystal-palace-screen-states" / "cells" / "x-cells.bitmap.bin").read_bytes()
     destinations = (ROOT / "assets" / "crystal-palace-screen-states" / "cells" / "bitmap-destination-addresses.bin").read_bytes()
-    for offset, value in enumerate(patch[:192]):
+    for offset, value in enumerate(patch[:100]):
         address = int.from_bytes(destinations[offset * 2 : offset * 2 + 2], "little")
         assert mpu.memory[address] == value
     assert (mpu.memory[0x0400 + 4 * 40 + 15] >> 4) == 10  # source-exact light-red X
@@ -195,12 +192,11 @@ def test_embedded_preview_has_correct_game_vic_layout_and_live_a_to_i_marks(tmp_
     mpu.memory[symbols["game_index"]] = 1; call(mpu, symbols["draw_o"])
     assert mpu.memory[symbols["board_state"] + 1] == 2
     assert (mpu.memory[0x0400 + 4 * 40 + 19] >> 4) == 3  # source-exact cyan O
-    # The line sits below the grid in bitmap RAM; it must visibly finish after
-    # the real X bitmap/screen/colour patch boundaries, not leave a screen-code
-    # meter hidden in multicolour metadata.
+    # Human paint is immediate visual acknowledgement, not model inference;
+    # the supplied baseline beneath the board remains unchanged.
     for index in range(12):
-        assert bytes(mpu.memory[0x31F4 + index * 8 : 0x31F8 + index * 8]) == b"\x55" * 4
-    assert [mpu.memory[0x063E + index] >> 4 for index in range(12)] == [9] * 4 + [8] * 4 + [10] * 3 + [7]
+        start = 0x11F4 + index * 8
+        assert bytes(mpu.memory[0x31F4 + index * 8 : 0x31F8 + index * 8]) == expected_bitmap[start : start + 4]
 
 
 def test_title_and_info_restore_after_live_board_patches(tmp_path):
@@ -224,11 +220,13 @@ def test_title_and_info_restore_after_live_board_patches(tmp_path):
     call(mpu, symbols["show_title"])
     assert bytes(mpu.memory[0x3800 : 0x4000]) == (ASSETS / "crystal-palace-charset.bin").read_bytes()
     title = bytearray((ASSETS / "crystal-palace-title-player-1.screen.bin").read_bytes())
-    title[882:888] = bytes((9, 0, 9, 14, 6, 15))
-    title[922:928] = bytes((17, 0, 17, 21, 9, 20))
+    title[882:886] = bytes((9, 14, 6, 15))
+    title[922:926] = bytes((17, 21, 9, 20))
     assert bytes(mpu.memory[0x0400 : 0x07E8]) == bytes(title)
     call(mpu, symbols["show_info"])
-    assert bytes(mpu.memory[0x0400 : 0x07E8]) == (ASSETS / "crystal-palace-info.screen.bin").read_bytes()
+    source_info = (ASSETS / "crystal-palace-info.screen.bin").read_bytes()
+    assert bytes(mpu.memory[0x0400 : 0x047D]) == source_info[:125]
+    assert bytes(mpu.memory[0x0725 : 0x07E8]) == source_info[805:]
 
 
 def test_sequential_a_to_i_x_patches_stay_in_the_game_planes_and_leave_title_info_restorable(tmp_path):
@@ -255,7 +253,9 @@ def test_sequential_a_to_i_x_patches_stay_in_the_game_planes_and_leave_title_inf
     call(mpu, symbols["show_title"])
     assert bytes(mpu.memory[0x3800 : 0x4000]) == (ASSETS / "crystal-palace-charset.bin").read_bytes()
     call(mpu, symbols["show_info"])
-    assert bytes(mpu.memory[0x0400 : 0x07E8]) == (ASSETS / "crystal-palace-info.screen.bin").read_bytes()
+    source_info = (ASSETS / "crystal-palace-info.screen.bin").read_bytes()
+    assert bytes(mpu.memory[0x0400 : 0x047D]) == source_info[:125]
+    assert bytes(mpu.memory[0x0725 : 0x07E8]) == source_info[805:]
 
 
 def test_charset_restore_reads_the_ram_copy_hidden_under_basic_rom_on_real_c64s():
@@ -293,7 +293,8 @@ def test_title_actions_return_to_the_key_loop_without_falling_into_basic():
     source = (ROOT / "src" / "art_embedded_title.asm").read_text()
     assert "title_number_game:\n    jsr show_game\n    jmp key_loop" in source
     assert "title_info:\n    jsr show_info\n    jmp key_loop" in source
-    assert "title_down:\n    jsr select_title_down\n    jsr wait_key_release\n    jmp key_loop" in source
+    assert "title_down:\n    jsr select_title_down\n    jsr wait_title_down_release\n    jmp key_loop" in source
+    assert "cmp #13                  ; RETURN/Enter" in source
     assert "wait_key_release:\n    lda #0\n    sta $c6" in source
 
 
@@ -303,3 +304,99 @@ def test_game_dispatch_accepts_browser_lowercase_a_to_i():
     assert "sbc #'a'" in source
     assert "cmp #$c1" in source
     assert "sbc #$c1" in source
+
+
+def test_title_variants_are_exact_deltas_over_the_single_player_base(tmp_path):
+    import subprocess
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+
+    prg, labels_path = tmp_path / "CP64.PRG", tmp_path / "embedded.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "art_embedded_title.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+    for mode in (0, 2):
+        mpu.memory[symbols["title_mode"]] = mode
+        call(mpu, symbols["show_title"])
+        expected_screen = bytearray((ASSETS / f"crystal-palace-title-player-{mode}.screen.bin").read_bytes())
+        expected_colour = bytearray((ASSETS / f"crystal-palace-title-player-{mode}.color.bin").read_bytes())
+        expected_screen[882:886] = bytes((9, 14, 6, 15)); expected_colour[882:886] = bytes((7, 1, 1, 1))
+        expected_screen[922:926] = bytes((17, 21, 9, 20)); expected_colour[922:926] = bytes((7, 1, 1, 1))
+        for offset in (371, 451, 531): expected_colour[offset] = 7
+        for offset in (242, 282, 321, 322): expected_colour[offset] = 11
+        assert bytes(mpu.memory[0x0400 : 0x07E8]) == bytes(expected_screen)
+        assert bytes(mpu.memory[0xD800 : 0xDBE8]) == bytes(expected_colour)
+
+
+def test_lowercase_g_runs_the_actual_game_input_subroutine_without_disk_load(tmp_path):
+    import subprocess
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+
+    prg, labels_path = tmp_path / "CP64.PRG", tmp_path / "embedded.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "art_embedded_title.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+    call(mpu, symbols["show_game"])
+    mpu.a = ord("g")
+    call(mpu, symbols["process_game_key"])
+    assert mpu.memory[symbols["board_state"] + 6] == 1
+    assert "materialize_selected_embedding" not in (ROOT / "src" / "art_embedded_title.asm").read_text().split("process_game_key:", 1)[1].split("materialize_selected_embedding:", 1)[0]
+
+
+def test_real_c64_screen_codes_a_to_i_patch_the_exact_all_x_reference_without_disk_load(tmp_path):
+    """The browser's normal GETIN path delivers A–I as screen codes 1–9."""
+    import subprocess
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+
+    prg, labels_path = tmp_path / "CP64.PRG", tmp_path / "embedded.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "art_embedded_title.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+    call(mpu, symbols["show_game"])
+    for screen_code in range(1, 10):
+        mpu.a = screen_code
+        call(mpu, symbols["process_game_key"])
+    assert bytes(mpu.memory[symbols["board_state"] : symbols["board_state"] + 9]) == b"\x01" * 9
+    assert bytes(mpu.memory[0x2000 : 0x3F40]) == (ASSETS / "crystal-palace-game-all-x.bitmap.bin").read_bytes()
+    assert bytes(mpu.memory[0x0400 : 0x07E8]) == (ASSETS / "crystal-palace-game-all-x.screen.bin").read_bytes()
+    assert bytes(mpu.memory[0xD800 : 0xDBE8]) == (ASSETS / "crystal-palace-game-all-x.color.bin").read_bytes()
+
+
+def test_archive_markdown_is_compiled_and_scrolls_a_fixed_panel(tmp_path):
+    import subprocess
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+    subprocess.run([sys.executable, str(ROOT / "scripts" / "compile_info_markdown.py")], check=True)
+    prg, labels_path = tmp_path / "CP64.PRG", tmp_path / "embedded.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "art_embedded_title.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+    call(mpu, symbols["show_info"])
+    first = bytes(mpu.memory[0x047D : 0x047D + 29])
+    colours = bytes(mpu.memory[0xD87D : 0xD87D + 29])
+    assert first[:7] == bytes((3, 18, 25, 19, 20, 1, 12))  # CRYSTAL custom charset codes
+    assert colours[:7] == b"\x07" * 7
+    assert mpu.memory[0x049A] != 0
+    call(mpu, symbols["archive_scroll_down"])
+    assert mpu.memory[symbols["info_scroll"]] == 1
+    assert bytes(mpu.memory[0x047D : 0x047D + 29]) != first
+    for _ in range(80): call(mpu, symbols["archive_scroll_down"])
+    assert mpu.memory[symbols["info_scroll"]] == 24

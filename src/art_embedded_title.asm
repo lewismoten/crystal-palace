@@ -18,20 +18,51 @@ EMBEDDING_VECTOR = $c100
 src = $fb
 out = $fd
 dest = $f9
+info_colour_out = $f7
 
 start:
     lda #1
     sta title_mode
     jsr show_title
 key_loop:
-    jsr ambient_console_lights
     jsr GETIN
     beq key_loop
     ldx view_mode            ; preserve GETIN's key in A
     beq title_key
     cpx #1
-    bne key_not_game
+    bne key_to_info
     jmp game_key
+key_to_info:
+    jmp info_key
+info_key:
+    cmp #'Q'
+    bne info_not_upper_q
+    jmp return_title
+info_not_upper_q:
+    cmp #'q'
+    bne info_not_lower_q
+    jmp return_title
+info_not_lower_q:
+    cmp #17                  ; PETSCII Q in uppercase character mode
+    bne info_not_petscii_q
+    jmp return_title
+info_not_petscii_q:
+    cmp #$91
+    beq info_scroll_up
+    cmp #$11
+    beq info_scroll_down
+    cmp #' '
+    beq info_page_down
+    jmp key_loop
+info_scroll_up:
+    jsr archive_scroll_up
+    jmp key_loop
+info_scroll_down:
+    jsr archive_scroll_down
+    jmp key_loop
+info_page_down:
+    jsr archive_page_down
+    jmp key_loop
 key_not_game:
     cmp #'Q'
     bne non_game_not_upper_q
@@ -62,18 +93,33 @@ title_key:
     cmp #$91
     beq title_up
     cmp #$11
-    beq title_down
+    bne title_not_down
+    jmp title_down
+title_not_down:
+    cmp #13                  ; RETURN/Enter in C64 Online and KERNAL GETIN
+    beq title_start_selected
     cmp #' '
     bne title_not_space
+title_start_selected:
     jsr show_game
     jmp key_loop
 title_not_space:
     cmp #'1'
-    beq title_number_game
+    bne title_not_one
+    lda #1
+    sta title_mode
+    jmp title_number_game
+title_not_one:
     cmp #'2'
-    beq title_number_game
+    bne title_not_two
+    lda #2
+    sta title_mode
+    jmp title_number_game
+title_not_two:
     cmp #'0'
     bne title_not_number_game
+    lda #0
+    sta title_mode
 title_number_game:
     jsr show_game
     jmp key_loop
@@ -105,6 +151,24 @@ wait_key_release_poll:
     bne wait_key_release_poll
     sta $c6
     rts
+; Browser keydown repeats can leave GETIN's queue empty while the physical
+; C64 cursor-down matrix switch is still held. Release on CIA1's real matrix
+; state before returning to the title loop, rather than trusting $c6 alone.
+wait_title_down_release:
+    ; Do not trust a browser's synthetic keyboard matrix.  Let its queued
+    ; keydown repeat settle while GETIN is deliberately not polled, then drop
+    ; every queued repeat.  This makes one physical tap one menu transition.
+    ldx #50
+title_down_settle_outer:
+    ldy #0
+title_down_settle_inner:
+    dey
+    bne title_down_settle_inner
+    dex
+    bne title_down_settle_outer
+    lda #0
+    sta $c6
+    rts
 select_title_up:
     lda title_mode
     beq up_to_two
@@ -121,7 +185,7 @@ store_title:
     rts
 title_down:
     jsr select_title_down
-    jsr wait_key_release
+    jsr wait_title_down_release
     jmp key_loop
 select_title_down:
     lda title_mode
@@ -146,37 +210,77 @@ exit_basic:
 
 show_title:
     jsr restore_title_charset
-    lda title_mode
-    beq title_zero
-    cmp #1
-    beq title_one
-    lda #<title2_screen
-    ldy #>title2_screen
-    jsr copy_screen
-    lda #<title2_colour
-    ldy #>title2_colour
-    jsr copy_colour
-    bne title_done
-title_zero:
-    lda #<title0_screen
-    ldy #>title0_screen
-    jsr copy_screen
-    lda #<title0_colour
-    ldy #>title0_colour
-    jsr copy_colour
-    bne title_done
-title_one:
     lda #<title1_screen
     ldy #>title1_screen
     jsr copy_screen
     lda #<title1_colour
     ldy #>title1_colour
     jsr copy_colour
+    jsr patch_title_variant
+    jsr cleanup_title_radar_labels
 title_done:
     jsr patch_title_hints
     lda #0
     sta view_mode
     jmp set_title_vic
+
+; All three supplied title planes differ only in the selector arrow and its
+; highlighted row. Keep player-one as the immutable base and apply the exact
+; recorded deltas instead of embedding/copying three almost-identical screens.
+patch_title_variant:
+    lda title_mode
+    cmp #1
+    beq title_variant_done
+    lda #0
+    sta $0571                ; erase player-one arrow (screen offset 369)
+    lda #13                  ; dim unselected player-one row
+    sta $d973
+    ldx #0
+patch_title_common_colour:
+    lda #13
+    sta $d975,x
+    inx
+    cpx #12
+    bne patch_title_common_colour
+    lda title_mode
+    beq patch_title_zero
+    lda #44                  ; arrow at player-two screen offset 449
+    sta $05c1
+    lda #7
+    sta $d9c3
+    ldx #0
+patch_title_two_colour:
+    lda #7
+    sta $d9c5,x
+    inx
+    cpx #16
+    bne patch_title_two_colour
+    rts
+patch_title_zero:
+    lda #44                  ; arrow at AI-vs-AI screen offset 529
+    sta $0611
+    lda #7
+    sta $da13
+    ldx #0
+patch_title_zero_colour:
+    lda #7
+    sta $da15,x
+    inx
+    cpx #8
+    bne patch_title_zero_colour
+title_variant_done:
+    rts
+
+; These four supplied map-panel glyphs read as Y/4/4/7 labels in the title's
+; radar art. Keep the source plane immutable but soften them at presentation
+; time so they recede into the map instead of competing with the menu.
+cleanup_title_radar_labels:
+    lda #11                  ; dark grey
+    sta $d8f2                ; row 6, col 2
+    sta $d91a                ; row 7, col 2
+    sta $d941                ; row 8, col 1
+    sta $d942                ; row 8, col 2
+    rts
 
 show_info:
     jsr restore_title_charset
@@ -186,6 +290,9 @@ show_info:
     lda #<info_colour
     ldy #>info_colour
     jsr copy_colour
+    lda #0
+    sta info_scroll
+    jsr render_info_markdown
     lda #2
     sta view_mode
     jmp set_title_vic
@@ -208,10 +315,167 @@ clear_board:
     sta turn_mark
     lda #1
     sta view_mode
-    jsr progress_reset
     jmp set_game_vic
 
+; The archive viewer overlays its supplied decorative frame only inside the
+; 29×17 vacant panel. Markdown is precompiled at build time; this runtime path
+; just copies bounded character and colour rows and paints an honest position
+; marker beside them.
+INFO_ROWS = 17
+INFO_TEXT_COLUMNS = 29
+INFO_TEXT_SCREEN = $047d           ; row 3, column 5
+INFO_TEXT_COLOUR = $d87d
+INFO_SCROLLBAR_SCREEN = $049a ; row 3, column 34
+INFO_SCROLLBAR_COLOUR = $d89a
+archive_scroll_up:
+    lda info_scroll
+    beq archive_scroll_done
+    dec info_scroll
+    jmp render_info_markdown
+archive_scroll_down:
+    lda info_scroll
+    cmp #INFO_LINE_COUNT-INFO_ROWS
+    bcs archive_scroll_done
+    inc info_scroll
+    jmp render_info_markdown
+archive_page_down:
+    lda info_scroll
+    clc
+    adc #INFO_ROWS-1
+    cmp #INFO_LINE_COUNT-INFO_ROWS+1
+    bcc archive_page_store
+    lda #INFO_LINE_COUNT-INFO_ROWS
+archive_page_store:
+    sta info_scroll
+    jmp render_info_markdown
+archive_scroll_done:
+    rts
+render_info_markdown:
+    lda #<info_markdown_chars
+    sta src
+    lda #>info_markdown_chars
+    sta src+1
+    lda #<info_markdown_colours
+    sta dest
+    lda #>info_markdown_colours
+    sta dest+1
+    ldx info_scroll
+info_seek_scroll:
+    cpx #0
+    beq info_seek_done
+    clc
+    lda src
+    adc #INFO_LINE_WIDTH
+    sta src
+    bcc info_seek_chars_no_carry
+    inc src+1
+info_seek_chars_no_carry:
+    clc
+    lda dest
+    adc #INFO_LINE_WIDTH
+    sta dest
+    bcc info_seek_colours_no_carry
+    inc dest+1
+info_seek_colours_no_carry:
+    dex
+    jmp info_seek_scroll
+info_seek_done:
+    lda #<INFO_TEXT_SCREEN
+    sta out
+    lda #>INFO_TEXT_SCREEN
+    sta out+1
+    lda #<INFO_TEXT_COLOUR
+    sta info_colour_out
+    lda #>INFO_TEXT_COLOUR
+    sta info_colour_out+1
+    ldx #INFO_ROWS
+info_copy_row:
+    ldy #0
+info_copy_character:
+    lda (src),y
+    sta (out),y
+    lda (dest),y
+    sta (info_colour_out),y
+    iny
+    cpy #INFO_TEXT_COLUMNS
+    bne info_copy_character
+    clc
+    lda src
+    adc #INFO_LINE_WIDTH
+    sta src
+    bcc info_chars_advanced
+    inc src+1
+info_chars_advanced:
+    clc
+    lda dest
+    adc #INFO_LINE_WIDTH
+    sta dest
+    bcc info_colours_advanced
+    inc dest+1
+info_colours_advanced:
+    clc
+    lda out
+    adc #40
+    sta out
+    bcc info_screen_advanced
+    inc out+1
+info_screen_advanced:
+    clc
+    lda info_colour_out
+    adc #40
+    sta info_colour_out
+    bcc info_colour_screen_advanced
+    inc info_colour_out+1
+info_colour_screen_advanced:
+    dex
+    bne info_copy_row
+    jmp render_info_scrollbar
+render_info_scrollbar:
+    lda #<INFO_SCROLLBAR_SCREEN
+    sta out
+    lda #>INFO_SCROLLBAR_SCREEN
+    sta out+1
+    lda #<INFO_SCROLLBAR_COLOUR
+    sta info_colour_out
+    lda #>INFO_SCROLLBAR_COLOUR
+    sta info_colour_out+1
+    ldy #0
+    ldx #0
+info_scrollbar_row:
+    lda #46                  ; dot-like track glyph
+    sta (out),y
+    lda #11                  ; dim grey track
+    sta (info_colour_out),y
+    cpx info_scroll
+    bne info_scrollbar_advance
+    lda #42                  ; visibly distinct scroll position glyph
+    sta (out),y
+    lda #7
+    sta (info_colour_out),y
+info_scrollbar_advance:
+    clc
+    lda out
+    adc #40
+    sta out
+    bcc info_scrollbar_screen_done
+    inc out+1
+info_scrollbar_screen_done:
+    clc
+    lda info_colour_out
+    adc #40
+    sta info_colour_out
+    bcc info_scrollbar_colour_done
+    inc info_colour_out+1
+info_scrollbar_colour_done:
+    inx
+    cpx #INFO_ROWS
+    bne info_scrollbar_row
+    rts
+
 game_key:
+    jsr process_game_key
+    jmp key_loop
+process_game_key:
     cmp #'Q'
     bne game_not_q_upper
     jmp return_title
@@ -263,7 +527,7 @@ game_index_ready:
 game_draw_x:
     jsr draw_x
 game_key_done:
-    jmp key_loop
+    rts
 
 ; Accepted board keys remain human X marks.  This bridge only pages and decodes
 ; the selected original token row; it neither selects nor paints a model move.
@@ -599,7 +863,6 @@ bitmap_done:
     rts
 
 draw_x:
-    jsr progress_reset
     ldx game_index
     lda #1
     sta board_state,x
@@ -612,7 +875,6 @@ draw_x:
     lda bitmap_destination_hi,x
     sta out+1
     jsr patch_bitmap
-    jsr progress_stage_one
     ldx game_index
     lda x_screen_lo,x
     sta src
@@ -623,7 +885,6 @@ draw_x:
     lda screen_out_hi,x
     sta out+1
     jsr patch_screen
-    jsr progress_stage_two
     ldx game_index
     lda x_colour_lo,x
     sta src
@@ -634,10 +895,9 @@ draw_x:
     lda colour_out_hi,x
     sta out+1
     jsr patch_screen
-    jmp progress_stage_three
+    rts
 
 draw_o:
-    jsr progress_reset
     ldx game_index
     lda #2
     sta board_state,x
@@ -650,7 +910,6 @@ draw_o:
     lda bitmap_destination_hi,x
     sta out+1
     jsr patch_bitmap
-    jsr progress_stage_one
     ldx game_index
     lda o_screen_lo,x
     sta src
@@ -661,7 +920,6 @@ draw_o:
     lda screen_out_hi,x
     sta out+1
     jsr patch_screen
-    jsr progress_stage_two
     ldx game_index
     lda o_colour_lo,x
     sta src
@@ -672,12 +930,12 @@ draw_o:
     lda colour_out_hi,x
     sta out+1
     jsr patch_screen
-    jmp progress_stage_three
+    rts
 
 ; Cell patches are stored linearly, but C64 bitmap RAM is character-row
 ; interleaved.  `out` therefore indexes a little-endian address stream.
 patch_bitmap:
-    ldx #192
+    ldx #100
 patch_bitmap_byte:
     ldy #0
     lda (src),y
@@ -733,16 +991,16 @@ patch_screen_dest_done:
     bne patch_screen_row
     rts
 
-bitmap_destination_lo: .byte <bitmap_destinations, <bitmap_destinations+384, <bitmap_destinations+768, <bitmap_destinations+1152, <bitmap_destinations+1536, <bitmap_destinations+1920, <bitmap_destinations+2304, <bitmap_destinations+2688, <bitmap_destinations+3072
-bitmap_destination_hi: .byte >bitmap_destinations, >bitmap_destinations+384, >bitmap_destinations+768, >bitmap_destinations+1152, >bitmap_destinations+1536, >bitmap_destinations+1920, >bitmap_destinations+2304, >bitmap_destinations+2688, >bitmap_destinations+3072
+bitmap_destination_lo: .byte <bitmap_destinations, <bitmap_destinations+200, <bitmap_destinations+400, <bitmap_destinations+600, <bitmap_destinations+800, <bitmap_destinations+1000, <bitmap_destinations+1200, <bitmap_destinations+1400, <bitmap_destinations+1600
+bitmap_destination_hi: .byte >bitmap_destinations, >bitmap_destinations+200, >bitmap_destinations+400, >bitmap_destinations+600, >bitmap_destinations+800, >bitmap_destinations+1000, >bitmap_destinations+1200, >bitmap_destinations+1400, >bitmap_destinations+1600
 screen_out_lo: .byte <$0486, <$048a, <$048e, <$04fe, <$0502, <$0506, <$059e, <$05a2, <$05a6
 screen_out_hi: .byte >$0486, >$048a, >$048e, >$04fe, >$0502, >$0506, >$059e, >$05a2, >$05a6
 colour_out_lo: .byte <$d886, <$d88a, <$d88e, <$d8fe, <$d902, <$d906, <$d99e, <$d9a2, <$d9a6
 colour_out_hi: .byte >$d886, >$d88a, >$d88e, >$d8fe, >$d902, >$d906, >$d99e, >$d9a2, >$d9a6
-x_bitmap_lo: .byte <x_cells_bitmap, <x_cells_bitmap+192, <x_cells_bitmap+384, <x_cells_bitmap+576, <x_cells_bitmap+768, <x_cells_bitmap+960, <x_cells_bitmap+1152, <x_cells_bitmap+1344, <x_cells_bitmap+1536
-x_bitmap_hi: .byte >x_cells_bitmap, >x_cells_bitmap+192, >x_cells_bitmap+384, >x_cells_bitmap+576, >x_cells_bitmap+768, >x_cells_bitmap+960, >x_cells_bitmap+1152, >x_cells_bitmap+1344, >x_cells_bitmap+1536
-o_bitmap_lo: .byte <o_cells_bitmap, <o_cells_bitmap+192, <o_cells_bitmap+384, <o_cells_bitmap+576, <o_cells_bitmap+768, <o_cells_bitmap+960, <o_cells_bitmap+1152, <o_cells_bitmap+1344, <o_cells_bitmap+1536
-o_bitmap_hi: .byte >o_cells_bitmap, >o_cells_bitmap+192, >o_cells_bitmap+384, >o_cells_bitmap+576, >o_cells_bitmap+768, >o_cells_bitmap+960, >o_cells_bitmap+1152, >o_cells_bitmap+1344, >o_cells_bitmap+1536
+x_bitmap_lo: .byte <x_cells_bitmap, <x_cells_bitmap+100, <x_cells_bitmap+200, <x_cells_bitmap+300, <x_cells_bitmap+400, <x_cells_bitmap+500, <x_cells_bitmap+600, <x_cells_bitmap+700, <x_cells_bitmap+800
+x_bitmap_hi: .byte >x_cells_bitmap, >x_cells_bitmap+100, >x_cells_bitmap+200, >x_cells_bitmap+300, >x_cells_bitmap+400, >x_cells_bitmap+500, >x_cells_bitmap+600, >x_cells_bitmap+700, >x_cells_bitmap+800
+o_bitmap_lo: .byte <o_cells_bitmap, <o_cells_bitmap+100, <o_cells_bitmap+200, <o_cells_bitmap+300, <o_cells_bitmap+400, <o_cells_bitmap+500, <o_cells_bitmap+600, <o_cells_bitmap+700, <o_cells_bitmap+800
+o_bitmap_hi: .byte >o_cells_bitmap, >o_cells_bitmap+100, >o_cells_bitmap+200, >o_cells_bitmap+300, >o_cells_bitmap+400, >o_cells_bitmap+500, >o_cells_bitmap+600, >o_cells_bitmap+700, >o_cells_bitmap+800
 x_screen_lo: .byte <x_cells_screen, <x_cells_screen+16, <x_cells_screen+32, <x_cells_screen+48, <x_cells_screen+64, <x_cells_screen+80, <x_cells_screen+96, <x_cells_screen+112, <x_cells_screen+128
 x_screen_hi: .byte >x_cells_screen, >x_cells_screen+16, >x_cells_screen+32, >x_cells_screen+48, >x_cells_screen+64, >x_cells_screen+80, >x_cells_screen+96, >x_cells_screen+112, >x_cells_screen+128
 x_colour_lo: .byte <x_cells_colour, <x_cells_colour+16, <x_cells_colour+32, <x_cells_colour+48, <x_cells_colour+64, <x_cells_colour+80, <x_cells_colour+96, <x_cells_colour+112, <x_cells_colour+128
@@ -930,24 +1188,28 @@ patch_title_hints:
     ldx #0
 hint_info_loop:
     lda title_info_hint,x
-    sta $0772,x              ; row 22: I INFO
-    lda #7
+    sta $0772,x              ; row 22: INFO
+    lda #1
     sta $db72,x
     inx
-    cpx #6
+    cpx #4
     bne hint_info_loop
+    lda #7                   ; bright direct key, dim descriptive text
+    sta $db72
     ldx #0
 hint_quit_loop:
     lda title_quit_hint,x
-    sta $079a,x              ; row 23: Q QUIT, below INFO
-    lda #7
+    sta $079a,x              ; row 23: QUIT, below INFO
+    lda #1
     sta $db9a,x
     inx
-    cpx #6
+    cpx #4
     bne hint_quit_loop
+    lda #7
+    sta $db9a
     rts
-title_info_hint: .byte 9,0,9,14,6,15
-title_quit_hint: .byte 17,0,17,21,9,20
+title_info_hint: .byte 9,14,6,15
+title_quit_hint: .byte 17,21,9,20
 
 set_title_vic:
     lda $dd00
@@ -998,6 +1260,7 @@ mark_byte: .byte 0
 progress_filled: .byte 0
 progress_colour_nibble: .byte 0
 title_charset_memory_config: .byte 0
+info_scroll: .byte 0
 board_state: .fill 9, 0
 c9w00_filename: .text "C9W00.PRG"
 embedding_row: .byte 0
@@ -1023,17 +1286,9 @@ embedding_sumhi: .byte 0
 * = $3800
 .binary "../assets/crystal-palace-screen-states/crystal-palace-charset.bin"
 * = $4000
-title0_screen: .binary "../assets/crystal-palace-screen-states/crystal-palace-title-player-0.screen.bin"
-* = $4400
 title1_screen: .binary "../assets/crystal-palace-screen-states/crystal-palace-title-player-1.screen.bin"
-* = $4800
-title2_screen: .binary "../assets/crystal-palace-screen-states/crystal-palace-title-player-2.screen.bin"
 * = $4c00
-title0_colour: .binary "../assets/crystal-palace-screen-states/crystal-palace-title-player-0.color.bin"
-* = $5000
 title1_colour: .binary "../assets/crystal-palace-screen-states/crystal-palace-title-player-1.color.bin"
-* = $5400
-title2_colour: .binary "../assets/crystal-palace-screen-states/crystal-palace-title-player-2.color.bin"
 * = $5800
 info_screen: .binary "../assets/crystal-palace-screen-states/crystal-palace-info.screen.bin"
 * = $5c00
@@ -1054,5 +1309,7 @@ o_cells_screen: .binary "../assets/crystal-palace-screen-states/cells/o-cells.sc
 o_cells_colour: .binary "../assets/crystal-palace-screen-states/cells/o-cells.color.bin"
 * = $9800
 bitmap_destinations: .binary "../assets/crystal-palace-screen-states/cells/bitmap-destination-addresses.bin"
+* = $a600
+.include "info_markdown.inc"
 * = $b000
 title_charset_backup: .binary "../assets/crystal-palace-screen-states/crystal-palace-charset.bin"

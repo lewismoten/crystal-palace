@@ -10,29 +10,22 @@ The custom charset is exactly 2,048 bytes: 256 glyphs × 8 bytes. The atlas belo
 | --- |
 | ![256-glyph black-and-white Crystal Palace charset atlas](crystal-palace-charset-charmap.png) |
 
-## Title states — screen plane, colour plane, combined VIC-II result
+## Title state — one base plane plus exact selector deltas
 
-Each title is standard character mode: the `.screen.bin` chooses custom glyphs, and the `.color.bin` supplies one foreground colour nibble per 8×8 cell. The monochrome screen-plane image makes the raw glyph composition inspectable; the colour-plane image shows only the 40×25 colour cells; the combined image is the actual character-mode result.
+The title is standard character mode: the `.screen.bin` chooses custom glyphs, and the `.color.bin` supplies one foreground colour nibble per 8×8 cell. The one-player title below is the full source review image. The other supplied variants are not repeated in this document because a byte comparison shows they only move the selector arrow and recolour the selected menu row.
 
-The raw one-player screen plane has a black header band immediately above `CRYSTAL PALACE 9`; it contains no hill-like pixels. Any clipping seen there is runtime display residue, not source-art content, and must be corrected by title-state restoration rather than by changing these immutable source planes.
-
-### One-player title
-
-| `screen.bin` glyphs only | `color.bin` cells only | Combined title |
+| Base `screen.bin` glyphs only | Base `color.bin` cells only | Combined title |
 | --- | --- | --- |
 | ![One-player raw monochrome screen plane](crystal-palace-title-player-1.screen-mono.png) | ![One-player raw colour plane](crystal-palace-title-player-1.color-plane.png) | ![One-player combined title](crystal-palace-title-player-1.png) |
 
-### Two-player title
+| Compared against player 1 | Changed `screen.bin` bytes | Changed `color.bin` bytes | Runtime representation |
+| --- | ---: | ---: | --- |
+| Player 2 | 2 | 30 | One arrow relocation plus the selected-row colour cells. |
+| AI vs AI | 2 | 22 | One arrow relocation plus the selected-row colour cells. |
 
-| `screen.bin` glyphs only | `color.bin` cells only | Combined title |
-| --- | --- | --- |
-| ![Two-player raw monochrome screen plane](crystal-palace-title-player-2.screen-mono.png) | ![Two-player raw colour plane](crystal-palace-title-player-2.color-plane.png) | ![Two-player combined title](crystal-palace-title-player-2.png) |
+The live program embeds only the player-one source planes and applies those exact supplied deltas for player-two and AI-vs-AI selection. This removes 4,000 bytes of near-duplicate embedded title data without regenerating or altering the source artifacts.
 
-### AI-vs-AI title
-
-| `screen.bin` glyphs only | `color.bin` cells only | Combined title |
-| --- | --- | --- |
-| ![AI-vs-AI raw monochrome screen plane](crystal-palace-title-player-0.screen-mono.png) | ![AI-vs-AI raw colour plane](crystal-palace-title-player-0.color-plane.png) | ![AI-vs-AI combined title](crystal-palace-title-player-0.png) |
+The raw one-player screen plane has a black header band immediately above `CRYSTAL PALACE 9`; it contains no hill-like pixels. Any clipping seen there is runtime display residue, not source-art content, and must be corrected by title-state restoration rather than by changing these immutable source planes.
 
 ## Archive / INFO state — screen plane, colour plane, combined result
 
@@ -41,6 +34,8 @@ The INFO state is also standard character mode and uses the same custom charset.
 | `crystal-palace-info.screen.bin` glyphs only | `crystal-palace-info.color.bin` cells only | Combined INFO state |
 | --- | --- | --- |
 | ![INFO raw monochrome screen plane](crystal-palace-info.screen-mono.png) | ![INFO raw colour plane](crystal-palace-info.color-plane.png) | ![Combined Crystal Palace archive screen](crystal-palace-info.png) |
+
+`ARCHIVE.md` is the bounded source for the live archive viewer. At build time it is compiled into 29-column custom-character rows and colour attributes, then overlaid only in the empty 29×17 interior of this supplied frame. `#` headings render yellow; `**bold**` light red; `*italic*` cyan; lists receive a coloured dot; block quotes indent in purple; and tables are padded to aligned columns. Up/down move one line; Space advances one view; Q returns to the title. The rightmost panel cell is a dim track with a yellow current-position marker.
 
 ## Playfield states — VIC-II multicolour bitmap mode
 
@@ -68,7 +63,7 @@ The all-X and all-O planes are source references used to extract exact live-cell
 | Title variants | `title-player-{0,1,2}.{screen,color}.bin` | Standard character mode; screen `$0400`, colour RAM `$d800`, charset `$3800`. |
 | Archive/info | `info.{screen,color}.bin` | Standard character mode; same screen, colour, and charset locations. |
 | Game states | `game-{blank,all-x,all-o}.{bitmap,screen,color}.bin` | Multicolour bitmap mode; 8,000-byte bitmap, 1,000-byte screen plane, 1,000-byte colour plane; `$d021 = 0`. |
-| Live patches | `cells/{x,o}-cells.{bitmap,screen,color}.bin` and `cells/bitmap-destination-addresses.bin` | Exact per-cell deltas in real VIC bitmap-address order, not linear raster-byte order. |
+| Live patches | `cells/{x,o}-cells.{bitmap,screen,color}.bin` and `cells/bitmap-destination-addresses.bin` | Exact per-cell deltas in real VIC bitmap-address order, not linear raster-byte order. Bitmap patches are 100 source bytes per cell: four bitmap bytes across 25 scan lines, preserving the supplied X diagonal's one-line lower edge. |
 
 Every title/INFO screen or colour plane is 1,000 bytes. Each game bitmap plane is 8,000 bytes; each accompanying screen/colour plane is 1,000 bytes. `crystal-palace-board-coordinates.json` defines the board-cell locations used to derive live patch artifacts.
 

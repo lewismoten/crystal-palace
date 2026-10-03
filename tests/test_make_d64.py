@@ -57,7 +57,7 @@ def test_build_d64_directory_entry_preserves_start_track_sector_and_filename(tmp
     data = image.read_bytes()
     entry = 0x16600 + 2
     start_track, start_sector = data[entry + 1], data[entry + 2]
-    assert start_track == 1
+    assert start_track == 17  # first executable starts adjacent to directory track 18
     assert start_sector == 0
     # CBM DOS stores a filename immediately after the two-byte start pointer.
     # This must be a conventional directory entry that DOS can open by name.
@@ -93,4 +93,5 @@ def test_build_d64_never_allocates_file_sectors_on_track_18_and_uses_standard_do
     assert report["active_files"] == 98
     assert report["file_sectors_on_directory_track"] == []
     assert report["multiply_referenced_file_sectors"] == []
+    assert report["bam_unclaimed_used_sectors"] == []
     assert report["header_dos_type"] == b"2A"

@@ -45,10 +45,26 @@ def test_screen_state_previews_are_reproducible_indexed_c64_pngs():
         assert content == expected
 
 
-def test_screen_state_markdown_documents_every_preview_and_raw_contract():
+def test_screen_state_markdown_documents_reviewed_previews_and_raw_contract():
     readme = (ASSETS / "README.md").read_text()
     assert "The `.bin` planes are authoritative." in readme
     assert "PNG colour type **3** (indexed)" in readme
-    for name in renderer().expected_images():
-        name = name.name
+    # The two alternate title states are byte-delta documented rather than
+    # consuming README space with near-identical full-screen PNGs.
+    documented = {
+        "crystal-palace-charset-charmap.png",
+        "crystal-palace-title-player-1.png",
+        "crystal-palace-title-player-1.screen-mono.png",
+        "crystal-palace-title-player-1.color-plane.png",
+        "crystal-palace-info.png",
+        "crystal-palace-info.screen-mono.png",
+        "crystal-palace-info.color-plane.png",
+        "crystal-palace-game-blank.png",
+        "crystal-palace-game-all-x.png",
+        "crystal-palace-game-all-o.png",
+    }
+    assert documented <= {path.name for path in renderer().expected_images()}
+    for name in documented:
         assert name in readme
+    assert "Player 2 | 2 | 30" in readme
+    assert "AI vs AI | 2 | 22" in readme

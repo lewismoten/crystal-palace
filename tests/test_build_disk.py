@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_validated_d64_and_plane_previews():
+def test_current_disk_stage_reports_browser_input_and_scrollable_archive():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 76
-    assert builder.CURRENT_DESCRIPTION == "validated-d64-and-plane-previews"
+    assert builder.CURRENT_STAGE == 77
+    assert builder.CURRENT_DESCRIPTION == "browser-input-and-scrollable-archive"

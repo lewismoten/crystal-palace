@@ -4,14 +4,15 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 76
-CURRENT_DESCRIPTION = "validated-d64-and-plane-previews"
+CURRENT_STAGE = 77
+CURRENT_DESCRIPTION = "browser-input-and-scrollable-archive"
 PROGRAM_SOURCE = ROOT / "src" / "art_embedded_title.asm"
 ART = ROOT / "assets" / "crystal-palace-screen-states"
 
@@ -60,12 +61,16 @@ def main() -> None:
     assembler = ROOT / "tools" / "64tass" / "usr" / "bin" / "64tass"
     if not assembler.is_file():
         raise SystemExit("64tass is missing; run scripts/bootstrap_64tass.sh first")
+    subprocess.run([sys.executable, str(ROOT / "scripts" / "derive_cell_patches.py")], check=True)
+    subprocess.run([sys.executable, str(ROOT / "scripts" / "compile_info_markdown.py")], check=True)
     subprocess.run([str(assembler), "--cbm-prg", "-o", str(BUILD / "CP64.PRG"), str(PROGRAM_SOURCE)], check=True)
     files = {"CP64.PRG": BUILD / "CP64.PRG"}
     files.update({path.name: path for path in sorted((BUILD / "layers").glob("C9W*.PRG"))})
     if len(files) != 49:
         raise SystemExit(f"expected CP64 plus 48 original tensor files, found {len(files)}")
-    files.update(crystal_palace_art_prgs(BUILD / "art-prgs"))
+    # The current executable embeds the immutable title/info/game planes.
+    # Keep raw asset wrappers reproducible via crystal_palace_art_prgs(), but
+    # do not inflate the release disk with 49 unused staging PRGs.
     stage_image = stage_image_path(CURRENT_STAGE, CURRENT_DESCRIPTION)
     build_d64_files(files, stage_image, disk_name="CP64 CRYSTAL9")
     shutil.copyfile(stage_image, BUILD / "cp64.d64")
