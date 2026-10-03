@@ -4,9 +4,9 @@ A Commodore 64 feasibility project for running **the original Crystal-9 packed I
 
 The present executable is an engineering preview, not a claim of finished playable model parity. It combines source-exact Crystal Palace screen art with bounded, source-byte-backed Crystal-9 proof gates.
 
-## Current milestone — Stage 075
+## Current milestone — Stage 076
 
-`cs64-075-browser-safe-board-and-raster-progress.d64` is the current disk image produced locally by the build. It embeds the supplied title, archive/info, game-room, and custom-character planes; restores the custom charset when returning from the bitmap playfield; and adds a visible horizontal raster line directly below the tic-tac-toe grid.
+`cs64-076-validated-d64-and-plane-previews.d64` is the current disk image produced locally by the build. It embeds the supplied title, archive/info, game-room, and custom-character planes; restores the custom charset when returning from the bitmap playfield; adds a visible horizontal raster line below the tic-tac-toe grid; and validates the disk directory/file chains before publishing.
 
 The line has a strict meaning: it completes across the three immediate, actual X/O render operations (bitmap patch, screen patch, colour patch). It is **not** a timer animation and does not imply that full model inference or a computer move has completed. Console highlights are ambient presentation only.
 

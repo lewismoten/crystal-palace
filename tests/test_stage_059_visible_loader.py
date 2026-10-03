@@ -20,9 +20,9 @@ def load_builder():
     return module
 
 
-def test_stage_075_declares_browser_safe_board_and_raster_progress():
+def test_stage_076_declares_validated_d64_and_plane_previews():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (75, "browser-safe-board-and-raster-progress")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (76, "validated-d64-and-plane-previews")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
 
 

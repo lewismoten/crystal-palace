@@ -79,6 +79,73 @@ def extract_d64_file(image_path: Path, filename: str) -> bytes:
     raise FileNotFoundError(filename)
 
 
+def validate_d64(image_path: Path) -> dict[str, object]:
+    """Inspect DOS directory/file chains and report structural D64 invariants."""
+    image = image_path.read_bytes()
+    if len(image) != 174_848:
+        raise ValueError("not a standard 35-track D64 image")
+    bam = sector_offset(BAM_TRACK, BAM_SECTOR)
+    directory_track = {(DIRECTORY_TRACK, sector) for sector in range(sectors_on_track(DIRECTORY_TRACK))}
+    directory_sectors: set[tuple[int, int]] = set()
+    file_sectors: dict[tuple[int, int], list[str]] = {}
+    file_sectors_on_directory_track: list[tuple[str, tuple[int, int]]] = []
+    malformed_entries: list[str] = []
+    active_files = 0
+    track, sector = DIRECTORY_TRACK, DIRECTORY_SECTOR
+    visited_directories: set[tuple[int, int]] = set()
+    while track:
+        if track != DIRECTORY_TRACK or not 0 <= sector < sectors_on_track(track) or (track, sector) in visited_directories:
+            malformed_entries.append("invalid directory chain")
+            break
+        visited_directories.add((track, sector))
+        directory_sectors.add((track, sector))
+        directory = sector_offset(track, sector)
+        for index in range(8):
+            entry = directory + 2 + index * 32
+            file_type = image[entry]
+            if not file_type:
+                continue
+            active_files += 1
+            name = image[entry + 3 : entry + 19].rstrip(b"\xa0").decode("ascii", "replace")
+            blocks = int.from_bytes(image[entry + 28 : entry + 30], "little")
+            file_track, file_sector = image[entry + 1], image[entry + 2]
+            if not name or blocks == 0 or not file_track:
+                malformed_entries.append(name or "(unnamed)")
+                continue
+            visited_file: set[tuple[int, int]] = set()
+            for block in range(blocks):
+                if not 1 <= file_track <= 35 or not 0 <= file_sector < sectors_on_track(file_track):
+                    malformed_entries.append(name)
+                    break
+                address = (file_track, file_sector)
+                if address in visited_file:
+                    malformed_entries.append(name)
+                    break
+                visited_file.add(address)
+                file_sectors.setdefault(address, []).append(name)
+                if address in directory_track:
+                    file_sectors_on_directory_track.append((name, address))
+                offset = sector_offset(*address)
+                next_track, next_sector = image[offset], image[offset + 1]
+                if block + 1 == blocks:
+                    if next_track != 0:
+                        malformed_entries.append(name)
+                elif not next_track:
+                    malformed_entries.append(name)
+                    break
+                file_track, file_sector = next_track, next_sector
+        track, sector = image[directory], image[directory + 1]
+    multiply_referenced = sorted(address for address, names in file_sectors.items() if len(names) > 1)
+    return {
+        "active_files": active_files,
+        "directory_sectors": sorted(directory_sectors),
+        "file_sectors_on_directory_track": file_sectors_on_directory_track,
+        "multiply_referenced_file_sectors": multiply_referenced,
+        "malformed_entries": malformed_entries,
+        "header_dos_type": image[bam + 0xA5 : bam + 0xA7],
+    }
+
+
 def build_d64_files(files: dict[str, Path], output_path: Path, disk_name: str = "CP64 MODEL") -> None:
     """Write named PRGs to a D64, chaining directory sectors as required."""
     if not files:
@@ -91,7 +158,10 @@ def build_d64_files(files: dict[str, Path], output_path: Path, disk_name: str = 
 
     image = bytearray(174_848)
     free = {(track, sector) for track in range(1, 36) for sector in range(sectors_on_track(track))}
-    reserved = {(BAM_TRACK, BAM_SECTOR)} | {(DIRECTORY_TRACK, sector) for sector in range(DIRECTORY_SECTOR, DIRECTORY_SECTOR + directory_sectors)}
+    # Track 18 is DOS metadata territory.  Even spare sectors on that track
+    # must never enter a file chain: disk tools rightfully treat that as a
+    # directory-track crossing and can no longer trust the image.
+    reserved = {(DIRECTORY_TRACK, sector) for sector in range(sectors_on_track(DIRECTORY_TRACK))}
     free -= reserved
     payloads = [(name, path.read_bytes()) for name, path in files.items()]
     if any(len(payload) < 3 for _, payload in payloads):
@@ -127,7 +197,8 @@ def build_d64_files(files: dict[str, Path], output_path: Path, disk_name: str = 
         entry = bam + 4 + (track - 1) * 4
         image[entry : entry + 4] = bytes((bitmap.bit_count(), bitmap & 0xff, (bitmap >> 8) & 0xff, (bitmap >> 16) & 0xff))
     image[bam + 0x90 : bam + 0xA0] = petscii_name(disk_name)
-    image[bam + 0xA2 : bam + 0xA4] = b"2A"
+    image[bam + 0xA2 : bam + 0xA4] = b"00"  # disk ID
+    image[bam + 0xA5 : bam + 0xA7] = b"2A"  # standard 1541 DOS type
 
     for directory_index in range(directory_sectors):
         directory = sector_offset(DIRECTORY_TRACK, DIRECTORY_SECTOR + directory_index)
@@ -142,6 +213,9 @@ def build_d64_files(files: dict[str, Path], output_path: Path, disk_name: str = 
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_bytes(image)
+    report = validate_d64(output_path)
+    if report["file_sectors_on_directory_track"] or report["multiply_referenced_file_sectors"] or report["malformed_entries"] or report["header_dos_type"] != b"2A":
+        raise ValueError(f"D64 validation failed: {report}")
 
 
 if __name__ == "__main__":

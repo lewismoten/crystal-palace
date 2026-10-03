@@ -1,45 +1,80 @@
 # Crystal Palace screen states
 
-This directory contains the source-exact VIC-II planes used by the CP64 embedded-art presentation, plus reproducible indexed PNG previews for review. **The `.bin` planes are authoritative.** The PNGs are derived documentation artifacts and are never loaded by the C64 program.
+This directory contains the source-exact VIC-II planes used by CP64, plus reproducible indexed PNG review images. **The `.bin` planes are authoritative.** PNGs are documentation transports; the C64 program never loads them.
 
-## Preview gallery
+## Charset — raw `crystal-palace-charset.bin`
 
-### Title states — standard character mode
+The custom charset is exactly 2,048 bytes: 256 glyphs × 8 bytes. The atlas below is a **16×16 cell**, black-and-white rendering of the raw glyph bits. A charset has no independent colour plane; title and INFO colour comes from their separate 1,000-byte colour-RAM planes.
 
-| One player | Two players | AI vs AI |
+| Raw 16×16 character atlas |
+| --- |
+| ![256-glyph black-and-white Crystal Palace charset atlas](crystal-palace-charset-charmap.png) |
+
+## Title states — screen plane, colour plane, combined VIC-II result
+
+Each title is standard character mode: the `.screen.bin` chooses custom glyphs, and the `.color.bin` supplies one foreground colour nibble per 8×8 cell. The monochrome screen-plane image makes the raw glyph composition inspectable; the colour-plane image shows only the 40×25 colour cells; the combined image is the actual character-mode result.
+
+The raw one-player screen plane has a black header band immediately above `CRYSTAL PALACE 9`; it contains no hill-like pixels. Any clipping seen there is runtime display residue, not source-art content, and must be corrected by title-state restoration rather than by changing these immutable source planes.
+
+### One-player title
+
+| `screen.bin` glyphs only | `color.bin` cells only | Combined title |
 | --- | --- | --- |
-| ![One-player title](crystal-palace-title-player-1.png) | ![Two-player title](crystal-palace-title-player-2.png) | ![AI-vs-AI title](crystal-palace-title-player-0.png) |
+| ![One-player raw monochrome screen plane](crystal-palace-title-player-1.screen-mono.png) | ![One-player raw colour plane](crystal-palace-title-player-1.color-plane.png) | ![One-player combined title](crystal-palace-title-player-1.png) |
 
-All title variants use the shared [`crystal-palace-charset.bin`](crystal-palace-charset.bin), one 1,000-byte screen plane, and one 1,000-byte colour plane. The highlighted row differs by selection state.
+### Two-player title
 
-### Archive / information — standard character mode
+| `screen.bin` glyphs only | `color.bin` cells only | Combined title |
+| --- | --- | --- |
+| ![Two-player raw monochrome screen plane](crystal-palace-title-player-2.screen-mono.png) | ![Two-player raw colour plane](crystal-palace-title-player-2.color-plane.png) | ![Two-player combined title](crystal-palace-title-player-2.png) |
 
-![Crystal Palace archive screen](crystal-palace-info.png)
+### AI-vs-AI title
 
-`crystal-palace-info.screen.bin` and `crystal-palace-info.color.bin` share the title charset. They must be restored with that charset after leaving bitmap mode.
+| `screen.bin` glyphs only | `color.bin` cells only | Combined title |
+| --- | --- | --- |
+| ![AI-vs-AI raw monochrome screen plane](crystal-palace-title-player-0.screen-mono.png) | ![AI-vs-AI raw colour plane](crystal-palace-title-player-0.color-plane.png) | ![AI-vs-AI combined title](crystal-palace-title-player-0.png) |
 
-### Playfield states — multicolour bitmap mode
+## Archive / INFO state — screen plane, colour plane, combined result
+
+The INFO state is also standard character mode and uses the same custom charset. Its raw planes are intentionally shown separately so a review can distinguish glyph data from colour-RAM data.
+
+| `crystal-palace-info.screen.bin` glyphs only | `crystal-palace-info.color.bin` cells only | Combined INFO state |
+| --- | --- | --- |
+| ![INFO raw monochrome screen plane](crystal-palace-info.screen-mono.png) | ![INFO raw colour plane](crystal-palace-info.color-plane.png) | ![Combined Crystal Palace archive screen](crystal-palace-info.png) |
+
+## Playfield states — VIC-II multicolour bitmap mode
+
+The playfield is **multicolour bitmap mode**, not two-colour normal-resolution bitmap mode:
+
+- Each bitmap byte contains four 2-bit logical pixels.
+- Each logical pixel is **two physical pixels wide**, yielding a 160×200 logical grid rendered as a 320×200 physical image.
+- Each 8×8 character cell has **three local colours plus one shared background**:
+  - `00` → global background (`$d021`, black here)
+  - `01` → screen-RAM high nibble
+  - `10` → screen-RAM low nibble
+  - `11` → colour-RAM low nibble
 
 | Blank board | Source all-X reference | Source all-O reference |
 | --- | --- | --- |
-| ![Blank playfield](crystal-palace-game-blank.png) | ![All X playfield](crystal-palace-game-all-x.png) | ![All O playfield](crystal-palace-game-all-o.png) |
+| ![Blank playfield](crystal-palace-game-blank.png) | ![All-X playfield](crystal-palace-game-all-x.png) | ![All-O playfield](crystal-palace-game-all-o.png) |
 
-The all-X and all-O planes are source references for extracting exact live-cell patches. They are not whole-frame replacements during normal play.
+The all-X and all-O planes are source references used to extract exact live-cell patches. They are not whole-frame replacements during normal play.
 
 ## Raw plane contract
 
 | State type | Files | VIC-II mode / address expectation |
 | --- | --- | --- |
+| Charset | `crystal-palace-charset.bin` | 2,048 bytes at `$3800` for title/INFO character mode. |
 | Title variants | `title-player-{0,1,2}.{screen,color}.bin` | Standard character mode; screen `$0400`, colour RAM `$d800`, charset `$3800`. |
 | Archive/info | `info.{screen,color}.bin` | Standard character mode; same screen, colour, and charset locations. |
-| Game states | `game-{blank,all-x,all-o}.{bitmap,screen,color}.bin` | Multicolour bitmap mode; 8,000-byte bitmap, 1,000-byte screen plane, 1,000-byte colour plane; background `$d021 = 0` (black). |
-| Live patches | `cells/{x,o}-cells.{bitmap,screen,color}.bin` plus `cells/bitmap-destination-addresses.bin` | Exact per-cell deltas in real VIC bitmap-address order, not a linear raster-byte order. |
+| Game states | `game-{blank,all-x,all-o}.{bitmap,screen,color}.bin` | Multicolour bitmap mode; 8,000-byte bitmap, 1,000-byte screen plane, 1,000-byte colour plane; `$d021 = 0`. |
+| Live patches | `cells/{x,o}-cells.{bitmap,screen,color}.bin` and `cells/bitmap-destination-addresses.bin` | Exact per-cell deltas in real VIC bitmap-address order, not linear raster-byte order. |
 
-Every title/info screen or colour plane is 1,000 bytes. Each game bitmap plane is 8,000 bytes; each accompanying screen/colour plane is 1,000 bytes. `crystal-palace-board-coordinates.json` defines the board-cell locations used to derive the live patch artifacts.
+Every title/INFO screen or colour plane is 1,000 bytes. Each game bitmap plane is 8,000 bytes; each accompanying screen/colour plane is 1,000 bytes. `crystal-palace-board-coordinates.json` defines the board-cell locations used to derive live patch artifacts.
 
 ## Indexed PNG contract
 
-The seven `*.png` review images are exactly **320×200**, PNG colour type **3** (indexed), 8 bits per palette index, with a 16-entry C64 palette. No alpha channel, RGB conversion, or palette quantization is used.
+Every preview is PNG colour type **3** (indexed), 8 bits per palette index, with the same fixed 16-entry C64 palette. Combined, mono, and colour-plane images are 320×200. The charset atlas is 128×128. No alpha, RGB conversion, or palette quantization is used.
 
 Palette indices equal native VIC-II colour codes. The renderer uses the Pepto C64 RGB presentation palette:
 
@@ -62,8 +97,6 @@ Palette indices equal native VIC-II colour codes. The renderer uses the Pepto C6
 | 14 | Light blue | `#6c5eb5` |
 | 15 | Light grey | `#959595` |
 
-For multicolour bitmap previews, each 2-bit logical VIC pixel is doubled horizontally. The resulting 320×200 image retains the C64’s physical display pixel grid while representing a 160×200 multicolour logical grid.
-
 ## Rebuild and verify previews
 
 The renderer uses Python’s standard library only:
@@ -73,4 +106,4 @@ python3 scripts/render_screen_states.py
 python3 scripts/render_screen_states.py --check
 ```
 
-`--check` regenerates every preview in memory and fails when any checked-in PNG differs. This makes the documentation previews reproducible from the raw source planes and guards against a silent palette, layout, or format change.
+`--check` regenerates every preview in memory and fails when any checked-in PNG differs. This binds the review images to the raw planes and catches silent palette, layout, or format drift.

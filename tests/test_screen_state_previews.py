@@ -30,19 +30,25 @@ def png_chunks(data: bytes):
 def test_screen_state_previews_are_reproducible_indexed_c64_pngs():
     module = renderer()
     assert len(module.STATES) == 7
+    assert len(module.DERIVED_VIEWS) == 9
     expected_palette = bytes(component for rgb in module.C64_PALETTE for component in rgb)
 
-    for name, render in module.STATES.items():
-        content = (ASSETS / name).read_bytes()
+    for path, expected in module.expected_images().items():
+        content = path.read_bytes()
         chunks = dict(png_chunks(content))
-        assert chunks[b"IHDR"] == struct.pack(">IIBBBBB", 320, 200, 8, 3, 0, 0, 0)
+        width, height, depth, colour_type, compression, filtering, interlace = struct.unpack(">IIBBBBB", chunks[b"IHDR"])
+        assert (width, height, depth, colour_type, compression, filtering, interlace) in {
+            (320, 200, 8, 3, 0, 0, 0),
+            (128, 128, 8, 3, 0, 0, 0),
+        }
         assert chunks[b"PLTE"] == expected_palette
-        assert content == module.indexed_png(render())
+        assert content == expected
 
 
 def test_screen_state_markdown_documents_every_preview_and_raw_contract():
     readme = (ASSETS / "README.md").read_text()
     assert "The `.bin` planes are authoritative." in readme
     assert "PNG colour type **3** (indexed)" in readme
-    for name in renderer().STATES:
+    for name in renderer().expected_images():
+        name = name.name
         assert name in readme

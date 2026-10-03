@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_browser_safe_board_and_raster_progress():
+def test_current_disk_stage_reports_validated_d64_and_plane_previews():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 75
-    assert builder.CURRENT_DESCRIPTION == "browser-safe-board-and-raster-progress"
+    assert builder.CURRENT_STAGE == 76
+    assert builder.CURRENT_DESCRIPTION == "validated-d64-and-plane-previews"

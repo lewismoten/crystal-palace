@@ -75,3 +75,22 @@ def test_extract_d64_file_recovers_the_exact_chained_prg_payload(tmp_path):
     builder.build_d64_files({"ART.PRG": prg}, image, disk_name="CP64 PREVIEW")
 
     assert builder.extract_d64_file(image, "ART.PRG") == payload
+
+
+def test_build_d64_never_allocates_file_sectors_on_track_18_and_uses_standard_dos_header(tmp_path):
+    """A large multi-file disk must keep the entire directory track reserved."""
+    builder = load_builder()
+    files = {}
+    for number in range(98):
+        path = tmp_path / f"F{number:02}.PRG"
+        path.write_bytes(bytes((0x00, 0x60)) + bytes((number,)) * 1000)
+        files[path.name] = path
+    image = tmp_path / "large.d64"
+
+    builder.build_d64_files(files, image, disk_name="CP64 VALID")
+
+    report = builder.validate_d64(image)
+    assert report["active_files"] == 98
+    assert report["file_sectors_on_directory_track"] == []
+    assert report["multiply_referenced_file_sectors"] == []
+    assert report["header_dos_type"] == b"2A"
