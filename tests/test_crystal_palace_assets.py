@@ -27,7 +27,6 @@ REQUIRED = (
     "crystal-palace-game-all-o.screen.bin",
     "crystal-palace-game-all-o.color.bin",
     "crystal-palace-board-coordinates.json",
-    "README.txt",
 )
 
 
