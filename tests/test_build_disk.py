@@ -21,11 +21,11 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_browser_input_and_scrollable_archive():
+def test_current_disk_stage_reports_archive_charset_and_readable_packets():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 77
-    assert builder.CURRENT_DESCRIPTION == "browser-input-and-scrollable-archive"
+    assert builder.CURRENT_STAGE == 78
+    assert builder.CURRENT_DESCRIPTION == "archive-charset-and-readable-packets"
 
 
 def test_disk_tensor_filenames_are_descriptive_but_preserve_packet_identity():

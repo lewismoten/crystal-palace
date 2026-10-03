@@ -11,8 +11,8 @@ from make_d64 import build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 77
-CURRENT_DESCRIPTION = "browser-input-and-scrollable-archive"
+CURRENT_STAGE = 78
+CURRENT_DESCRIPTION = "archive-charset-and-readable-packets"
 PROGRAM_SOURCE = ROOT / "src" / "art_embedded_title.asm"
 ART = ROOT / "assets" / "crystal-palace-screen-states"
 

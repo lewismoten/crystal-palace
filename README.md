@@ -4,9 +4,9 @@ A Commodore 64 feasibility project for running **the original Crystal-9 packed I
 
 The present executable is an engineering preview, not a claim of finished playable model parity. It combines source-exact Crystal Palace screen art with bounded, source-byte-backed Crystal-9 proof gates.
 
-## Current milestone — Stage 077
+## Current milestone — Stage 078
 
-`cs64-077-browser-input-and-scrollable-archive.d64` is the current disk image produced locally by the build. It accepts RETURN/Enter on the title, debounces browser Cursor Down repeats without relying on a synthetic keyboard matrix, routes C64 screen-code `A`–`I` input through an assembled subroutine, and overlays compiled `ARCHIVE.md` text with a scroll marker inside the supplied INFO frame. It validates the disk directory/file chains and BAM allocation before publishing.
+`cs64-078-archive-charset-and-readable-packets.d64` is the current disk image produced locally by the build. It corrects the supplied custom charset mapping used by the INFO archive, handles archive Cursor Down before the ambiguous screen-code Q, uses readable model-packet names in the D64 directory, and validates disk directory/file chains and BAM allocation before publishing.
 
 There is no progress meter on a human mark. Rendering a supplied X/O patch is immediate, and showing a completed brown/orange/red/yellow line without an actual computer inference was misleading. A future meter may appear only across real original-weight disk/compute boundaries and will finish yellow from left to right.
 

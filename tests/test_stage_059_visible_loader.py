@@ -20,9 +20,9 @@ def load_builder():
     return module
 
 
-def test_stage_077_declares_browser_input_and_scrollable_archive():
+def test_stage_078_declares_archive_charset_and_readable_packets():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (77, "browser-input-and-scrollable-archive")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (78, "archive-charset-and-readable-packets")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
 
 

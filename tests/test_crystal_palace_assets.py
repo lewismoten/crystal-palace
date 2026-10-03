@@ -355,13 +355,13 @@ def test_stage_058_preview_uses_only_native_art_navigation_and_restores_title_mo
     call(mpu, symbols["preview_title_up"]); assert mpu.memory[symbols["preview_title_mode"]] == 2
 
 
-def test_stage_077_build_uses_browser_input_and_scrollable_archive(tmp_path):
-    """The release builder reserves Stage 077 for tested interaction and archive text."""
+def test_stage_078_build_uses_archive_charset_and_readable_packets(tmp_path):
+    """The release builder reserves Stage 078 for the corrected archive artifact."""
     import importlib.util
     import sys
 
     sys.path.insert(0, str(ROOT / "scripts"))
     spec = importlib.util.spec_from_file_location("build_disk", ROOT / "scripts" / "build_disk.py")
     builder = importlib.util.module_from_spec(spec); spec.loader.exec_module(builder)
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (77, "browser-input-and-scrollable-archive")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (78, "archive-charset-and-readable-packets")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
