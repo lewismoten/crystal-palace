@@ -18,9 +18,11 @@ def screen_code(character: str) -> int:
     if "a" <= character <= "z":
         character = character.upper()
     if "A" <= character <= "Z":
-        return ord(character) - ord("A") + 1
+        # The supplied charset starts its alphabet at glyph 0, unlike ASCII
+        # and the usual PETSCII screen-code alphabet.
+        return ord(character) - ord("A")
     if character == " ":
-        return 0
+        return 32
     # The supplied charset follows the C64 punctuation slots for this limited
     # viewer vocabulary. Unsupported Markdown punctuation becomes spacing,
     # rather than displaying a random graphics glyph.

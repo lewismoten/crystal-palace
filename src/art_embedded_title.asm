@@ -35,6 +35,14 @@ key_loop:
 key_to_info:
     jmp info_key
 info_key:
+    ; Cursor Down ($11) collides numerically with upper-screen-code Q.
+    ; Navigation must win so archive scrolling cannot return to the title.
+    cmp #$91
+    beq info_scroll_up
+    cmp #$11
+    beq info_scroll_down
+    cmp #' '
+    beq info_page_down
     cmp #'Q'
     bne info_not_upper_q
     jmp return_title
@@ -47,12 +55,6 @@ info_not_lower_q:
     bne info_not_petscii_q
     jmp return_title
 info_not_petscii_q:
-    cmp #$91
-    beq info_scroll_up
-    cmp #$11
-    beq info_scroll_down
-    cmp #' '
-    beq info_page_down
     jmp key_loop
 info_scroll_up:
     jsr archive_scroll_up
@@ -209,7 +211,10 @@ exit_basic:
     jmp $fce2
 
 show_title:
+    lda view_mode
+    beq show_title_charset_ready
     jsr restore_title_charset
+show_title_charset_ready:
     lda #<title1_screen
     ldy #>title1_screen
     jsr copy_screen
@@ -217,7 +222,6 @@ show_title:
     ldy #>title1_colour
     jsr copy_colour
     jsr patch_title_variant
-    jsr cleanup_title_radar_labels
 title_done:
     jsr patch_title_hints
     lda #0
@@ -283,7 +287,10 @@ cleanup_title_radar_labels:
     rts
 
 show_info:
+    lda view_mode
+    beq show_info_charset_ready
     jsr restore_title_charset
+show_info_charset_ready:
     lda #<info_screen
     ldy #>info_screen
     jsr copy_screen
@@ -313,6 +320,11 @@ clear_board:
     bpl clear_board
     lda #1
     sta turn_mark
+    lda title_mode
+    sta game_mode
+    lda #0
+    sta game_winner
+    sta game_ai_pending
     lda #1
     sta view_mode
     jmp set_game_vic
@@ -520,14 +532,75 @@ game_screen_code:
     sbc #1
 game_index_ready:
     tax
+    lda game_winner
+    bne game_key_done
+    lda game_mode
+    beq game_key_done         ; AI vs AI needs an original-model route.
+    lda game_ai_pending
+    bne game_key_done         ; do not accept a second human X while AI is pending.
     lda board_state,x
     bne game_key_done
     txa
     sta game_index
 game_draw_x:
+    lda game_mode
+    cmp #2
+    bne game_human_x
+    lda turn_mark
+    cmp #2
+    beq game_human_o
+game_human_x:
     jsr draw_x
+    jmp game_move_finished
+game_human_o:
+    jsr draw_o
+game_move_finished:
+    jsr board_winner
+    sta game_winner
+    bne game_key_done
+    lda game_mode
+    cmp #2
+    bne game_player_vs_ai_pending
+    lda turn_mark
+    eor #3
+    sta turn_mark
+    jmp game_key_done
+game_player_vs_ai_pending:
+    lda #1
+    sta game_ai_pending
 game_key_done:
     rts
+
+; Return 1 for an X line, 2 for an O line, otherwise 0. This operates on the
+; same board ownership state used by drawing, never on display pixels.
+board_winner:
+    ldx #0
+board_winner_line:
+    ldy winning_cells,x
+    lda board_state,y
+    beq board_winner_advance
+    sta mark_byte
+    ldy winning_cells+1,x
+    lda board_state,y
+    cmp mark_byte
+    bne board_winner_advance
+    ldy winning_cells+2,x
+    lda board_state,y
+    cmp mark_byte
+    beq board_winner_found
+board_winner_advance:
+    txa
+    clc
+    adc #3
+    tax
+    cpx #24
+    bne board_winner_line
+    lda #0
+    rts
+board_winner_found:
+    lda mark_byte
+    rts
+winning_cells: .byte 0,1,2, 3,4,5, 6,7,8, 0,3,6, 1,4,7, 2,5,8, 0,4,8, 2,4,6
 
 ; Accepted board keys remain human X marks.  This bridge only pages and decodes
 ; the selected original token row; it neither selects nor paints a model move.
@@ -1189,23 +1262,23 @@ patch_title_hints:
 hint_info_loop:
     lda title_info_hint,x
     sta $0772,x              ; row 22: INFO
-    lda #1
+    lda #12                  ; light grey descriptive text
     sta $db72,x
     inx
     cpx #4
     bne hint_info_loop
-    lda #7                   ; bright direct key, dim descriptive text
+    lda #1                   ; bright white direct key
     sta $db72
     ldx #0
 hint_quit_loop:
     lda title_quit_hint,x
     sta $079a,x              ; row 23: QUIT, below INFO
-    lda #1
+    lda #12                  ; light grey descriptive text
     sta $db9a,x
     inx
     cpx #4
     bne hint_quit_loop
-    lda #7
+    lda #1                   ; bright white direct key
     sta $db9a
     rts
 title_info_hint: .byte 9,14,6,15
@@ -1256,6 +1329,9 @@ view_mode: .byte 0
 title_mode: .byte 1
 turn_mark: .byte 1
 game_index: .byte 0
+game_mode: .byte 1
+game_winner: .byte 0
+game_ai_pending: .byte 0
 mark_byte: .byte 0
 progress_filled: .byte 0
 progress_colour_nibble: .byte 0
