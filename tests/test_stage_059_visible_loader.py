@@ -20,9 +20,9 @@ def load_builder():
     return module
 
 
-def test_stage_078_declares_archive_charset_and_readable_packets():
+def test_stage_079_declares_archive_ram_banking_fix():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (78, "archive-charset-and-readable-packets")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (79, "archive-ram-banking-fix")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
 
 
@@ -306,16 +306,26 @@ def test_game_dispatch_accepts_browser_lowercase_a_to_i():
 
 
 def test_archive_compiler_uses_the_supplied_charset_alphabet_and_blank_slot():
-    """The supplied charset uses A at slot 0 and a blank at slot 32, not ASCII."""
+    """The supplied charset has a blank at 0 and A–Z in slots 1–26."""
     import importlib.util
 
     spec = importlib.util.spec_from_file_location("compile_info_markdown", ROOT / "scripts" / "compile_info_markdown.py")
     compiler = importlib.util.module_from_spec(spec); spec.loader.exec_module(compiler)
-    assert compiler.screen_code("A") == 0
-    assert compiler.screen_code("Z") == 25
-    assert compiler.screen_code(" ") == 32
+    assert compiler.screen_code("A") == 1
+    assert compiler.screen_code("Z") == 26
+    assert compiler.screen_code(" ") == 0
     chars, _, _ = compiler.compile_data()
-    assert chars[:7] == bytes((2, 17, 24, 18, 19, 0, 11))  # CRYSTAL
+    assert chars[:7] == bytes((3, 18, 25, 19, 20, 1, 12))  # CRYSTAL
+
+
+def test_archive_renderer_banks_in_ram_for_the_a600_compiled_text():
+    """$a600 is under BASIC ROM on C64 hardware; Py65 flat RAM cannot expose this."""
+    source = (ROOT / "src" / "art_embedded_title.asm").read_text()
+    render = source[source.index("render_info_markdown:") : source.index("game_key:")]
+    assert "info_markdown_memory_config" in render
+    assert "and #$fe" in render
+    assert "sta $01" in render
+    assert render.rfind("sta $01") > render.index("render_info_scrollbar:")
 
 
 def test_info_cursor_down_is_checked_before_ambiguous_screen_code_q():
@@ -442,7 +452,7 @@ def test_archive_markdown_is_compiled_and_scrolls_a_fixed_panel(tmp_path):
     call(mpu, symbols["show_info"])
     first = bytes(mpu.memory[0x047D : 0x047D + 29])
     colours = bytes(mpu.memory[0xD87D : 0xD87D + 29])
-    assert first[:7] == bytes((2, 17, 24, 18, 19, 0, 11))  # CRYSTAL custom charset codes
+    assert first[:7] == bytes((3, 18, 25, 19, 20, 1, 12))  # CRYSTAL custom charset codes
     assert colours[:7] == b"\x07" * 7
     assert mpu.memory[0x049A] != 0
     call(mpu, symbols["archive_scroll_down"])

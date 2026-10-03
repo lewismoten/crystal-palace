@@ -363,6 +363,12 @@ archive_page_store:
 archive_scroll_done:
     rts
 render_info_markdown:
+    ; The compiled rows live at $a600 under BASIC ROM.  Bank BASIC out while
+    ; reading them, but leave I/O visible so colour RAM writes still reach VIC.
+    lda $01
+    sta info_markdown_memory_config
+    and #$fe
+    sta $01
     lda #<info_markdown_chars
     sta src
     lda #>info_markdown_chars
@@ -482,6 +488,8 @@ info_scrollbar_colour_done:
     inx
     cpx #INFO_ROWS
     bne info_scrollbar_row
+    lda info_markdown_memory_config
+    sta $01
     rts
 
 game_key:
@@ -1337,6 +1345,7 @@ progress_filled: .byte 0
 progress_colour_nibble: .byte 0
 title_charset_memory_config: .byte 0
 info_scroll: .byte 0
+info_markdown_memory_config: .byte 0
 board_state: .fill 9, 0
 c9w00_filename: .text "EMBEDTOK.PRG"
 embedding_row: .byte 0
