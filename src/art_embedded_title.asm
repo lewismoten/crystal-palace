@@ -208,6 +208,7 @@ clear_board:
     sta turn_mark
     lda #1
     sta view_mode
+    jsr progress_reset
     jmp set_game_vic
 
 game_key:
@@ -261,17 +262,14 @@ game_index_ready:
     sta game_index
 game_draw_x:
     jsr draw_x
-    jsr materialize_selected_embedding
 game_key_done:
     jmp key_loop
 
 ; Accepted board keys remain human X marks.  This bridge only pages and decodes
 ; the selected original token row; it neither selects nor paints a model move.
 materialize_selected_embedding:
-    jsr progress_stage_one
     jsr load_c9w00
     bcs embedding_bridge_failed
-    jsr progress_stage_two
     lda game_index            ; KERNAL LOAD owns A, so recover the selected cell.
     clc
     adc #4                    ; board a-i maps to Crystal-9 vocabulary rows 4-12.
@@ -279,7 +277,6 @@ materialize_selected_embedding:
     jsr decode_embedding_scale
     bcs embedding_bridge_failed
     jsr materialize_embedding_row
-    jsr progress_stage_three
     clc
     rts
 embedding_bridge_failed:
@@ -602,6 +599,7 @@ bitmap_done:
     rts
 
 draw_x:
+    jsr progress_reset
     ldx game_index
     lda #1
     sta board_state,x
@@ -614,6 +612,7 @@ draw_x:
     lda bitmap_destination_hi,x
     sta out+1
     jsr patch_bitmap
+    jsr progress_stage_one
     ldx game_index
     lda x_screen_lo,x
     sta src
@@ -624,6 +623,7 @@ draw_x:
     lda screen_out_hi,x
     sta out+1
     jsr patch_screen
+    jsr progress_stage_two
     ldx game_index
     lda x_colour_lo,x
     sta src
@@ -633,9 +633,11 @@ draw_x:
     sta out
     lda colour_out_hi,x
     sta out+1
-    jmp patch_screen
+    jsr patch_screen
+    jmp progress_stage_three
 
 draw_o:
+    jsr progress_reset
     ldx game_index
     lda #2
     sta board_state,x
@@ -648,6 +650,7 @@ draw_o:
     lda bitmap_destination_hi,x
     sta out+1
     jsr patch_bitmap
+    jsr progress_stage_one
     ldx game_index
     lda o_screen_lo,x
     sta src
@@ -658,6 +661,7 @@ draw_o:
     lda screen_out_hi,x
     sta out+1
     jsr patch_screen
+    jsr progress_stage_two
     ldx game_index
     lda o_colour_lo,x
     sta src
@@ -667,7 +671,8 @@ draw_o:
     sta out
     lda colour_out_hi,x
     sta out+1
-    jmp patch_screen
+    jsr patch_screen
+    jmp progress_stage_three
 
 ; Cell patches are stored linearly, but C64 bitmap RAM is character-row
 ; interleaved.  `out` therefore indexes a little-endian address stream.
@@ -792,8 +797,13 @@ copytail:
 copydone: rts
 
 ; The title and info routes rely on the supplied custom charset at $3800.
-; Restore it from a separate immutable in-PRG copy before leaving bitmap mode.
+; The immutable source copy is loaded under BASIC ROM at $b000, so hide BASIC
+; briefly while reading it; restore the exact CPU memory configuration afterward.
 restore_title_charset:
+    lda $01
+    sta title_charset_memory_config
+    and #$fe
+    sta $01
     lda #<title_charset_backup
     sta src
     lda #>title_charset_backup
@@ -814,6 +824,8 @@ restore_charset_byte:
     inc out+1
     dex
     bne restore_charset_page
+    lda title_charset_memory_config
+    sta $01
     rts
 
 ; Ambient console indicators are presentation-only; model progress stays in
@@ -838,39 +850,76 @@ ambient_lights_done:
 ambient_light_lo: .byte <$da7a, <$da87, <$dad2, <$dadb
 ambient_light_hi: .byte >$da7a, >$da87, >$dad2, >$dadb
 
-; This is not an invented AI animation.  Each third marks a completed real
-; boundary: accepted move, original C9W00 disk page, then row decode.
-PROGRESS_SCREEN = $0690
-PROGRESS_COLOR = $da90
+; The visible line sits directly below the grid. It advances only at real
+; immediate-move boundaries: bitmap patch, screen patch, then colour patch.
+; The browser input path deliberately does not invoke an unaccepted disk load.
+PROGRESS_SCREEN = $063e
+PROGRESS_BITMAP = $31f4
+progress_reset:
+    lda #0
+    beq render_progress
 progress_stage_one:
-    lda #10
+    lda #4
     bne render_progress
 progress_stage_two:
-    lda #20
+    lda #8
     bne render_progress
 progress_stage_three:
-    lda #30
+    lda #12
 render_progress:
     sta progress_filled
     ldx #0
-progress_cell:
+progress_segment:
     cpx progress_filled
     bcc progress_lit
-    lda #42                  ; custom-charset '-': inactive segment
-    sta PROGRESS_SCREEN,x
-    lda #12                  ; dim grey
-    sta PROGRESS_COLOR,x
-    jmp progress_next
+    lda #0
+    jmp paint_progress_segment
 progress_lit:
-    lda #48                  ; custom-charset '=': completed segment
+    cpx #4
+    bcc progress_brown
+    cpx #8
+    bcc progress_orange
+    cpx #11
+    bcc progress_light_red
+    lda #$70                 ; yellow final head
+    jmp paint_progress_segment
+progress_brown:
+    lda #$90
+    jmp paint_progress_segment
+progress_orange:
+    lda #$80
+    jmp paint_progress_segment
+progress_light_red:
+    lda #$a0
+paint_progress_segment:
+    sta progress_colour_nibble
+    lda progress_bitmap_lo,x
+    sta out
+    lda progress_bitmap_hi,x
+    sta out+1
+    lda PROGRESS_SCREEN,x
+    and #$0f
+    ora progress_colour_nibble
     sta PROGRESS_SCREEN,x
-    lda #7                   ; bright yellow
-    sta PROGRESS_COLOR,x
-progress_next:
+    lda progress_colour_nibble
+    beq progress_unlit_pattern
+    lda #$55                 ; 01 01 01 01: screen high-nibble colour
+    bne progress_pattern_ready
+progress_unlit_pattern:
+    lda #0
+progress_pattern_ready:
+    ldy #0
+progress_scanline:
+    sta (out),y
+    iny
+    cpy #4
+    bne progress_scanline
     inx
-    cpx #30
-    bne progress_cell
+    cpx #12
+    bne progress_segment
     rts
+progress_bitmap_lo: .byte <PROGRESS_BITMAP, <PROGRESS_BITMAP+8, <PROGRESS_BITMAP+16, <PROGRESS_BITMAP+24, <PROGRESS_BITMAP+32, <PROGRESS_BITMAP+40, <PROGRESS_BITMAP+48, <PROGRESS_BITMAP+56, <PROGRESS_BITMAP+64, <PROGRESS_BITMAP+72, <PROGRESS_BITMAP+80, <PROGRESS_BITMAP+88
+progress_bitmap_hi: .byte >PROGRESS_BITMAP, >PROGRESS_BITMAP+8, >PROGRESS_BITMAP+16, >PROGRESS_BITMAP+24, >PROGRESS_BITMAP+32, >PROGRESS_BITMAP+40, >PROGRESS_BITMAP+48, >PROGRESS_BITMAP+56, >PROGRESS_BITMAP+64, >PROGRESS_BITMAP+72, >PROGRESS_BITMAP+80, >PROGRESS_BITMAP+88
 
 ; Requested title affordances: bright direct-selection keys, with INFO above QUIT.
 patch_title_hints:
@@ -947,6 +996,8 @@ turn_mark: .byte 1
 game_index: .byte 0
 mark_byte: .byte 0
 progress_filled: .byte 0
+progress_colour_nibble: .byte 0
+title_charset_memory_config: .byte 0
 board_state: .fill 9, 0
 c9w00_filename: .text "C9W00.PRG"
 embedding_row: .byte 0

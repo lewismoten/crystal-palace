@@ -71,10 +71,11 @@ This file is the release/proof ledger. A stage number identifies a bounded artif
 | 070–071 | ASCII/PETSCII lowercase board input | Accepts browser-delivered lowercase variants for A–I. |
 | 072 | Reserved/no retained public artifact | No separate documented public release entry. |
 | 073 | VIC cell address repair | Replaces an incorrect linear bitmap write with a source-derived VIC destination map. |
-| 074 | Restored art and real bridge progress | Restores supplied custom charset for title/info transitions; adds a 30-segment bottom-board meter that marks only accepted-move, C9W00-load, and embedding-row-materialization boundaries. Ambient console lights are explicitly non-model presentation. |
+| 074 | Restored art and real bridge progress | Attempted title/info charset restoration and a source-bridge meter. Browser evidence showed the charset copy was incorrectly read through BASIC ROM, and the screen-code meter was not a visible bitmap line. Superseded by Stage 075. |
+| 075 | Browser-safe board and raster progress | Hides BASIC ROM while copying the immutable `$b000` charset backup, restoring title and INFO from actual RAM bytes. Quarantines the unconfirmed interactive C9W00 disk path so A–I board input cannot invoke it. Replaces the invisible metadata meter with a four-pixel-high 12-segment bitmap line directly below the grid; its brown→orange→light-red→yellow progression completes across actual bitmap, screen, and colour patch operations. |
 
 ## Current boundary and open work
 
-Stage 074 is not accepted as finished gameplay. It does **not** establish exhaustive legal histories, a full original-model computer turn after arbitrary board states, or browser-robust physical keyboard debouncing. C64 Online reports still need to be reconciled with emulator-only tests for repeated input, title arrow behavior, Enter, and title/info restoration after live board patches.
+Stage 075 is not accepted as finished gameplay. It does **not** establish exhaustive legal histories, a full original-model computer turn after arbitrary board states, or browser-robust physical keyboard debouncing. The original C9W00 bridge remains independently assembled-code-tested but must regain browser mount/load acceptance before it returns to the interactive game path.
 
 The next meaningful proof is an extracted original-weight bridge that fits outside the embedded-art memory region, then complete legal-logit masking and exhaustive legal-history parity. No visual progress may be described as model thinking until it maps to those actual disk or computation boundaries.

@@ -4,13 +4,13 @@ A Commodore 64 feasibility project for running **the original Crystal-9 packed I
 
 The present executable is an engineering preview, not a claim of finished playable model parity. It combines source-exact Crystal Palace screen art with bounded, source-byte-backed Crystal-9 proof gates.
 
-## Current milestone — Stage 074
+## Current milestone — Stage 075
 
-`cs64-074-restored-art-and-real-progress.d64` is the current disk image produced locally by the build. It embeds the supplied title, archive/info, game-room, and custom-character planes; restores the custom charset when returning from the bitmap playfield; and adds a wide thirty-segment playfield meter.
+`cs64-075-browser-safe-board-and-raster-progress.d64` is the current disk image produced locally by the build. It embeds the supplied title, archive/info, game-room, and custom-character planes; restores the custom charset when returning from the bitmap playfield; and adds a visible horizontal raster line directly below the tic-tac-toe grid.
 
-The meter has a strict meaning: it advances only at actual selected C9W00 boundaries (accepted move, original packet load, selected embedding-row materialization). It is **not** a timer animation and does not imply that full model inference or a computer move has completed. Console highlights are ambient presentation only.
+The line has a strict meaning: it completes across the three immediate, actual X/O render operations (bitmap patch, screen patch, colour patch). It is **not** a timer animation and does not imply that full model inference or a computer move has completed. Console highlights are ambient presentation only.
 
-Known browser-emulator defects remain outside the accepted proof claim: C64 Online key-repeat handling can still affect title navigation and live board input, and full legal-history model gameplay has not yet been established.
+The interactive browser path no longer calls KERNAL disk loads after each A–I key: that unconfirmed path is retained as an independently tested original-data bridge, not allowed to crash the board. Full legal-history model gameplay remains unestablished.
 
 ## Screen-state source art
 

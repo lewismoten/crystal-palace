@@ -21,8 +21,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_restored_art_and_real_progress():
+def test_current_disk_stage_reports_browser_safe_board_and_raster_progress():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 74
-    assert builder.CURRENT_DESCRIPTION == "restored-art-and-real-progress"
+    assert builder.CURRENT_STAGE == 75
+    assert builder.CURRENT_DESCRIPTION == "browser-safe-board-and-raster-progress"

@@ -355,13 +355,13 @@ def test_stage_058_preview_uses_only_native_art_navigation_and_restores_title_mo
     call(mpu, symbols["preview_title_up"]); assert mpu.memory[symbols["preview_title_mode"]] == 2
 
 
-def test_stage_074_build_uses_restored_art_and_real_progress(tmp_path):
-    """The release builder reserves Stage 074 for restored art and real progress."""
+def test_stage_075_build_uses_browser_safe_board_and_raster_progress(tmp_path):
+    """The release builder reserves Stage 075 for browser-safe board interaction."""
     import importlib.util
     import sys
 
     sys.path.insert(0, str(ROOT / "scripts"))
     spec = importlib.util.spec_from_file_location("build_disk", ROOT / "scripts" / "build_disk.py")
     builder = importlib.util.module_from_spec(spec); spec.loader.exec_module(builder)
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (74, "restored-art-and-real-progress")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (75, "browser-safe-board-and-raster-progress")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
