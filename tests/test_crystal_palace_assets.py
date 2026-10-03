@@ -355,13 +355,13 @@ def test_stage_058_preview_uses_only_native_art_navigation_and_restores_title_mo
     call(mpu, symbols["preview_title_up"]); assert mpu.memory[symbols["preview_title_mode"]] == 2
 
 
-def test_stage_080_build_uses_archive_layout_and_board_planes(tmp_path):
-    """The release builder reserves Stage 080 for archive and board-plane fixes."""
+def test_stage_081_build_uses_archive_and_title_composition(tmp_path):
+    """The release builder reserves Stage 081 for archive/title composition."""
     import importlib.util
     import sys
 
     sys.path.insert(0, str(ROOT / "scripts"))
     spec = importlib.util.spec_from_file_location("build_disk", ROOT / "scripts" / "build_disk.py")
     builder = importlib.util.module_from_spec(spec); spec.loader.exec_module(builder)
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (80, "archive-layout-and-board-planes")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (81, "archive-and-title-composition")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"

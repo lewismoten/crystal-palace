@@ -211,10 +211,12 @@ exit_basic:
     jmp $fce2
 
 show_title:
-    lda view_mode
-    beq show_title_charset_ready
+    ; Build the base plane and selector delta off-screen.  Otherwise switching
+    ; from mode 0 to mode 2 exposes the copied player-one arrow for a frame.
+    lda $d011
+    and #$ef
+    sta $d011
     jsr restore_title_charset
-show_title_charset_ready:
     lda #<title1_screen
     ldy #>title1_screen
     jsr copy_screen
@@ -226,7 +228,7 @@ title_done:
     jsr patch_title_hints
     lda #0
     sta view_mode
-    jmp set_title_vic
+    jmp set_title_display_vic
 
 ; All three supplied title planes differ only in the selector arrow and its
 ; highlighted row. Keep player-one as the immutable base and apply the exact
@@ -340,25 +342,23 @@ INFO_TEXT_SCREEN = $047d           ; row 3, column 5
 INFO_TEXT_COLOUR = $d87d
 INFO_SCROLLBAR_SCREEN = $049a ; row 3, column 34
 INFO_SCROLLBAR_COLOUR = $d89a
-INFO_FOOTER_SCREEN = $07b0    ; row 23, column 24: fixed archive bottom
-INFO_FOOTER_COLOUR = $dbb0
-INFO_FOOTER_WIDTH = 15
+INFO_FOOTER_SCREEN = $079c    ; row 23, column 4: centered archive commands
+INFO_FOOTER_COLOUR = $db9c
+INFO_FOOTER_WIDTH = 35
 patch_info_footer:
     ldx #0
 info_footer_loop:
-    lda info_quit_footer,x
+    lda info_footer_chars,x
     sta INFO_FOOTER_SCREEN,x
-    lda #12                  ; descriptive text in medium grey
-    cpx #0
-    bne info_footer_store_colour
-    lda #1                   ; bright white direct key
-info_footer_store_colour:
+    lda info_footer_colours,x
     sta INFO_FOOTER_COLOUR,x
     inx
     cpx #INFO_FOOTER_WIDTH
     bne info_footer_loop
     rts
-info_quit_footer: .byte 17,38,0,17,21,9,20,0,0,0,0,0,0,0,0 ; Q: QUIT
+; Six black cells, SCROLL: UP/DOWN, one black separator, QUIT: Q, six black.
+info_footer_chars: .byte 0,0,0,0,0,0,19,3,18,15,12,12,38,0,21,16,41,4,15,23,14,0,17,21,9,20,38,0,17,0,0,0,0,0,0
+info_footer_colours: .byte 0,0,0,0,0,0,12,12,12,12,12,12,12,12,1,1,1,1,1,1,1,0,12,12,12,12,12,12,1,0,0,0,0,0,0
 archive_scroll_up:
     lda info_scroll
     beq archive_scroll_done
@@ -1355,6 +1355,12 @@ set_title_vic:
     sta $d018
     lda #0
     sta $d021
+    rts
+set_title_display_vic:
+    jsr set_title_vic
+    lda $d011
+    ora #$10
+    sta $d011
     rts
 set_game_vic:
     lda $dd00

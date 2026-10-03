@@ -4,9 +4,9 @@ A Commodore 64 feasibility project for running **the original Crystal-9 packed I
 
 The present executable is an engineering preview, not a claim of finished playable model parity. It combines source-exact Crystal Palace screen art with bounded, source-byte-backed Crystal-9 proof gates.
 
-## Current milestone — Stage 080
+## Current milestone — Stage 081
 
-`cs64-080-archive-layout-and-board-planes.d64` is the current disk image produced locally by the build. It reads INFO rows under BASIC ROM correctly, uses the supplied punctuation and blank glyphs, renders a fixed `Q: QUIT` archive footer, prevents middle-row marks from rewriting top-row cell attributes, and uses rotationally optimized 1541 directory/data-sector chains. It validates disk directory/file chains and BAM allocation before publishing.
+`cs64-081-archive-and-title-composition.d64` is the current disk image produced locally by the build. It corrects archive table/list/punctuation rendering and footer layout, composes title variants off-screen before display is enabled, restores the immutable title charset on every title entry, and preserves the validated board and rotational disk layout fixes from Stage 080.
 
 There is no progress meter on a human mark. Rendering a supplied X/O patch is immediate, and showing a completed brown/orange/red/yellow line without an actual computer inference was misleading. A future meter may appear only across real original-weight disk/compute boundaries and will finish yellow from left to right.
 

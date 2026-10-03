@@ -20,9 +20,9 @@ def load_builder():
     return module
 
 
-def test_stage_080_declares_archive_layout_and_board_planes():
+def test_stage_081_declares_archive_and_title_composition():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (80, "archive-layout-and-board-planes")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (81, "archive-and-title-composition")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
 
 
@@ -224,7 +224,7 @@ def test_title_and_info_restore_after_live_board_patches(tmp_path):
     assert bytes(mpu.memory[0x0400 : 0x07E8]) == bytes(title)
     call(mpu, symbols["show_info"])
     source_info = bytearray((ASSETS / "crystal-palace-info.screen.bin").read_bytes())
-    source_info[23 * 40 + 24 : 23 * 40 + 39] = bytes((17, 38, 0, 17, 21, 9, 20, 0, 0, 0, 0, 0, 0, 0, 0))
+    source_info[23 * 40 + 4 : 24 * 40 - 1] = bytes((0, 0, 0, 0, 0, 0, 19, 3, 18, 15, 12, 12, 38, 0, 21, 16, 41, 4, 15, 23, 14, 0, 17, 21, 9, 20, 38, 0, 17, 0, 0, 0, 0, 0, 0))
     assert bytes(mpu.memory[0x0400 : 0x047D]) == source_info[:125]
     assert bytes(mpu.memory[0x0725 : 0x07E8]) == bytes(source_info[805:])
 
@@ -287,7 +287,7 @@ def test_sequential_a_to_i_x_patches_stay_in_the_game_planes_and_leave_title_inf
     assert bytes(mpu.memory[0x3800 : 0x4000]) == (ASSETS / "crystal-palace-charset.bin").read_bytes()
     call(mpu, symbols["show_info"])
     source_info = bytearray((ASSETS / "crystal-palace-info.screen.bin").read_bytes())
-    source_info[23 * 40 + 24 : 23 * 40 + 39] = bytes((17, 38, 0, 17, 21, 9, 20, 0, 0, 0, 0, 0, 0, 0, 0))
+    source_info[23 * 40 + 4 : 24 * 40 - 1] = bytes((0, 0, 0, 0, 0, 0, 19, 3, 18, 15, 12, 12, 38, 0, 21, 16, 41, 4, 15, 23, 14, 0, 17, 21, 9, 20, 38, 0, 17, 0, 0, 0, 0, 0, 0))
     assert bytes(mpu.memory[0x0400 : 0x047D]) == source_info[:125]
     assert bytes(mpu.memory[0x0725 : 0x07E8]) == bytes(source_info[805:])
 
@@ -320,6 +320,65 @@ def test_embedded_title_selection_cycles_without_bouncing_to_player_one(tmp_path
     call(mpu, symbols["select_title_down"]); assert mpu.memory[symbols["title_mode"]] == 0
     call(mpu, symbols["select_title_down"]); assert mpu.memory[symbols["title_mode"]] == 1
     call(mpu, symbols["select_title_up"]); assert mpu.memory[symbols["title_mode"]] == 0
+
+
+def test_title_reloads_its_charset_even_when_already_in_title_mode(tmp_path):
+    """A damaged title charset must not turn the known-black header into residue."""
+    import subprocess
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+
+    prg, labels_path = tmp_path / "CP64.PRG", tmp_path / "embedded.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "art_embedded_title.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+    mpu.memory[symbols["view_mode"]] = 0
+    mpu.memory[0x3800 : 0x4000] = b"\xff" * 2048
+
+    call(mpu, symbols["show_title"])
+
+    assert bytes(mpu.memory[0x3800 : 0x4000]) == (ASSETS / "crystal-palace-charset.bin").read_bytes()
+
+
+def test_title_selection_hides_the_base_player_one_arrow_while_patching_player_two(tmp_path):
+    """Up from AI-vs-AI must not visibly flash the copied player-one selector."""
+    import subprocess
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+
+    class WriteTrace(list):
+        def __init__(self, values):
+            super().__init__(values)
+            self.events = []
+
+        def __setitem__(self, address, value):
+            if isinstance(address, int) and address == 0x0571:
+                self.events.append((value, bool(self[0xD011] & 0x10)))
+            super().__setitem__(address, value)
+
+    prg, labels_path = tmp_path / "CP64.PRG", tmp_path / "embedded.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "art_embedded_title.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+    mpu.memory[symbols["title_mode"]] = 0
+    mpu.memory[0xD011] = 0  # establish the selected state without displaying setup writes
+    call(mpu, symbols["show_title"])
+    mpu.memory[0xD011] = 0x10  # a visible character-mode title, as on the C64
+    trace = WriteTrace(mpu.memory); mpu.memory = trace
+
+    call(mpu, symbols["select_title_up"])
+
+    assert mpu.memory[symbols["title_mode"]] == 2
+    assert (44, False) in trace.events
+    assert (44, True) not in trace.events
 
 
 def test_title_actions_return_to_the_key_loop_without_falling_into_basic():
@@ -365,18 +424,74 @@ def test_archive_compiler_uses_verified_charset_punctuation_zero_padding_and_wra
     assert charset[39 * 8 : 40 * 8] == bytes((0, 0, 0, 0, 0, 16, 16, 0))  # period
     assert charset[42 * 8 : 43 * 8] == bytes((0, 0, 0, 124, 0, 0, 0, 0))  # hyphen
     assert compiler.screen_code(".") == 39
-    assert compiler.screen_code("-") == 42
-    assert compiler.screen_code(":") == 38
+    assert compiler.screen_code(",") == 40
     assert compiler.screen_code("/") == 41
+    assert compiler.screen_code("-") == 42
+    assert compiler.screen_code("|") == 55
+    assert compiler.screen_code("0") == 27
+    assert compiler.screen_code("9") == 36
+    # The charset has no semicolon or curly-quote glyph; readable fallbacks
+    # must use the available comma and straight quote instead.
+    assert compiler.screen_code(";") == 40
+    assert compiler.screen_code('"') == 47
 
     chars, _, _ = compiler.compile_data()
-    assert 32 not in chars  # padding must be the verified blank glyph 0, never glyph 32
+    # Digit glyph 5 occupies slot 32, so padding is proved at the known short
+    # final row instead of forbidding that valid character code.
+    assert chars[-20:] == bytes(20)
     text_lines = ["".join(character for character, _ in line) for line in compiler.parse_markdown(compiler.SOURCE.read_text())]
-    assert text_lines[-2:] == [". github.com/lewismoten/cryst", "al-palace"]
+    assert text_lines[-2:] == ["- github.com/lewismoten/cryst", "al-palace"]
 
 
-def test_archive_footer_is_q_quit_at_the_absolute_bottom(tmp_path):
-    """The quit affordance belongs in the fixed footer, outside the scroll region."""
+def test_archive_lists_and_quotes_use_only_readable_supplied_glyphs():
+    """Green lists use hyphens and purple quotes omit unsupported curl marks."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("compile_info_markdown", ROOT / "scripts" / "compile_info_markdown.py")
+    compiler = importlib.util.module_from_spec(spec); spec.loader.exec_module(compiler)
+    text_lines = ["".join(character for character, _ in line) for line in compiler.parse_markdown(compiler.SOURCE.read_text())]
+
+    assert text_lines[6] == "- X moves first."
+    assert text_lines[11] == "A strange game. The only"
+    assert text_lines[-2:] == ["- github.com/lewismoten/cryst", "al-palace"]
+
+
+def test_archive_table_wraps_cells_without_clipping_columns():
+    """A 29-cell table must retain every cell string, including its continuations."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("compile_info_markdown", ROOT / "scripts" / "compile_info_markdown.py")
+    compiler = importlib.util.module_from_spec(spec); spec.loader.exec_module(compiler)
+
+    lines = compiler.parse_markdown("""| Project | Role |
+| --- | --- |
+| Crystal Palace | The combined game and C64 experiment |
+""")
+    assert ["".join(character for character, _ in line) for line in lines] == [
+        f"{'Project':<14} | {'Role':<12}",
+        f"{'-' * 14} | {'-' * 12}",
+        f"{'Crystal Palace':<14} | {'The combined':<12}",
+        f"{'':<14} | {'game and C64':<12}",
+        f"{'':<14} | {'experiment':<12}",
+    ]
+
+    hyphenated = compiler.table_rows(["Palace-9", "Strategic-fiction"], [14, 12])
+    assert ["".join(character for character, _ in line) for line in hyphenated] == [
+        f"{'Palace-9':<14} | {'Strategic-':<12}",
+        f"{'':<14} | {'fiction':<12}",
+    ]
+
+    compound = compiler.table_rows(["Crystal-9", "Condensed mixture-of-experts neural model"], [14, 12])
+    assert ["".join(character for character, _ in line) for line in compound] == [
+        f"{'Crystal-9':<14} | {'Condensed':<12}",
+        f"{'':<14} | {'mixture-of-':<12}",
+        f"{'':<14} | {'experts':<12}",
+        f"{'':<14} | {'neural model':<12}",
+    ]
+
+
+def test_archive_footer_centers_scroll_and_quit_commands(tmp_path):
+    """The fixed footer clears stale continuation text and centers its commands."""
     import subprocess
     import pytest
 
@@ -393,10 +508,14 @@ def test_archive_footer_is_q_quit_at_the_absolute_bottom(tmp_path):
 
     call(mpu, symbols["show_info"])
 
-    footer = 23 * 40 + 24
-    assert bytes(mpu.memory[0x0400 + footer : 0x0400 + footer + 7]) == bytes((17, 38, 0, 17, 21, 9, 20))
-    assert bytes(mpu.memory[0xD800 + footer : 0xD800 + footer + 7]) == bytes((1, 12, 12, 12, 12, 12, 12))
-    assert bytes(mpu.memory[0x0400 + footer + 7 : 0x0400 + footer + 15]) == b"\0" * 8
+    footer = 23 * 40 + 4
+    screen = bytes(mpu.memory[0x0400 + footer : 0x0400 + footer + 35])
+    colours = bytes(mpu.memory[0xD800 + footer : 0xD800 + footer + 35])
+    scroll = bytes((19, 3, 18, 15, 12, 12, 38, 0, 21, 16, 41, 4, 15, 23, 14))
+    quit_command = bytes((17, 21, 9, 20, 38, 0, 17))
+
+    assert screen == bytes(6) + scroll + b"\0" + quit_command + bytes(6)
+    assert colours == bytes(6) + bytes((12,)) * 8 + bytes((1,)) * 7 + b"\0" + bytes((12,)) * 6 + b"\x01" + bytes(6)
 
 
 def test_archive_renderer_banks_in_ram_for_the_a600_compiled_text():
@@ -540,7 +659,7 @@ def test_archive_markdown_is_compiled_and_scrolls_a_fixed_panel(tmp_path):
     assert mpu.memory[symbols["info_scroll"]] == 1
     assert bytes(mpu.memory[0x047D : 0x047D + 29]) != first
     for _ in range(80): call(mpu, symbols["archive_scroll_down"])
-    assert mpu.memory[symbols["info_scroll"]] == 24
+    assert mpu.memory[symbols["info_scroll"]] == 32
     # The final wrapped URL reaches the last content row; no blank viewport rows
     # or clipped tail remain at the absolute end of the archive.
     last_row = 0x047D + 16 * 40

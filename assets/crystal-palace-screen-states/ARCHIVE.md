@@ -1,12 +1,12 @@
 # Crystal Palace Archive
 
-**Tic-tac-toe** is played on a three-by-three board. Take turns placing X and O; the first player to make a row, column, or diagonal wins.
+**Tic-tac-toe** is played on a three-by-three board. Take turns placing X and O. The first player to make a row, column, or diagonal wins.
 
 - X moves first.
 - Choose an empty square only.
 - If all nine squares are full, the game is a draw.
 
-> “A strange game. The only winning move is not to play.”
+> A strange game. The only winning move is not to play.
 
 Crystal Palace borrows its Cold War control-room mood from *WarGames*: a fictional computer threatens missile conflict before learning the value of restraint. In that film, **Crystal Palace** is the NORAD call sign.
 
