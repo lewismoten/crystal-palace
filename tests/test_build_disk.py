@@ -26,3 +26,15 @@ def test_current_disk_stage_reports_browser_input_and_scrollable_archive():
 
     assert builder.CURRENT_STAGE == 77
     assert builder.CURRENT_DESCRIPTION == "browser-input-and-scrollable-archive"
+
+
+def test_disk_tensor_filenames_are_descriptive_but_preserve_packet_identity():
+    builder = load_builder()
+
+    assert len(builder.DISK_TENSOR_FILENAMES) == 48
+    assert builder.DISK_TENSOR_FILENAMES["C9W00.PRG"] == "EMBEDTOK.PRG"
+    assert builder.DISK_TENSOR_FILENAMES["C9W02.PRG"] == "ATTNQKVW.PRG"
+    assert builder.DISK_TENSOR_FILENAMES["C9W08.PRG"] == "ROUTERW.PRG"
+    assert builder.DISK_TENSOR_FILENAMES["C9W10.PRG"] == "EX0L1W.PRG"
+    assert builder.DISK_TENSOR_FILENAMES["C9W47.PRG"] == "OUTHEADB.PRG"
+    assert len(set(builder.DISK_TENSOR_FILENAMES.values())) == 48

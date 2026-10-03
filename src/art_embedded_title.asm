@@ -1338,7 +1338,7 @@ progress_colour_nibble: .byte 0
 title_charset_memory_config: .byte 0
 info_scroll: .byte 0
 board_state: .fill 9, 0
-c9w00_filename: .text "C9W00.PRG"
+c9w00_filename: .text "EMBEDTOK.PRG"
 embedding_row: .byte 0
 embedding_raw_scale_lo: .byte 0
 embedding_raw_scale_hi: .byte 0
