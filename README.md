@@ -16,14 +16,9 @@ python3 -m venv .venv
 scripts/bootstrap_64tass.sh
 ```
 
-Export the original Crystal-9 packet files, then build and test:
+With a verified `build/layers/` packet set already present, build and test:
 
 ```sh
-.venv/bin/python -m pip install torch
-.venv/bin/python scripts/export_c64_layers.py \
-  --artifact /path/to/crystal-9-int4-group2-packed-fp16-scales-v1.pt \
-  --output build/layers
-
 .venv/bin/python scripts/build_disk.py
 .venv/bin/python -m pytest -q
 ```
@@ -34,7 +29,7 @@ The ready-to-load disk image is written to:
 release/crystal-palace-9.d64
 ```
 
-See [Building CP64](docs/BUILDING.md) for Linux/macOS setup, assembler details, model provenance, and the complete verification sequence.
+See [Building CP64](docs/BUILDING.md) for Linux/macOS setup, assembler details, model-packet requirements, and the complete verification sequence.
 
 ## Documentation
 

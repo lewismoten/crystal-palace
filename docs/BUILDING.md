@@ -13,7 +13,7 @@ The `release/` output is generated and Git-ignored. A numbered archival image is
 - Python 3 (`python3`)
 - Git
 - Internet access on the first assembler bootstrap
-- The original Crystal-9 packed INT4/FP16-scale model artifact and an environment that can import `torch`
+- A verified `build/layers/` packet set for a model-enabled D64
 
 Create CP64's small development environment once:
 
@@ -46,21 +46,28 @@ mkdir -p tools/64tass/usr/bin
 ln -sf "$(command -v 64tass)" tools/64tass/usr/bin/64tass
 ```
 
-## Original model artifact
+## Model packet source
 
-CP64 does not generate substitute model data. You do **not** need a separate
-`~/crystal-9` checkout. Obtain the original packed artifact, choose any local
-path for it, then install `torch` into this repository's `.venv` and export the
-48 D64 packet files from here:
+`scripts/build_disk.py` packages 48 prebuilt original-model packet files from
+`build/layers/`. A fresh checkout does not contain them, because model packets
+are generated artifacts and are Git-ignored.
 
-```sh
-.venv/bin/python -m pip install torch
-.venv/bin/python scripts/export_c64_layers.py \
-  --artifact /path/to/crystal-9-int4-group2-packed-fp16-scales-v1.pt \
-  --output build/layers
+Do not point `scripts/export_c64_layers.py` at an arbitrary `.pt`,
+`model.safetensors`, or GGUF file. Its input is a specific historical
+`crystal-9-packed-int4-fp16-scales-v1` PyTorch manifest with verbatim FP16
+scales and packed INT4 tensors. The current public Palace-9 download formats
+are not a drop-in replacement for that input contract.
+
+Until a verified CP64-compatible source/download workflow is published, obtain
+the checked packet set or the exact compatible source artifact from the project
+maintainer. Then place the resulting 48 `C9Wxx.PRG` files and `manifest.json`
+under:
+
+```text
+build/layers/
 ```
 
-The expected source artifact SHA-256 is:
+The historical compatible source artifact, when supplied, must match:
 
 ```text
 63eee663a143ee478308144da406873c72c05b6d5226dbb2f5e329dacb1392eb
