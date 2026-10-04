@@ -34,13 +34,15 @@ def test_info_runtime_loads_and_validates_only_the_archive_on_info_entry():
     source = (ROOT / "src" / "art_embedded_title.asm").read_text()
     show_info = source[source.index("show_info:") : source.index("show_game:")]
     loader = source[source.index("load_info_archive:") : source.index("show_game:")]
-    game_input = source[source.index("process_game_key:") : source.index("materialize_selected_embedding:")]
+    game_input = source[source.index("process_game_key:") : source.index('.include "model_token_inference.asm"')]
 
     assert show_info.index("jsr load_info_archive") < show_info.index("jsr copy_screen")
     assert 'archive_filename: .text "ARCHIVE.PRG"' in loader
     assert "jsr LOAD" in loader
     assert "cmp #'A'" in loader and "cmp #'V'" in loader
     assert "ARCHIVE_COPY_FULL_PAGES" in loader and "ARCHIVE_COPY_TAIL" in loader
+    assert "and #$fc" not in loader
+    assert "ora #$06" in loader  # BASIC off, KERNAL+I/O remain available during copy
     assert "jsr LOAD" not in game_input
 
 

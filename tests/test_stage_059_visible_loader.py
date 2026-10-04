@@ -58,14 +58,13 @@ def test_embedded_title_source_uses_no_screen_editor_output():
     assert '.binary "../assets/crystal-palace-screen-states/runtime/crystal-palace-title-player-1.color.bin"' in source
 
 
-def test_runtime_title_planes_are_a_bounded_blackout_delta_over_immutable_source_art():
-    """Only the eight browser-verified radar-label cells differ from supplied art."""
+def test_runtime_title_planes_preserve_the_complete_supplied_radar_perimeter():
+    """The runtime title must not erase the supplied radar perimeter artwork."""
     for plane in ("screen", "color"):
         source = (ASSETS / f"crystal-palace-title-player-1.{plane}.bin").read_bytes()
         runtime = (ASSETS / "runtime" / f"crystal-palace-title-player-1.{plane}.bin").read_bytes()
         assert len(runtime) == len(source) == 1000
-        assert {index for index, (before, after) in enumerate(zip(source, runtime)) if before != after} == {243, 244, 283, 284, 323, 324, 363, 364}
-        assert all(runtime[index] == 0 for index in (243, 244, 283, 284, 323, 324, 363, 364))
+        assert runtime == source
 
 
 @pytest.mark.parametrize("game_index", range(9))
@@ -170,9 +169,7 @@ def test_assembled_embedded_title_copies_exact_planes_to_live_vic_memory(tmp_pat
     expected_colour[882:886] = bytes((1, 12, 12, 12))
     expected_screen[922:926] = bytes((17, 21, 9, 20))
     expected_colour[922:926] = bytes((1, 12, 12, 12))
-    for offset in (243, 244, 283, 284, 323, 324, 363, 364):
-        expected_screen[offset] = 0
-        expected_colour[offset] = 0
+
     for offset in (371, 451, 531): expected_colour[offset] = 7
     assert bytes(mpu.memory[0x0400 : 0x0400 + 1000]) == bytes(expected_screen)
     assert bytes(mpu.memory[0xD800 : 0xD800 + 1000]) == bytes(expected_colour)
@@ -259,7 +256,7 @@ def test_title_and_info_restore_after_live_board_patches(tmp_path):
     title = bytearray((ASSETS / "crystal-palace-title-player-1.screen.bin").read_bytes())
     title[882:886] = bytes((9, 14, 6, 15))
     title[922:926] = bytes((17, 21, 9, 20))
-    for offset in (243, 244, 283, 284, 323, 324, 363, 364): title[offset] = 0
+
     assert bytes(mpu.memory[0x0400 : 0x07E8]) == bytes(title)
     prepare_info_archive_load(mpu)
     call(mpu, symbols["show_info"])
@@ -441,9 +438,7 @@ def test_title_blanks_only_the_four_unwanted_radar_glyph_cells(tmp_path):
 
     call(mpu, symbols["show_title"])
 
-    for offset in (243, 244, 283, 284, 323, 324, 363, 364):
-        assert mpu.memory[0x0400 + offset] == 0
-        assert mpu.memory[0xD800 + offset] == 0
+
 
 
 def test_title_actions_return_to_the_key_loop_without_falling_into_basic():
@@ -522,10 +517,10 @@ def test_main_title_getin_loop_accepts_real_screen_codes_and_blanks_only_reporte
     run_until(mpu, lambda state: state.memory[0x0002] >= 2)
     assert mpu.memory[symbols["title_mode"]] == 2
     assert mpu.memory[0x05C1] == 44
-    assert {offset: (mpu.memory[0x0400 + offset], mpu.memory[0xD800 + offset]) for offset in (243, 244, 283, 284, 323, 324, 363, 364)} == {
-        243: (0, 0), 244: (0, 0), 283: (0, 0), 284: (0, 0),
-        323: (0, 0), 324: (0, 0), 363: (0, 0), 364: (0, 0),
-    }
+    source_title = (ASSETS / "crystal-palace-title-player-1.screen.bin").read_bytes()
+    source_colour = (ASSETS / "crystal-palace-title-player-1.color.bin").read_bytes()
+    for offset in (243, 244, 283, 284, 323, 324, 363, 364):
+        assert (mpu.memory[0x0400 + offset], mpu.memory[0xD800 + offset]) == (source_title[offset], source_colour[offset])
 
     # Screen-code 9 is I in the browser/C64 uppercase keyboard mode. With the
     # actual archive payload and KERNAL-load stubs present, it must enter INFO
@@ -688,10 +683,10 @@ def test_info_cursor_down_is_checked_before_ambiguous_screen_code_q():
     assert info_key.index("cmp #$11") < info_key.index("cmp #17")
 
 
-def test_title_hints_keep_the_shortcut_brighter_without_runtime_radar_mutation():
+def test_title_hints_keep_the_shortcut_brighter_without_erasing_radar_art():
     source = (ROOT / "src" / "art_embedded_title.asm").read_text()
     shown = source[source.index("show_title:") : source.index("patch_title_variant:")]
-    assert "jsr cleanup_title_radar_labels" in shown
+    assert "cleanup_title_radar_labels" not in shown
     hints = source[source.index("patch_title_hints:") : source.index("set_title_vic:")]
     assert "lda #12" in hints  # descriptive INFO/QUIT text is dimmer light grey
     assert "lda #1                   ; bright white direct key" in hints
@@ -742,8 +737,7 @@ def test_title_variants_are_exact_deltas_over_the_single_player_base(tmp_path):
         expected_colour = bytearray((ASSETS / f"crystal-palace-title-player-{mode}.color.bin").read_bytes())
         expected_screen[882:886] = bytes((9, 14, 6, 15)); expected_colour[882:886] = bytes((1, 12, 12, 12))
         expected_screen[922:926] = bytes((17, 21, 9, 20)); expected_colour[922:926] = bytes((1, 12, 12, 12))
-        for offset in (243, 244, 283, 284, 323, 324, 363, 364):
-            expected_screen[offset] = 0; expected_colour[offset] = 0
+
         for offset in (371, 451, 531): expected_colour[offset] = 7
         assert bytes(mpu.memory[0x0400 : 0x07E8]) == bytes(expected_screen)
         assert bytes(mpu.memory[0xD800 : 0xDBE8]) == bytes(expected_colour)

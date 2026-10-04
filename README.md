@@ -4,7 +4,7 @@
 
 A Commodore 64 feasibility project for evaluating **the original Crystal-9 packed INT4 neural-network weights** from a 1541 disk. CP64 does not replace the network with a move table, a hand-authored tic-tac-toe policy, distilled weights, or requantized weights.
 
-The executable is an engineering preview, not a claim of finished playable model parity. It combines source-exact Crystal Palace screen art with bounded, source-byte-backed Crystal-9 proof gates.
+The executable is an engineering preview, not a claim of finished playable model parity. It combines source-exact Crystal Palace screen art with bounded, source-byte-backed Crystal-9 proof gates. The measured resident ranges, planned view bundles, and truthful model-turn progress contract are in [`docs/RUNTIME_MEMORY_ARCHITECTURE.md`](docs/RUNTIME_MEMORY_ARCHITECTURE.md).
 
 ## Current milestone — Stage 086
 
