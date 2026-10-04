@@ -41,3 +41,28 @@ def test_mark_sources_use_logical_multicolor_pixels_and_allow_two_ink_colors():
         image = compiler.read_indexed_png(ASSETS / "game" / "marks" / f"{mark}.png")
         assert (image.width, image.height) == (14, 24)
         assert 1 < len({value for value in image.pixels if value}) <= 2
+
+
+def test_title_uses_one_editable_base_and_small_selection_deltas(tmp_path: Path):
+    compiler = load_compiler()
+    compiler.compile_assets(ASSETS, tmp_path)
+    assert {"title/glyph-map.png", "title/color-map.png"} <= set(compiler.SOURCE_PNGS)
+    assert not any(path.startswith("title/one/") or path.startswith("title/two/") or path.startswith("title/auto/") for path in compiler.SOURCE_PNGS)
+    selection = json.loads((ASSETS / "title" / "selection.json").read_text())
+    assert selection["base"] == "one"
+    assert {state: (len(data["screen"]), len(data["color"])) for state, data in selection["states"].items()} == {
+        "one": (0, 0), "two": (2, 30), "auto": (2, 22)
+    }
+
+
+def test_info_source_maps_contain_entered_footer_and_initial_scrollbar(tmp_path: Path):
+    compiler = load_compiler()
+    compiler.compile_assets(ASSETS, tmp_path)
+    screen = (tmp_path / "info/screen.bin").read_bytes()
+    color = (tmp_path / "info/color.bin").read_bytes()
+    footer = 23 * 40 + 4
+    assert screen[footer : footer + 35] == bytes((0, 0, 0, 0, 0, 0, 19, 3, 18, 15, 12, 12, 38, 0, 21, 16, 41, 4, 15, 23, 14, 0, 17, 21, 9, 20, 38, 0, 17, 0, 0, 0, 0, 0, 0))
+    assert color[footer : footer + 35] == bytes((0, 0, 0, 0, 0, 0, 12, 12, 12, 12, 12, 12, 12, 12, 1, 1, 1, 1, 1, 1, 1, 0, 12, 12, 12, 12, 12, 12, 1, 0, 0, 0, 0, 0, 0))
+    scrollbar = [row * 40 + 34 for row in range(4, 22)]
+    assert [screen[cell] for cell in scrollbar] == [42] + [46] * 17
+    assert [color[cell] for cell in scrollbar] == [7] + [11] * 17

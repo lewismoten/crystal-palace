@@ -64,29 +64,6 @@ def render_character_state(screen_name: str, color_name: str) -> bytes:
     return bytes(pixels)
 
 
-def render_info_runtime_preview() -> bytes:
-    """Render INFO as entered: its runtime footer replaces stale frame text."""
-    charset = read_exact("charset.bin", 2048)
-    screen = bytearray(read_exact("info/screen.bin", 1000))
-    color = bytearray(read_exact("info/color.bin", 1000))
-    footer_chars = (0, 0, 0, 0, 0, 0, 19, 3, 18, 15, 12, 12, 38, 0, 21, 16, 41, 4, 15, 23, 14, 0, 17, 21, 9, 20, 38, 0, 17, 0, 0, 0, 0, 0, 0)
-    footer_colors = (0, 0, 0, 0, 0, 0, 12, 12, 12, 12, 12, 12, 12, 12, 1, 1, 1, 1, 1, 1, 1, 0, 12, 12, 12, 12, 12, 12, 1, 0, 0, 0, 0, 0, 0)
-    start = 23 * 40 + 4
-    screen[start : start + len(footer_chars)] = bytes(footer_chars)
-    color[start : start + len(footer_colors)] = bytes(footer_colors)
-    pixels = bytearray(WIDTH * HEIGHT)
-    for cell_y in range(25):
-        for cell_x in range(40):
-            cell = cell_y * 40 + cell_x
-            glyph = screen[cell] * 8
-            foreground = color[cell] & 0x0F
-            for scanline in range(8):
-                pattern = charset[glyph + scanline]
-                row = (cell_y * 8 + scanline) * WIDTH + cell_x * 8
-                for bit in range(8):
-                    if pattern & (0x80 >> bit):
-                        pixels[row + bit] = foreground
-    return bytes(pixels)
 
 
 def render_character_screen_mono(screen_name: str) -> bytes:
@@ -181,22 +158,22 @@ def indexed_png(pixels: bytes, width: int = WIDTH, height: int = HEIGHT) -> byte
 
 
 STATES = {
-    "title/auto/preview.png": lambda: render_character_state("title/auto/screen.bin", "title/auto/color.bin"),
-    "title/one/preview.png": lambda: render_character_state("title/one/screen.bin", "title/one/color.bin"),
-    "title/two/preview.png": lambda: render_character_state("title/two/screen.bin", "title/two/color.bin"),
-    "info/preview.png": render_info_runtime_preview,
+    "title/preview-auto.png": lambda: render_character_state("title/auto/screen.bin", "title/auto/color.bin"),
+    "title/preview-one.png": lambda: render_character_state("title/one/screen.bin", "title/one/color.bin"),
+    "title/preview-two.png": lambda: render_character_state("title/two/screen.bin", "title/two/color.bin"),
+    "info/preview.png": lambda: render_character_state("info/screen.bin", "info/color.bin"),
     "game/board/preview.png": lambda: render_multicolor_bitmap("game/blank/bitmap.bin", "game/blank/screen.bin", "game/blank/color.bin"),
     "game/marks/preview.png": lambda: render_multicolor_bitmap("game/marks-preview/bitmap.bin", "game/marks-preview/screen.bin", "game/marks-preview/color.bin"),
 }
 
 DERIVED_VIEWS = {
     "charset/atlas.png": lambda: (render_charset_charmap(), 128, 128),
-    "title/auto/glyphs.png": lambda: (render_character_screen_mono("title/auto/screen.bin"), WIDTH, HEIGHT),
-    "title/auto/colors.png": lambda: (render_color_plane("title/auto/color.bin"), WIDTH, HEIGHT),
-    "title/one/glyphs.png": lambda: (render_character_screen_mono("title/one/screen.bin"), WIDTH, HEIGHT),
-    "title/one/colors.png": lambda: (render_color_plane("title/one/color.bin"), WIDTH, HEIGHT),
-    "title/two/glyphs.png": lambda: (render_character_screen_mono("title/two/screen.bin"), WIDTH, HEIGHT),
-    "title/two/colors.png": lambda: (render_color_plane("title/two/color.bin"), WIDTH, HEIGHT),
+    "title/glyphs-auto.png": lambda: (render_character_screen_mono("title/auto/screen.bin"), WIDTH, HEIGHT),
+    "title/colors-auto.png": lambda: (render_color_plane("title/auto/color.bin"), WIDTH, HEIGHT),
+    "title/glyphs-one.png": lambda: (render_character_screen_mono("title/one/screen.bin"), WIDTH, HEIGHT),
+    "title/colors-one.png": lambda: (render_color_plane("title/one/color.bin"), WIDTH, HEIGHT),
+    "title/glyphs-two.png": lambda: (render_character_screen_mono("title/two/screen.bin"), WIDTH, HEIGHT),
+    "title/colors-two.png": lambda: (render_color_plane("title/two/color.bin"), WIDTH, HEIGHT),
     "info/glyphs.png": lambda: (render_character_screen_mono("info/screen.bin"), WIDTH, HEIGHT),
     "info/colors.png": lambda: (render_color_plane("info/color.bin"), WIDTH, HEIGHT),
 }

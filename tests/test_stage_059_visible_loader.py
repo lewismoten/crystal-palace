@@ -935,11 +935,14 @@ def test_archive_source_plane_harness_uses_every_blank_frame_row_and_keeps_scrol
     asset_color = (GENERATED / "info/color.bin").read_bytes()
     panel_rows = [
         row for row in range(25)
-        if asset_screen[row * 40 + 5 : row * 40 + 35] == bytes(30)
+        if asset_screen[row * 40 + 5 : row * 40 + 34] == bytes(29)
+        and asset_screen[row * 40 + 34] in (42, 46)
         and asset_screen[row * 40 + 4] != 0
         and asset_screen[row * 40 + 35] != 0
     ]
     assert panel_rows == list(range(4, 22))
+    assert [asset_screen[row * 40 + 34] for row in panel_rows] == [42] + [46] * 17
+    assert [asset_color[row * 40 + 34] for row in panel_rows] == [7] + [11] * 17
 
     spec = importlib.util.spec_from_file_location("compile_info_markdown", ROOT / "scripts" / "compile_info_markdown.py")
     compiler = importlib.util.module_from_spec(spec); spec.loader.exec_module(compiler)

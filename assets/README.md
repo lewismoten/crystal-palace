@@ -13,18 +13,26 @@ python3 scripts/render_screen_states.py --check
 
 ## Title and INFO screens
 
-`charset/atlas.png` is the shared 16×16 custom-character atlas. Title and INFO
-screens use it through explicit `glyph-map.png` and `color-map.png` files, so
-the review images are reproducible from editable source data. Each character
-screen also has generated `glyphs.png` and `colors.png` inspection views.
+`charset/atlas.png` is the shared 16×16 custom-character atlas. The title has
+one editable `glyph-map.png` and `color-map.png` base. `title/selection.json`
+contains only the two changed screen bytes and the small color-byte deltas for
+the Auto, One Player, and Two Player selections. The title is not stored three
+times as almost-identical source images. `preview-*.png`, `glyphs-*.png`, and
+`colors-*.png` are generated review images for the three resulting states.
+
+The INFO frame uses its own `glyph-map.png` and `color-map.png`. Those maps
+include the initial right-side scrollbar and its position marker plus the
+entered footer options, so the source maps and all INFO review images agree.
+The generated `info/glyphs.png` and `info/colors.png` inspection views use the
+same footer, scrollbar, and marker state as `info/preview.png`.
 
 | Title screen | INFO screen after entry |
 | --- | --- |
-| ![Player-one title preview](title/one/preview.png) | ![INFO preview with runtime footer](info/preview.png) |
+| ![Player-one title preview](title/preview-one.png) | ![INFO preview with runtime footer, scrollbar, and marker](info/preview.png) |
 
-The INFO preview includes the entered runtime footer, `SCROLL: UP/DOWN  QUIT: Q`.
-It does not preserve the obsolete `SPACE: CONTINUE` artwork from the supplied
-frame.
+The INFO preview includes `SCROLL: UP/DOWN  QUIT: Q`, the full scrollbar track,
+and the initial highlighted marker. It does not preserve the obsolete `SPACE:
+CONTINUE` artwork from the supplied frame.
 
 ## Game board and marks
 
@@ -50,14 +58,14 @@ grid's local color slot.
 | ![Logical X source](game/marks/x.png) | ![Logical O source](game/marks/o.png) |
 
 The compiler stamps these two images into the named A–I rectangles from
-`layout/board.json`, then derives ignored bitmap, screen, Color RAM, and
+`game/board/layout.json`, then derives ignored bitmap, screen, Color RAM, and
 per-cell runtime patch planes. A separate all-X or all-O editable source image
 is not needed.
 
 ## Other sources
 
 - `archive/archive.md` — readable source text packaged as `ARCHIVE.MD`.
-- `layout/board.json` — game-cell placement geometry.
+- `game/board/layout.json` — game-cell placement geometry.
 - `manifest.json` — generated-plane size and digest contract.
 
 ## PNG requirements

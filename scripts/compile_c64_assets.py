@@ -23,7 +23,7 @@ C64_PALETTE = (
 TITLE_STATES = ("auto", "one", "two")
 SOURCE_PNGS = (
     "charset/atlas.png",
-    *(f"title/{state}/{plane}.png" for state in TITLE_STATES for plane in ("glyph-map", "color-map")),
+    "title/glyph-map.png", "title/color-map.png",
     "info/glyph-map.png", "info/color-map.png",
     "game/board/bitmap-selectors.png", "game/board/screen-hi.png", "game/board/screen-lo.png", "game/board/color-lo.png",
     "game/marks/x.png", "game/marks/o.png",
@@ -125,6 +125,25 @@ def compile_character_state(source: Path, output: Path, relative: str) -> None:
     write_plane(output, f"{relative}/color.bin", bytes(colors))
 
 
+def compile_title_states(source: Path, output: Path) -> None:
+    """Build title variants from one base map and small selector/color deltas."""
+    glyphs = require_pixels(source, "title/glyph-map.png", 80, 25)
+    base_screen = bytes((glyphs[cell * 2] << 4) | glyphs[cell * 2 + 1] for cell in range(1000))
+    base_color = require_pixels(source, "title/color-map.png", 40, 25)
+    selections = json.loads((source / "title/selection.json").read_text())
+    if selections.get("base") != "one" or set(selections.get("states", {})) != set(TITLE_STATES):
+        raise ValueError("title/selection.json: expected one base and auto/one/two states")
+    for state in TITLE_STATES:
+        screen, color = bytearray(base_screen), bytearray(base_color)
+        for plane, destination in (("screen", screen), ("color", color)):
+            for offset, value in selections["states"][state][plane]:
+                if not 0 <= offset < 1000 or not 0 <= value < 256:
+                    raise ValueError(f"title/selection.json: invalid {state} {plane} delta")
+                destination[offset] = value
+        write_plane(output, f"title/{state}/screen.bin", bytes(screen))
+        write_plane(output, f"title/{state}/color.bin", bytes(color))
+
+
 def compile_blank_board(source: Path, output: Path) -> None:
     selectors = require_pixels(source, "game/board/bitmap-selectors.png", 160, 200)
     high = require_pixels(source, "game/board/screen-hi.png", 40, 25)
@@ -178,7 +197,7 @@ def compile_mark_board(source: Path, output: Path, mark: str, cells: str = "abcd
     blank_screen = (output / f"{base_name}/screen.bin").read_bytes()
     screen = bytearray(blank_screen)
     color_ram = bytearray((output / f"{base_name}/color.bin").read_bytes())
-    coordinates = json.loads((source / "layout/board.json").read_text())["cell_rectangles"]
+    coordinates = json.loads((source / "game/board/layout.json").read_text())["cell_rectangles"]
     remapped_cells: set[int] = set()
     for cell in cells:
         physical_x, physical_y, width, height = coordinates[cell]["preview_xywh"]
@@ -227,7 +246,7 @@ def bitmap_offsets(x_logical: int, y: int, width_logical: int, height: int) -> l
 
 
 def compile_cells(source: Path, output: Path) -> None:
-    coordinates = json.loads((source / "layout/board.json").read_text())["cell_rectangles"]
+    coordinates = json.loads((source / "game/board/layout.json").read_text())["cell_rectangles"]
     bitmap_per_cell, screen_per_cell, destinations = [], [], []
     for cell in "abcdefghi":
         x, y, width, height = coordinates[cell]["logical_xywh"]
@@ -257,8 +276,7 @@ def compile_assets(source: Path = ASSETS, output: Path = OUTPUT) -> Path:
     for relative in SOURCE_PNGS:
         read_indexed_png(source / relative)
     compile_charset(source, output)
-    for state in TITLE_STATES:
-        compile_character_state(source, output, f"title/{state}")
+    compile_title_states(source, output)
     compile_character_state(source, output, "info")
     compile_blank_board(source, output)
     compile_mark_board(source, output, "x")

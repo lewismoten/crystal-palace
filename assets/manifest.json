@@ -71,11 +71,11 @@
     },
     "info/color.bin": {
       "bytes": 1000,
-      "sha256": "ffe0663438e25b022c690a949dbaca2167af237c59311e27f081a2cfb87940aa"
+      "sha256": "410f4ad894cd74da123e88d6c945938d72a99b6f24085c2d42929388eda61596"
     },
     "info/screen.bin": {
       "bytes": 1000,
-      "sha256": "107206ae95e3a16eeda3cf9df701cded6f3c1512b63ee36b3e91fc80a3f17a39"
+      "sha256": "7ce605e10f81ce4cc08c2a015808590b53ab417e2049c033d1bb3d6352e3fa73"
     },
     "runtime/title-one.color.bin": {
       "bytes": 1000,
