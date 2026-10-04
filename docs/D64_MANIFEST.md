@@ -1,10 +1,12 @@
 # CP64 D64 manifest
 
-The release disk intentionally contains only the executable and the 48 immutable original Crystal-9 tensor packets. Title, INFO, game-room, charset, and cell-patch planes are embedded byte-for-byte in `CP64.PRG`; they are documented in [`assets/crystal-palace-screen-states/README.md`](../assets/crystal-palace-screen-states/README.md) and are not duplicated as unused disk files.
+The release disk contains the executable, the 48 immutable original Crystal-9 tensor packets, and two archive files. Title, INFO frame, game-room, charset, and cell-patch planes remain embedded byte-for-byte in `CP64.PRG`; they are documented in [`assets/crystal-palace-screen-states/README.md`](../assets/crystal-palace-screen-states/README.md) and are not duplicated as unused disk files. The INFO *text* is deliberately separate: `ARCHIVE.PRG` is the compact runtime payload loaded only when INFO opens, while `ARCHIVE.MD` is the readable sequential Markdown source.
 
 | Directory entry | Count | Purpose |
 | --- | ---: | --- |
-| `CP64.PRG` | 1 | Browser-facing presentation/game executable: title, INFO viewer, bitmap board, supplied visual planes, and narrowly bounded original-weight bridge code. It is deliberately the first directory entry and allocated nearest track 18. |
+| `CP64.PRG` | 1 | Browser-facing presentation/game executable: title, INFO frame/viewer, bitmap board, supplied visual planes, and narrowly bounded original-weight bridge code. It is deliberately the first directory entry and allocated nearest track 18. |
+| `ARCHIVE.PRG` | 1 | Versioned `ARCV` INFO-viewer payload. It is loaded into volatile `$c000` only when INFO opens, validated, then copied into the INFO character/colour RAM planes. |
+| `ARCHIVE.MD` | 1 | Authored disk-readable Markdown archive stored as a CBM sequential (`SEQ`) file. It is the build source for `ARCHIVE.PRG`, not a runtime parser input. |
 | Descriptive model packets | 48 | Verbatim original packed Crystal-9 tensor packets with readable 1541 directory names. The exact directory ranges are listed below. They are never regenerated, distilled, or requantized by the C64 build. |
 
 ## Crystal-9 packet directory map
@@ -59,4 +61,4 @@ The original short IDs are retained here only for byte-level provenance and deve
 - File allocation alternates outward from track 18 (`17`, `19`, `16`, `20`, …) with rotational sector interleaving. This avoids the old all-from-track-1 allocation order and distributes reads across both sides of the directory track.
 - Release validation checks declared chains, duplicate sector references, track-18 misuse, DOS type `2A`, and BAM sectors marked used without a reachable BAM/directory/file claim.
 
-`python3 scripts/build_disk.py` creates the numbered image. The image itself is ignored by Git; source, build scripts, tests, and this manifest are versioned.
+`python3 scripts/build_disk.py` creates the numbered image. The image contains 51 directory entries: `CP64.PRG`, `ARCHIVE.PRG`, `ARCHIVE.MD` (SEQ), and 48 model packets. The image itself is ignored by Git; source, build scripts, tests, and this manifest are versioned.

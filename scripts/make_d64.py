@@ -10,6 +10,8 @@ DIRECTORY_TRACK = 18
 DIRECTORY_SECTOR = 1
 BAM_TRACK = 18
 BAM_SECTOR = 0
+PRG_FILE_TYPE = 0x82
+SEQ_FILE_TYPE = 0x81
 
 
 def sectors_on_track(track: int) -> int:
@@ -279,7 +281,7 @@ def validate_d64(image_path: Path) -> dict[str, object]:
     }
 
 
-def build_d64_files(files: dict[str, Path], output_path: Path, disk_name: str = "CP64 MODEL") -> None:
+def build_d64_files(files: dict[str, Path | tuple[Path, int]], output_path: Path, disk_name: str = "CP64 MODEL") -> None:
     """Write named PRGs to a D64, chaining directory sectors as required."""
     if not files:
         raise ValueError("D64 requires at least one file")
@@ -297,17 +299,23 @@ def build_d64_files(files: dict[str, Path], output_path: Path, disk_name: str = 
     free.remove((BAM_TRACK, BAM_SECTOR))
     allocated_directory_sectors = directory_sector_order(directory_sectors)
     free -= {(DIRECTORY_TRACK, sector) for sector in allocated_directory_sectors}
-    payloads = [(name, path.read_bytes()) for name, path in files.items()]
-    if any(len(payload) < 3 for _, payload in payloads):
-        raise ValueError("every PRG must contain a two-byte load address and code")
-    needed = sum(math.ceil(len(payload) / 254) for _, payload in payloads)
+    payloads: list[tuple[str, bytes, int]] = []
+    for name, entry in files.items():
+        path, file_type = entry if isinstance(entry, tuple) else (entry, PRG_FILE_TYPE)
+        if file_type not in (PRG_FILE_TYPE, SEQ_FILE_TYPE):
+            raise ValueError(f"unsupported CBM file type for {name}: {file_type:#x}")
+        payload = path.read_bytes()
+        if file_type == PRG_FILE_TYPE and len(payload) < 3:
+            raise ValueError("every PRG must contain a two-byte load address and code")
+        payloads.append((name, payload, file_type))
+    needed = sum(math.ceil(len(payload) / 254) for _, payload, _ in payloads)
     if needed > len(free):
         raise ValueError("files do not fit on a standard 35-track D64")
 
-    chains: list[tuple[str, list[tuple[int, int]]]] = []
+    chains: list[tuple[str, list[tuple[int, int]], int]] = []
     starts = file_start_order()
     start_cursor = 0
-    for name, payload in payloads:
+    for name, payload, file_type in payloads:
         block_count = math.ceil(len(payload) / 254)
         while starts[start_cursor] not in free:
             start_cursor += 1
@@ -323,7 +331,7 @@ def build_d64_files(files: dict[str, Path], output_path: Path, disk_name: str = 
             chunk = payload[index * 254 : (index + 1) * 254]
             image[offset : offset + 2] = bytes(chain[index + 1]) if index + 1 < len(chain) else bytes((0, len(chunk) + 1))
             image[offset + 2 : offset + 2 + len(chunk)] = chunk
-        chains.append((name, chain))
+        chains.append((name, chain, file_type))
 
     bam = sector_offset(BAM_TRACK, BAM_SECTOR)
     image[bam : bam + 4] = bytes((DIRECTORY_TRACK, allocated_directory_sectors[0], 0x41, 0))
@@ -340,10 +348,10 @@ def build_d64_files(files: dict[str, Path], output_path: Path, disk_name: str = 
         directory = sector_offset(DIRECTORY_TRACK, directory_sector)
         next_sector = allocated_directory_sectors[directory_index + 1] if directory_index + 1 < directory_sectors else 0xff
         image[directory : directory + 2] = bytes((DIRECTORY_TRACK, next_sector)) if directory_index + 1 < directory_sectors else bytes((0, 0xff))
-    for index, (name, chain) in enumerate(chains):
+    for index, (name, chain, file_type) in enumerate(chains):
         directory = sector_offset(DIRECTORY_TRACK, allocated_directory_sectors[index // 8])
         entry = directory + 2 + (index % 8) * 32
-        image[entry : entry + 3] = bytes((0x82, chain[0][0], chain[0][1]))
+        image[entry : entry + 3] = bytes((file_type, chain[0][0], chain[0][1]))
         image[entry + 3 : entry + 19] = petscii_name(name)
         image[entry + 28 : entry + 30] = len(chain).to_bytes(2, "little")
 

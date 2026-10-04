@@ -20,9 +20,18 @@ def load_builder():
     return module
 
 
-def test_stage_083_declares_visible_game_state_and_info_viewport():
+def prepare_info_archive_load(mpu) -> None:
+    """Supply the disk payload and KERNAL stubs for the flat-memory Py65 harness."""
+    payload = (ROOT / "build" / "ARCHIVE.PRG").read_bytes()
+    mpu.memory[0xFFBA] = 0x60  # SETLFS RTS
+    mpu.memory[0xFFBD] = 0x60  # SETNAM RTS
+    mpu.memory[0xFFD5] = 0x60  # LOAD RTS after the preloaded disk payload
+    mpu.memory[0xC000 : 0xC000 + len(payload) - 2] = payload[2:]
+
+
+def test_stage_084_declares_disk_backed_info_archive():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (83, "visible-game-state-and-info-viewport")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (84, "disk-backed-info-archive")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
 
 
@@ -187,14 +196,14 @@ def test_embedded_preview_has_correct_game_vic_layout_and_live_a_to_i_marks(tmp_
     for index, glyph in enumerate(label_glyphs):
         address = int.from_bytes(mpu.memory[symbols["label_bitmap_destinations"] + index * 2 : symbols["label_bitmap_destinations"] + index * 2 + 2], "little")
         expected_bitmap[address - 0x2000 : address - 0x2000 + 8] = glyph
-    expected_bitmap[0x2338 - 0x2000 : 0x2340 - 0x2000] = b"\x00\x41\x41\x14\x14\x41\x41\x00"
+    expected_bitmap[0x3218 - 0x2000 : 0x3220 - 0x2000] = b"\x00\x41\x41\x14\x14\x41\x41\x00"
     assert bytes(mpu.memory[0x2000 : 0x3F40]) == bytes(expected_bitmap)
     expected_screen = bytearray((ASSETS / "crystal-palace-game-blank.screen.bin").read_bytes())
     for index in range(9):
         address = int.from_bytes(mpu.memory[symbols["label_screen_destinations"] + index * 2 : symbols["label_screen_destinations"] + index * 2 + 2], "little")
         offset = address - 0x0400
         expected_screen[offset] = (expected_screen[offset] & 0x0F) | 0xB0
-    expected_screen[0x0467 - 0x0400] = (expected_screen[0x0467 - 0x0400] & 0x0F) | 0xA0
+    expected_screen[0x0643 - 0x0400] = (expected_screen[0x0643 - 0x0400] & 0x0F) | 0xA0
     assert bytes(mpu.memory[0x0400 : 0x07E8]) == bytes(expected_screen)
     assert (mpu.memory[0xD011] & 0x20, mpu.memory[0xD016] & 0x10, mpu.memory[0xD018], mpu.memory[0xDD00] & 3) == (0x20, 0x10, 0x18, 3)
 
@@ -242,6 +251,7 @@ def test_title_and_info_restore_after_live_board_patches(tmp_path):
     title[922:926] = bytes((17, 21, 9, 20))
     for offset in (242, 282, 321, 322): title[offset] = 0
     assert bytes(mpu.memory[0x0400 : 0x07E8]) == bytes(title)
+    prepare_info_archive_load(mpu)
     call(mpu, symbols["show_info"])
     source_info = bytearray((ASSETS / "crystal-palace-info.screen.bin").read_bytes())
     source_info[23 * 40 + 4 : 24 * 40 - 1] = bytes((0, 0, 0, 0, 0, 0, 19, 3, 18, 15, 12, 12, 38, 0, 21, 16, 41, 4, 15, 23, 14, 0, 17, 21, 9, 20, 38, 0, 17, 0, 0, 0, 0, 0, 0))
@@ -305,6 +315,7 @@ def test_sequential_a_to_i_x_patches_stay_in_the_game_planes_and_leave_title_inf
     mpu.memory[symbols["title_mode"]] = 1
     call(mpu, symbols["show_title"])
     assert bytes(mpu.memory[0x3800 : 0x4000]) == (ASSETS / "crystal-palace-charset.bin").read_bytes()
+    prepare_info_archive_load(mpu)
     call(mpu, symbols["show_info"])
     source_info = bytearray((ASSETS / "crystal-palace-info.screen.bin").read_bytes())
     source_info[23 * 40 + 4 : 24 * 40 - 1] = bytes((0, 0, 0, 0, 0, 0, 19, 3, 18, 15, 12, 12, 38, 0, 21, 16, 41, 4, 15, 23, 14, 0, 17, 21, 9, 20, 38, 0, 17, 0, 0, 0, 0, 0, 0))
@@ -550,6 +561,7 @@ def test_archive_footer_centers_scroll_and_quit_commands(tmp_path):
     symbols = labels(labels_path); image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
     mpu.memory[load : load + len(image) - 2] = image[2:]
 
+    prepare_info_archive_load(mpu)
     call(mpu, symbols["show_info"])
 
     footer = 23 * 40 + 4
@@ -575,8 +587,8 @@ def test_archive_renderer_banks_in_ram_for_the_a600_compiled_text():
 def test_info_colour_plane_is_relocated_beyond_the_title_charset_backup():
     """49 archive rows no longer fit below $b000 beside the title charset."""
     generated = (ROOT / "src" / "info_markdown.inc").read_text()
-    assert "info_markdown_chars:" in generated
-    assert "* = $b800\ninfo_markdown_colours:" in generated
+    assert "info_markdown_chars = $a600" in generated
+    assert "info_markdown_colours = $b800" in generated
 
 
 def test_info_cursor_down_is_checked_before_ambiguous_screen_code_q():
@@ -687,6 +699,9 @@ def test_player_vs_ai_accepts_one_screen_code_x_then_locks_input_for_a_real_mode
         call(mpu, symbols["process_game_key"])
     assert bytes(mpu.memory[symbols["board_state"] : symbols["board_state"] + 9]) == b"\x01" + b"\x00" * 8
     assert mpu.memory[symbols["game_ai_pending"]] == 1
+    assert mpu.memory[symbols["turn_mark"]] == 2
+    assert bytes(mpu.memory[0x3218 : 0x3220]) == b"\x00\x14\x41\x41\x41\x41\x14\x00"
+    assert mpu.memory[0x0643] >> 4 == 3
 
 
 def test_archive_markdown_is_compiled_and_scrolls_a_fixed_panel(tmp_path):
@@ -702,6 +717,7 @@ def test_archive_markdown_is_compiled_and_scrolls_a_fixed_panel(tmp_path):
     subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "art_embedded_title.asm")], check=True, capture_output=True, text=True)
     symbols = labels(labels_path); image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
     mpu.memory[load : load + len(image) - 2] = image[2:]
+    prepare_info_archive_load(mpu)
     call(mpu, symbols["show_info"])
     first = bytes(mpu.memory[0x04A5 : 0x04A5 + 29])
     colours = bytes(mpu.memory[0xD8A5 : 0xD8A5 + 29])
@@ -740,17 +756,31 @@ def test_game_presentation_labels_empty_cells_shows_turns_and_reports_terminal_s
     assert {"draw_empty_labels", "draw_turn_indicator", "game_terminal_tick", "game_winning_line", "game_terminal_ticks"} <= symbols.keys()
     label_bitmap = bytes(mpu.memory[symbols["label_bitmap_destinations"] : symbols["label_bitmap_destinations"] + 18])
     label_screen = bytes(mpu.memory[symbols["label_screen_destinations"] : symbols["label_screen_destinations"] + 18])
-    for index in range(9):
+    expected_labels = (
+        b"\x00\x14\x41\x55\x41\x41\x41\x00", b"\x00\x54\x41\x54\x41\x41\x54\x00",
+        b"\x00\x15\x40\x40\x40\x40\x15\x00", b"\x00\x54\x41\x41\x41\x41\x54\x00",
+        b"\x00\x55\x40\x54\x40\x40\x55\x00", b"\x00\x55\x40\x54\x40\x40\x40\x00",
+        b"\x00\x15\x40\x45\x41\x41\x15\x00", b"\x00\x41\x41\x55\x41\x41\x41\x00",
+        b"\x00\x55\x14\x14\x14\x14\x55\x00",
+    )
+    for index, glyph in enumerate(expected_labels):
         bitmap_address = int.from_bytes(label_bitmap[index * 2 : index * 2 + 2], "little")
         screen_address = int.from_bytes(label_screen[index * 2 : index * 2 + 2], "little")
-        assert bytes(mpu.memory[bitmap_address : bitmap_address + 8]) != b"\0" * 8
+        assert bytes(mpu.memory[bitmap_address : bitmap_address + 8]) == glyph
         assert mpu.memory[screen_address] >> 4 == 11  # dim-grey A-I labels
+
+    # The one-cell turn status is centered on the board's midpoint below its
+    # bottom grid edge: character row 14, column 19 (bitmap $3218/screen $0643).
+    status_bitmap, status_screen = 0x3218, 0x0643
+    assert bytes(mpu.memory[status_bitmap : status_bitmap + 8]) == b"\x00\x41\x41\x14\x14\x41\x41\x00"
+    assert mpu.memory[status_screen] >> 4 == 10
 
     mpu.a = ord("a"); call(mpu, symbols["process_game_key"])
     assert mpu.memory[symbols["board_state"]] == 1
     assert mpu.memory[int.from_bytes(label_screen[:2], "little")] >> 4 == 10  # X replaces A in light red
     assert mpu.memory[symbols["turn_mark"]] == 2
-    assert mpu.memory[symbols["turn_indicator_colour"]] == 3  # next player is cyan O
+    assert bytes(mpu.memory[status_bitmap : status_bitmap + 8]) == b"\x00\x14\x41\x41\x41\x41\x14\x00"
+    assert mpu.memory[status_screen] >> 4 == 3  # next player is cyan O
 
     mpu.a = ord("b"); call(mpu, symbols["process_game_key"])
     assert mpu.memory[symbols["board_state"] + 1] == 2
@@ -760,10 +790,10 @@ def test_game_presentation_labels_empty_cells_shows_turns_and_reports_terminal_s
     assert mpu.memory[symbols["game_winner"]] == 1
     assert mpu.memory[symbols["game_winning_line"]] == 21  # C-E-G diagonal
     assert mpu.memory[symbols["game_terminal_ticks"]] > 0
-    winning_label = int.from_bytes(label_screen[4:6], "little")
-    before = mpu.memory[winning_label] >> 4
+    winning_labels = [int.from_bytes(label_screen[index * 2 : index * 2 + 2], "little") for index in (2, 4, 6)]
+    assert [mpu.memory[address] >> 4 for address in winning_labels] == [7, 7, 7]
     call(mpu, symbols["game_terminal_tick"])
-    assert mpu.memory[winning_label] >> 4 != before  # winning line visibly blinks
+    assert [mpu.memory[address] >> 4 for address in winning_labels] == [10, 10, 10]
     while mpu.memory[symbols["game_terminal_ticks"]]:
         call(mpu, symbols["game_terminal_tick"])
     assert mpu.memory[symbols["view_mode"]] == 0  # short terminal sequence returns to title
@@ -826,6 +856,7 @@ def test_archive_source_plane_harness_uses_every_blank_frame_row_and_keeps_scrol
     symbols = labels(labels_path); image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
     mpu.memory[load : load + len(image) - 2] = image[2:]
 
+    prepare_info_archive_load(mpu)
     call(mpu, symbols["show_info"])
     for viewport_row, source_row in enumerate(range(len(panel_rows))):
         offset = panel_rows[viewport_row] * 40

@@ -7,14 +7,17 @@ import subprocess
 import sys
 from pathlib import Path
 
-from make_d64 import build_d64_files
+from make_d64 import SEQ_FILE_TYPE, build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 83
-CURRENT_DESCRIPTION = "visible-game-state-and-info-viewport"
+CURRENT_STAGE = 84
+CURRENT_DESCRIPTION = "disk-backed-info-archive"
 PROGRAM_SOURCE = ROOT / "src" / "art_embedded_title.asm"
 ART = ROOT / "assets" / "crystal-palace-screen-states"
+ARCHIVE_RUNTIME_FILENAME = "ARCHIVE.PRG"
+ARCHIVE_MARKDOWN_FILENAME = "ARCHIVE.MD"
+ARCHIVE_MARKDOWN_SOURCE = ART / "ARCHIVE.md"
 
 # Descriptive 1541 directory names. The local source-packet names remain
 # C9Wxx so the immutable transport ID and host-side parity fixtures stay
@@ -84,16 +87,17 @@ def main() -> None:
     subprocess.run([sys.executable, str(ROOT / "scripts" / "derive_cell_patches.py")], check=True)
     subprocess.run([sys.executable, str(ROOT / "scripts" / "compile_info_markdown.py")], check=True)
     subprocess.run([str(assembler), "--cbm-prg", "-o", str(BUILD / "CP64.PRG"), str(PROGRAM_SOURCE)], check=True)
-    files = {"CP64.PRG": BUILD / "CP64.PRG"}
+    files: dict[str, Path | tuple[Path, int]] = {"CP64.PRG": BUILD / "CP64.PRG", ARCHIVE_RUNTIME_FILENAME: BUILD / ARCHIVE_RUNTIME_FILENAME}
     packets = {path.name: path for path in sorted((BUILD / "layers").glob("C9W*.PRG"))}
     if set(packets) != set(DISK_TENSOR_FILENAMES):
         raise SystemExit("descriptive disk-name map does not cover exactly the 48 original tensor packets")
     files.update({DISK_TENSOR_FILENAMES[source_name]: path for source_name, path in packets.items()})
-    if len(files) != 49:
-        raise SystemExit(f"expected CP64 plus 48 original tensor files, found {len(files)}")
-    # The current executable embeds the immutable title/info/game planes.
-    # Keep raw asset wrappers reproducible via crystal_palace_art_prgs(), but
-    # do not inflate the release disk with 49 unused staging PRGs.
+    files[ARCHIVE_MARKDOWN_FILENAME] = (ARCHIVE_MARKDOWN_SOURCE, SEQ_FILE_TYPE)
+    if len(files) != 51:
+        raise SystemExit(f"expected CP64, archive payload/text, plus 48 original tensor files, found {len(files)}")
+    # Presentation planes remain embedded. INFO text is intentionally different:
+    # it is loaded only on INFO entry from ARCHIVE.PRG, while ARCHIVE.MD is a
+    # readable sequential disk document containing the authored Markdown.
     stage_image = stage_image_path(CURRENT_STAGE, CURRENT_DESCRIPTION)
     build_d64_files(files, stage_image, disk_name="CP64 CRYSTAL9")
     shutil.copyfile(stage_image, BUILD / "cp64.d64")

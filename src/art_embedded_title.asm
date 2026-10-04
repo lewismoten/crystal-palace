@@ -19,8 +19,10 @@ src = $fb
 out = $fd
 dest = $f9
 info_colour_out = $f7
-TURN_BITMAP = $2338
-TURN_SCREEN = $0467
+; The one-cell turn/result status is centered below the 3×3 grid, not in the
+; monitor border above cell C.  Bitmap-mode cells are 16 physical pixels wide.
+TURN_BITMAP = $3218           ; character row 14, column 19
+TURN_SCREEN = $0643
 
 start:
     lda #1
@@ -377,6 +379,10 @@ cleanup_title_radar_labels:
     rts
 
 show_info:
+    ; INFO is the sole presentation route that pages archive data from disk.
+    ; Board A-I input never invokes this loader or a KERNAL disk operation.
+    jsr load_info_archive
+    bcs show_info_load_failed
     lda view_mode
     beq show_info_charset_ready
     jsr restore_title_charset
@@ -394,6 +400,111 @@ show_info_charset_ready:
     lda #2
     sta view_mode
     jmp set_title_vic
+show_info_load_failed:
+    ; Do not render stale RAM if the disk archive is absent or mismatched.
+    jmp show_title
+
+; ARCHIVE.PRG is a compact runtime transport: header followed by character and
+; colour planes. It enters the volatile $c000 load window then copies into the
+; fixed RAM planes used by the INFO renderer, avoiding title charset backup RAM.
+load_info_archive:
+    lda #11
+    ldx #<archive_filename
+    ldy #>archive_filename
+    jsr SETNAM
+    lda #1
+    ldx #8
+    ldy #0
+    jsr SETLFS
+    lda #0
+    ldx #<ARCHIVE_LOAD_ADDRESS
+    ldy #>ARCHIVE_LOAD_ADDRESS
+    clc
+    jsr LOAD
+    bcs archive_load_failed
+    lda ARCHIVE_LOAD_ADDRESS
+    cmp #'A'
+    bne archive_load_failed
+    lda ARCHIVE_LOAD_ADDRESS+1
+    cmp #'R'
+    bne archive_load_failed
+    lda ARCHIVE_LOAD_ADDRESS+2
+    cmp #'C'
+    bne archive_load_failed
+    lda ARCHIVE_LOAD_ADDRESS+3
+    cmp #'V'
+    bne archive_load_failed
+    lda ARCHIVE_LOAD_ADDRESS+4
+    cmp #1
+    bne archive_load_failed
+    lda ARCHIVE_LOAD_ADDRESS+5
+    cmp #<INFO_LINE_COUNT
+    bne archive_load_failed
+    lda ARCHIVE_LOAD_ADDRESS+6
+    cmp #>INFO_LINE_COUNT
+    bne archive_load_failed
+    lda ARCHIVE_LOAD_ADDRESS+7
+    cmp #INFO_LINE_WIDTH
+    bne archive_load_failed
+    lda $01
+    sta archive_memory_config
+    and #$fc                 ; expose RAM beneath BASIC and KERNAL, keep I/O.
+    sta $01
+    lda #<(ARCHIVE_LOAD_ADDRESS+ARCHIVE_HEADER_SIZE)
+    sta src
+    lda #>(ARCHIVE_LOAD_ADDRESS+ARCHIVE_HEADER_SIZE)
+    sta src+1
+    lda #<info_markdown_chars
+    sta dest
+    lda #>info_markdown_chars
+    sta dest+1
+    jsr archive_copy_plane
+    lda #<info_markdown_colours
+    sta dest
+    lda #>info_markdown_colours
+    sta dest+1
+    jsr archive_copy_plane
+    lda archive_memory_config
+    sta $01
+    clc
+    rts
+archive_load_failed:
+    sec
+    rts
+
+; Copies one INFO plane. Source advances from characters to colours between
+; calls; both planes have INFO_LINE_COUNT × INFO_LINE_WIDTH bytes.
+archive_copy_plane:
+    ldx #ARCHIVE_COPY_FULL_PAGES
+archive_copy_page:
+    ldy #0
+archive_copy_page_byte:
+    lda (src),y
+    sta (dest),y
+    iny
+    bne archive_copy_page_byte
+    inc src+1
+    inc dest+1
+    dex
+    bne archive_copy_page
+    ldy #0
+archive_copy_remainder:
+    cpy #ARCHIVE_COPY_TAIL
+    beq archive_copy_done
+    lda (src),y
+    sta (dest),y
+    iny
+    jmp archive_copy_remainder
+archive_copy_done:
+    clc
+    lda src
+    adc #ARCHIVE_COPY_TAIL
+    sta src
+    bcc archive_copy_no_source_carry
+    inc src+1
+archive_copy_no_source_carry:
+    rts
+archive_filename: .text "ARCHIVE.PRG"
 
 show_game:
     jsr game_bitmap_copy
@@ -702,6 +813,11 @@ game_move_not_terminal:
     jsr draw_turn_indicator
     jmp game_key_done
 game_player_vs_ai_pending:
+    ; No model move is synthesized here.  The lock remains in place, but the
+    ; local display truthfully shows that player two/O is now pending.
+    lda #2
+    sta turn_mark
+    jsr draw_turn_indicator
     lda #1
     sta game_ai_pending
 game_key_done:
@@ -1249,9 +1365,14 @@ paint_winning_line:
     ldx game_winning_line
     ldy winning_cells,x
     jsr paint_board_cell_colour
+    ; paint_board_cell_colour uses X for its cell patch loop.  Reload the
+    ; winning-line offset for each member instead of incrementing clobbered X.
+    ldx game_winning_line
     inx
     ldy winning_cells,x
     jsr paint_board_cell_colour
+    ldx game_winning_line
+    inx
     inx
     ldy winning_cells,x
     jmp paint_board_cell_colour
@@ -1260,9 +1381,12 @@ restore_winning_line:
     ldx game_winning_line
     ldy winning_cells,x
     jsr restore_board_cell_colour
+    ldx game_winning_line
     inx
     ldy winning_cells,x
     jsr restore_board_cell_colour
+    ldx game_winning_line
+    inx
     inx
     ldy winning_cells,x
     jmp restore_board_cell_colour
@@ -1800,6 +1924,7 @@ title_charset_memory_config: .byte 0
 info_scroll: .byte 0
 info_scrollbar_marker: .byte 0
 info_markdown_memory_config: .byte 0
+archive_memory_config: .byte 0
 board_state: .fill 9, 0
 c9w00_filename: .text "EMBEDTOK.PRG"
 embedding_row: .byte 0

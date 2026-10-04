@@ -8,7 +8,11 @@ from pathlib import Path
 ROOT = Path(__file__).parents[1]
 SOURCE = ROOT / "assets" / "crystal-palace-screen-states" / "ARCHIVE.md"
 OUTPUT = ROOT / "src" / "info_markdown.inc"
+ARCHIVE_OUTPUT = ROOT / "build" / "ARCHIVE.PRG"
 WIDTH = 29
+ARCHIVE_LOAD_ADDRESS = 0xC000
+ARCHIVE_HEADER_SIZE = 8
+ARCHIVE_VERSION = 1
 
 COLOUR = {"body": 1, "header": 7, "bold": 10, "italic": 3, "quote": 4, "list": 13, "table": 14}
 
@@ -184,11 +188,11 @@ def compile_data() -> tuple[bytes, bytes, int]:
     return bytes(chars), bytes(colours), len(lines)
 
 
-def asm_bytes(name: str, data: bytes) -> str:
-    rows = [f"{name}:"]
-    for offset in range(0, len(data), 30):
-        rows.append("    .byte " + ", ".join(str(value) for value in data[offset : offset + 30]))
-    return "\n".join(rows)
+def archive_payload() -> bytes:
+    """Return the versioned disk PRG consumed only when INFO is opened."""
+    chars, colours, count = compile_data()
+    header = b"ARCV" + bytes((ARCHIVE_VERSION,)) + count.to_bytes(2, "little") + bytes((WIDTH,))
+    return ARCHIVE_LOAD_ADDRESS.to_bytes(2, "little") + header + chars + colours
 
 
 def main() -> None:
@@ -197,13 +201,19 @@ def main() -> None:
         "; Generated from assets/crystal-palace-screen-states/ARCHIVE.md; do not hand-edit.",
         f"INFO_LINE_COUNT = {count}",
         f"INFO_LINE_WIDTH = {WIDTH}",
-        asm_bytes("info_markdown_chars", chars),
-        "* = $b800",
-        asm_bytes("info_markdown_colours", colours),
+        f"ARCHIVE_LOAD_ADDRESS = ${ARCHIVE_LOAD_ADDRESS:04x}",
+        f"ARCHIVE_HEADER_SIZE = {ARCHIVE_HEADER_SIZE}",
+        f"ARCHIVE_PAYLOAD_BYTES = {len(chars) + len(colours)}",
+        f"ARCHIVE_COPY_FULL_PAGES = {len(chars) // 256}",
+        f"ARCHIVE_COPY_TAIL = {len(chars) % 256}",
+        "info_markdown_chars = $a600",
+        "info_markdown_colours = $b800",
         "",
     ))
     OUTPUT.write_text(content)
-    print(f"{OUTPUT.relative_to(ROOT)}: {count} lines × {WIDTH} columns")
+    ARCHIVE_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    ARCHIVE_OUTPUT.write_bytes(archive_payload())
+    print(f"{OUTPUT.relative_to(ROOT)} + {ARCHIVE_OUTPUT.relative_to(ROOT)}: {count} lines × {WIDTH} columns")
 
 
 if __name__ == "__main__":
