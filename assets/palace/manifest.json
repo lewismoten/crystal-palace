@@ -7,11 +7,11 @@
     },
     "game/all-o/bitmap.bin": {
       "bytes": 8000,
-      "sha256": "18f09e9d4d3aa80448221148252b9c0a2bbb98034cde6e58e7d9d91f4b9023cf"
+      "sha256": "9eb5e8ab03ba3e46ca353715ea44b4e39fe621b3205ef60407da20c8ebe956cc"
     },
     "game/all-o/color.bin": {
       "bytes": 1000,
-      "sha256": "1ea0453eee4195dce4d1ac0cd193d2974888a9ada868fcdd97db277cf4d1f197"
+      "sha256": "ebbd55bf5b1124cdc7bace3ed55dd59a72139c7187fb957efbcfd2b1a83fcba5"
     },
     "game/all-o/screen.bin": {
       "bytes": 1000,
@@ -19,11 +19,11 @@
     },
     "game/all-x/bitmap.bin": {
       "bytes": 8000,
-      "sha256": "b4b9854c37e520411c3421e22e1343b41fb4e63c97968d33564928b2eaead5fc"
+      "sha256": "34a9fc4ea788a6df75fe38013597e78c738637ae739cadca88131afa366a186b"
     },
     "game/all-x/color.bin": {
       "bytes": 1000,
-      "sha256": "1ea0453eee4195dce4d1ac0cd193d2974888a9ada868fcdd97db277cf4d1f197"
+      "sha256": "2bfd9e54c2bbe1158e126c9c00de8bb513fda86ba0b15af02af35903ea765209"
     },
     "game/all-x/screen.bin": {
       "bytes": 1000,
@@ -47,11 +47,11 @@
     },
     "game/cells/o.bitmap.bin": {
       "bytes": 900,
-      "sha256": "2fce08b43a6010c8bd29e4aec1302f475b0df21766359a36450647a8dfd07b4f"
+      "sha256": "76faaace6a6a340afffe4f293e95a22347279216b696a1f961385577ec09fb5d"
     },
     "game/cells/o.color.bin": {
       "bytes": 144,
-      "sha256": "81c611f35bff79491538b2f7cf201c7597a661a5c549633541c62bdc8af1613f"
+      "sha256": "6f949a49b50c17fcbaa2e7ba3819b788c4faa22efd10495624217a11689d03c5"
     },
     "game/cells/o.screen.bin": {
       "bytes": 144,
@@ -59,11 +59,11 @@
     },
     "game/cells/x.bitmap.bin": {
       "bytes": 900,
-      "sha256": "06fd74d49e0b43fdf4dc6629acea10e27762726f4191513af2de7bb63e6c8cb8"
+      "sha256": "d7869fa2142dfcf4c564eccfab8aad08a6212b0be58a1bb8f2890828b127c938"
     },
     "game/cells/x.color.bin": {
       "bytes": 144,
-      "sha256": "81c611f35bff79491538b2f7cf201c7597a661a5c549633541c62bdc8af1613f"
+      "sha256": "24922b0b8e90743a44416c152166795ca8568314755a354541c4da8d45c0d530"
     },
     "game/cells/x.screen.bin": {
       "bytes": 144,

@@ -29,7 +29,7 @@ def png_chunks(data: bytes):
 
 def test_screen_state_previews_are_reproducible_indexed_c64_pngs():
     module = renderer()
-    assert len(module.STATES) == 7
+    assert len(module.STATES) == 6
     assert len(module.DERIVED_VIEWS) == 9
     expected_palette = bytes(component for rgb in module.C64_PALETTE for component in rgb)
 
@@ -53,7 +53,7 @@ def test_screen_state_markdown_documents_png_sources_and_reviewed_final_screens(
     assert "glyph-map.png" in readme
     assert "bitmap-selectors.png" in readme
     assert "final game review is 320×200" in readme
-    documented = {"atlas.png", "preview.png", "glyphs.png", "colors.png", "all-x.png", "all-o.png"}
+    documented = {"atlas.png", "preview.png", "glyphs.png", "colors.png"}
 
     assert documented <= {path.name for path in renderer().expected_images()}
     for name in documented:

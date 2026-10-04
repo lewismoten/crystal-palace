@@ -33,3 +33,11 @@ def test_png_sources_are_indexed_c64_palette_assets():
     for source in compiler.SOURCE_PNGS:
         image = compiler.read_indexed_png(ASSETS / source)
         assert image.palette == compiler.C64_PALETTE
+
+
+def test_mark_sources_use_logical_multicolour_pixels_and_allow_two_ink_colours():
+    compiler = load_compiler()
+    for mark in ("x", "o"):
+        image = compiler.read_indexed_png(ASSETS / "game" / "marks" / f"{mark}.png")
+        assert (image.width, image.height) == (14, 24)
+        assert 1 < len({value for value in image.pixels if value}) <= 2

@@ -16,11 +16,12 @@ planes under `build/palace-assets/` and checks every result against
 - `game/board/` — the fixed blank board: explicit bitmap-selector and local
   colour-nibble PNG planes, plus final `preview.png`.
 - `game/marks/x.png` and `game/marks/o.png` — the only editable mark art.
-  They are 28×24 final physical-pixel images (black transparent background;
-  light-red X or cyan O foreground). The compiler stamps each mark at A–I,
+  They are 14×24 *logical* multicolour pixels, displayed by VIC-II as 28×24
+  physical pixels. Each uses black plus a primary and shade colour: light-red/
+  red for X and cyan/light-blue for O. The compiler stamps each mark at A–I,
   preserves the grid, and derives transient per-cell patch bins.
-- `game/reference/all-x.png` and `game/reference/all-o.png` — deterministic
-  full-board verification renders, not editable input planes.
+- `game/marks/preview.png` — a deterministic alternating X/O full-board
+  review render, not editable source art.
 - `layout/board.json` — named board placement rectangles.
 - `archive/archive.md` — disk-readable INFO text source.
 

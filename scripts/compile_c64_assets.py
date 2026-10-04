@@ -165,29 +165,31 @@ def exchange_local_selectors(bitmap: bytearray, screen_cell: int) -> None:
         bitmap[address] = swapped
 
 
-def compile_mark_reference(source: Path, output: Path, mark: str) -> None:
-    pixels = require_pixels(source, f"game/marks/{mark}.png", 28, 24)
+def compile_mark_board(source: Path, output: Path, mark: str, cells: str = "abcdefghi", output_name: str | None = None, base_name: str = "game/blank") -> None:
+    pixels = require_pixels(source, f"game/marks/{mark}.png", 14, 24)
     colours = {value for value in pixels if value}
-    if len(colours) != 1:
-        raise ValueError(f"game/marks/{mark}.png: black background plus one C64 mark colour required")
-    colour = colours.pop()
-    if any(pixels[row * 28 + x] != pixels[row * 28 + x + 1] for row in range(24) for x in range(0, 28, 2)):
-        raise ValueError(f"game/marks/{mark}.png: physical pixel pairs must match")
-    bitmap = bytearray((output / "game/blank/bitmap.bin").read_bytes())
-    blank_screen = (output / "game/blank/screen.bin").read_bytes()
+    if not 1 <= len(colours) <= 2:
+        raise ValueError(f"game/marks/{mark}.png: black background plus one or two C64 mark colours required")
+    primary = 10 if mark == "x" else 3
+    if primary not in colours:
+        raise ValueError(f"game/marks/{mark}.png: primary colour must be palette index {primary}")
+    accent = next(iter(colours - {primary}), 0)
+    bitmap = bytearray((output / f"{base_name}/bitmap.bin").read_bytes())
+    blank_screen = (output / f"{base_name}/screen.bin").read_bytes()
     screen = bytearray(blank_screen)
-    colour_ram = (output / "game/blank/color.bin").read_bytes()
+    colour_ram = bytearray((output / f"{base_name}/color.bin").read_bytes())
     coordinates = json.loads((source / "layout/board.json").read_text())["cell_rectangles"]
     remapped_cells: set[int] = set()
-    for cell in "abcdefghi":
+    for cell in cells:
         physical_x, physical_y, width, height = coordinates[cell]["preview_xywh"]
         if (width, height) != (28, 24):
             raise ValueError("board cell preview rectangles must stay 28×24")
         for y in range(24):
-            for x in range(0, 28, 2):
-                if pixels[y * 28 + x] == 0:
+            for x in range(14):
+                pixel = pixels[y * 14 + x]
+                if pixel == 0:
                     continue
-                logical_x = (physical_x + x) // 2
+                logical_x = physical_x // 2 + x
                 logical_y = physical_y + y
                 screen_cell = (logical_y // 8) * 40 + logical_x // 4
                 original = blank_screen[screen_cell]
@@ -195,16 +197,20 @@ def compile_mark_reference(source: Path, output: Path, mark: str) -> None:
                     # A grid line already owns selector 01. Move it to 10 so
                     # the mark can use 01 and keep the supplied pixels intact.
                     exchange_local_selectors(bitmap, screen_cell)
-                    screen[screen_cell] = (colour << 4) | (original >> 4)
+                    screen[screen_cell] = (primary << 4) | (original >> 4)
                     remapped_cells.add(screen_cell)
                 elif screen_cell not in remapped_cells:
-                    screen[screen_cell] = (colour << 4) | (original & 0x0f)
+                    screen[screen_cell] = (primary << 4) | (original & 0x0f)
                     remapped_cells.add(screen_cell)
-                set_selector(bitmap, logical_x, logical_y, 1)
-    relative = f"game/all-{mark}"
+                if pixel == accent and accent:
+                    colour_ram[screen_cell] = accent
+                    set_selector(bitmap, logical_x, logical_y, 3)
+                else:
+                    set_selector(bitmap, logical_x, logical_y, 1)
+    relative = output_name or f"game/all-{mark}"
     write_plane(output, f"{relative}/bitmap.bin", bytes(bitmap))
     write_plane(output, f"{relative}/screen.bin", bytes(screen))
-    write_plane(output, f"{relative}/color.bin", colour_ram)
+    write_plane(output, f"{relative}/color.bin", bytes(colour_ram))
 
 
 def bitmap_offsets(x_logical: int, y: int, width_logical: int, height: int) -> list[int]:
@@ -255,8 +261,10 @@ def compile_assets(source: Path = ASSETS, output: Path = OUTPUT) -> Path:
         compile_character_state(source, output, f"title/{state}")
     compile_character_state(source, output, "info")
     compile_blank_board(source, output)
-    compile_mark_reference(source, output, "x")
-    compile_mark_reference(source, output, "o")
+    compile_mark_board(source, output, "x")
+    compile_mark_board(source, output, "o")
+    compile_mark_board(source, output, "x", "acegi", "game/marks-preview")
+    compile_mark_board(source, output, "o", "bdfh", "game/marks-preview", "game/marks-preview")
     for suffix in ("screen", "color"):
         write_plane(output, f"runtime/title-one.{suffix}.bin", (output / f"title/one/{suffix}.bin").read_bytes())
     compile_cells(source, output)

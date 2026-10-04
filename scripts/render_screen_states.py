@@ -64,6 +64,31 @@ def render_character_state(screen_name: str, color_name: str) -> bytes:
     return bytes(pixels)
 
 
+def render_info_runtime_preview() -> bytes:
+    """Render INFO as entered: its runtime footer replaces stale frame text."""
+    charset = read_exact("charset.bin", 2048)
+    screen = bytearray(read_exact("info/screen.bin", 1000))
+    colour = bytearray(read_exact("info/color.bin", 1000))
+    footer_chars = (0, 0, 0, 0, 0, 0, 19, 3, 18, 15, 12, 12, 38, 0, 21, 16, 41, 4, 15, 23, 14, 0, 17, 21, 9, 20, 38, 0, 17, 0, 0, 0, 0, 0, 0)
+    footer_colours = (0, 0, 0, 0, 0, 0, 12, 12, 12, 12, 12, 12, 12, 12, 1, 1, 1, 1, 1, 1, 1, 0, 12, 12, 12, 12, 12, 12, 1, 0, 0, 0, 0, 0, 0)
+    start = 23 * 40 + 4
+    screen[start : start + len(footer_chars)] = bytes(footer_chars)
+    colour[start : start + len(footer_colours)] = bytes(footer_colours)
+    pixels = bytearray(WIDTH * HEIGHT)
+    for cell_y in range(25):
+        for cell_x in range(40):
+            cell = cell_y * 40 + cell_x
+            glyph = screen[cell] * 8
+            foreground = colour[cell] & 0x0F
+            for scanline in range(8):
+                pattern = charset[glyph + scanline]
+                row = (cell_y * 8 + scanline) * WIDTH + cell_x * 8
+                for bit in range(8):
+                    if pattern & (0x80 >> bit):
+                        pixels[row + bit] = foreground
+    return bytes(pixels)
+
+
 def render_character_screen_mono(screen_name: str) -> bytes:
     """Render only screen-character glyph bits: white ink on black."""
     charset = read_exact("charset.bin", 2048)
@@ -159,10 +184,9 @@ STATES = {
     "title/auto/preview.png": lambda: render_character_state("title/auto/screen.bin", "title/auto/color.bin"),
     "title/one/preview.png": lambda: render_character_state("title/one/screen.bin", "title/one/color.bin"),
     "title/two/preview.png": lambda: render_character_state("title/two/screen.bin", "title/two/color.bin"),
-    "info/preview.png": lambda: render_character_state("info/screen.bin", "info/color.bin"),
+    "info/preview.png": render_info_runtime_preview,
     "game/board/preview.png": lambda: render_multicolor_bitmap("game/blank/bitmap.bin", "game/blank/screen.bin", "game/blank/color.bin"),
-    "game/reference/all-x.png": lambda: render_multicolor_bitmap("game/all-x/bitmap.bin", "game/all-x/screen.bin", "game/all-x/color.bin"),
-    "game/reference/all-o.png": lambda: render_multicolor_bitmap("game/all-o/bitmap.bin", "game/all-o/screen.bin", "game/all-o/color.bin"),
+    "game/marks/preview.png": lambda: render_multicolor_bitmap("game/marks-preview/bitmap.bin", "game/marks-preview/screen.bin", "game/marks-preview/color.bin"),
 }
 
 DERIVED_VIEWS = {
