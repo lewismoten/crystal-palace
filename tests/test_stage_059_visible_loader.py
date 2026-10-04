@@ -35,19 +35,29 @@ def test_stage_084_declares_disk_backed_info_archive():
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
 
 
-def test_native_art_chunks_are_source_exact_final_address_prgs(tmp_path):
-    """Every page is loaded straight to the final VIC plane address."""
+def test_native_visual_bundles_are_source_exact_final_address_prgs(tmp_path):
+    """One bundle file per backing plane avoids the old 49-page loader layout."""
     builder = load_builder()
     pages = builder.crystal_palace_art_prgs(tmp_path)
-    title_screen = [pages[f"CT1S{index}.PRG"].read_bytes() for index in range(4)]
-    title_color = [pages[f"CT1C{index}.PRG"].read_bytes() for index in range(4)]
-    assert [int.from_bytes(page[:2], "little") for page in title_screen] == [0x0400, 0x0500, 0x0600, 0x0700]
-    assert [int.from_bytes(page[:2], "little") for page in title_color] == [0xD800, 0xD900, 0xDA00, 0xDB00]
-    assert b"".join(page[2:] for page in title_screen) == (ASSETS / "crystal-palace-title-player-1.screen.bin").read_bytes()
-    assert b"".join(page[2:] for page in title_color) == (ASSETS / "crystal-palace-title-player-1.color.bin").read_bytes()
-    game_bitmap = [pages[f"CGB{index}.PRG"].read_bytes() for index in range(8)]
-    assert [int.from_bytes(page[:2], "little") for page in game_bitmap] == [0x6000 + 1000 * index for index in range(8)]
-    assert b"".join(page[2:] for page in game_bitmap) == (ASSETS / "crystal-palace-game-blank.bitmap.bin").read_bytes()
+    expected = {
+        "TITCHAR.PRG": ("crystal-palace-charset.bin", 0xB000),
+        "TTLSCR.PRG": ("crystal-palace-title-player-1.screen.bin", 0x4000),
+        "TTLCOL.PRG": ("crystal-palace-title-player-1.color.bin", 0x4C00),
+        "INFSCR.PRG": ("crystal-palace-info.screen.bin", 0x5800),
+        "INFCOL.PRG": ("crystal-palace-info.color.bin", 0x5C00),
+        "GMBIT.PRG": ("crystal-palace-game-blank.bitmap.bin", 0x6000),
+        "GMSCR.PRG": ("crystal-palace-game-blank.screen.bin", 0x8000),
+        "GMCOL.PRG": ("crystal-palace-game-blank.color.bin", 0x8400),
+        "GXPAT.PRG": ("x-cells.bitmap.bin", 0x8800),
+        "GOPAT.PRG": ("o-cells.bitmap.bin", 0x9000),
+        "GMADR.PRG": ("bitmap-destination-addresses.bin", 0x9800),
+    }
+    assert set(pages) == set(expected)
+    for disk_name, (asset, address) in expected.items():
+        payload = pages[disk_name].read_bytes()
+        source_dir = ASSETS / "cells" if asset.startswith(("x-", "o-", "bitmap-")) else ASSETS
+        assert int.from_bytes(payload[:2], "little") == address
+        assert payload[2:] == (source_dir / asset).read_bytes()
 
 
 def test_embedded_title_source_uses_no_screen_editor_output():

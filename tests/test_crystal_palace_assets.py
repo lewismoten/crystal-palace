@@ -63,22 +63,18 @@ def test_build_packages_native_art_as_fixed_address_prgs_without_model_window_ov
     builder = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(builder)
     art = builder.crystal_palace_art_prgs(tmp_path)
-    assert len(art) == 49
+    assert len(art) == 11
     for disk_name, spec in builder.CRYSTAL_PALACE_ART.items():
-        asset_name, load_address, *slice_spec = spec
+        asset_path, load_address = spec
         payload = art[disk_name].read_bytes()
         assert int.from_bytes(payload[:2], "little") == load_address
-        source = (ASSETS / asset_name).read_bytes()
-        if slice_spec:
-            offset, length = slice_spec
-            source = source[offset : offset + length]
-        assert payload[2:] == source
+        assert payload[2:] == asset_path.read_bytes()
         assert not (load_address < 0xCA00 and load_address + len(payload) - 2 > 0xC000)
         assert not (load_address < 0xCA00 and load_address + len(payload) - 2 > 0xC100)
 
 
-def test_blank_game_bitmap_is_split_into_final_address_source_pages():
-    """Stage 059 presents the supplied blank board without a full staging load."""
+def test_blank_game_bitmap_is_one_final_address_bundle():
+    """A transition bundle avoids a per-page loading path."""
     import importlib.util
     import sys
 
@@ -88,8 +84,7 @@ def test_blank_game_bitmap_is_split_into_final_address_source_pages():
     builder = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(builder)
 
-    assert builder.CRYSTAL_PALACE_ART["CGB0.PRG"] == ("crystal-palace-game-blank.bitmap.bin", 0x6000, 0, 1000)
-    assert builder.CRYSTAL_PALACE_ART["CGB7.PRG"] == ("crystal-palace-game-blank.bitmap.bin", 0x7b58, 7000, 1000)
+    assert builder.CRYSTAL_PALACE_ART["GMBIT.PRG"] == (ASSETS / "crystal-palace-game-blank.bitmap.bin", 0x6000)
 
 
 def test_6502_native_title_and_game_art_activate_at_declared_vic_locations(tmp_path):

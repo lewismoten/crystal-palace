@@ -39,22 +39,21 @@ for expert in range(9):
         f"C9W{base + 3:02d}.PRG": f"EX{expert}L2B.PRG",
     })
 
-# These are immutable source planes wrapped only in standard two-byte PRG load
-# addresses. They are staging buffers, never C9W packet/data-window addresses.
-CRYSTAL_PALACE_ART = {"CPCHAR.PRG": ("crystal-palace-charset.bin", 0x3800)}
-for variant in range(3):
-    prefix = f"crystal-palace-title-player-{variant}"
-    for plane, base, letter in (("screen", 0x0400, "S"), ("color", 0xD800, "C")):
-        for page, offset in enumerate((0, 256, 512, 768)):
-            CRYSTAL_PALACE_ART[f"CT{variant}{letter}{page}.PRG"] = (f"{prefix}.{plane}.bin", base + offset, offset, 1000 - offset if page == 3 else 256)
-for plane, base, letter in (("screen", 0x0400, "S"), ("color", 0xD800, "C")):
-    for page, offset in enumerate((0, 256, 512, 768)):
-        CRYSTAL_PALACE_ART[f"CI{letter}{page}.PRG"] = (f"crystal-palace-info.{plane}.bin", base + offset, offset, 1000 - offset if page == 3 else 256)
-for page in range(8):
-    CRYSTAL_PALACE_ART[f"CGB{page}.PRG"] = ("crystal-palace-game-blank.bitmap.bin", 0x6000 + page * 1000, page * 1000, 1000)
-for plane, base, letter in (("screen", 0x4000, "S"), ("color", 0xD800, "C")):
-    for page, offset in enumerate((0, 256, 512, 768)):
-        CRYSTAL_PALACE_ART[f"CG{letter}{page}.PRG"] = (f"crystal-palace-game-blank.{plane}.bin", base + offset, offset, 1000 - offset if page == 3 else 256)
+# Fixed-address, source-exact backing bundles.  They replace the obsolete
+# 49-page staging set; title selection never loads a second title variant.
+CRYSTAL_PALACE_ART = {
+    "TITCHAR.PRG": (ART / "crystal-palace-charset.bin", 0xB000),
+    "TTLSCR.PRG": (ART / "crystal-palace-title-player-1.screen.bin", 0x4000),
+    "TTLCOL.PRG": (ART / "crystal-palace-title-player-1.color.bin", 0x4C00),
+    "INFSCR.PRG": (ART / "crystal-palace-info.screen.bin", 0x5800),
+    "INFCOL.PRG": (ART / "crystal-palace-info.color.bin", 0x5C00),
+    "GMBIT.PRG": (ART / "crystal-palace-game-blank.bitmap.bin", 0x6000),
+    "GMSCR.PRG": (ART / "crystal-palace-game-blank.screen.bin", 0x8000),
+    "GMCOL.PRG": (ART / "crystal-palace-game-blank.color.bin", 0x8400),
+    "GXPAT.PRG": (ART / "cells" / "x-cells.bitmap.bin", 0x8800),
+    "GOPAT.PRG": (ART / "cells" / "o-cells.bitmap.bin", 0x9000),
+    "GMADR.PRG": (ART / "cells" / "bitmap-destination-addresses.bin", 0x9800),
+}
 
 
 def stage_image_path(number: int, description: str) -> Path:
@@ -69,11 +68,8 @@ def crystal_palace_art_prgs(destination: Path) -> dict[str, Path]:
     destination.mkdir(parents=True, exist_ok=True)
     result = {}
     for disk_name, spec in CRYSTAL_PALACE_ART.items():
-        asset_name, load_address, *slice_spec = spec
-        payload = (ART / asset_name).read_bytes()
-        if slice_spec:
-            offset, length = slice_spec
-            payload = payload[offset : offset + length]
+        asset_path, load_address = spec
+        payload = asset_path.read_bytes()
         path = destination / disk_name
         path.write_bytes(load_address.to_bytes(2, "little") + payload)
         result[disk_name] = path
