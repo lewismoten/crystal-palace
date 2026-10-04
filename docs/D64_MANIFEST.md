@@ -1,6 +1,6 @@
 # CP64 D64 manifest
 
-The release disk contains the executable, the 48 immutable original Crystal-9 tensor packets, and two archive files. Title, INFO frame, game-room, charset, and cell-patch planes remain embedded byte-for-byte in `CP64.PRG`; they are documented in [`assets/crystal-palace-screen-states/README.md`](../assets/crystal-palace-screen-states/README.md) and are not duplicated as unused disk files. The INFO *text* is deliberately separate: `ARCHIVE.PRG` is the compact runtime payload loaded only when INFO opens, while `ARCHIVE.MD` is the readable sequential Markdown source.
+The release disk contains the executable, the 48 immutable original Crystal-9 tensor packets, and two archive files. Title, INFO frame, game-room, charset, and cell-patch planes remain embedded byte-for-byte in `CP64.PRG`; their editable PNG sources are documented in [`assets/palace/README.md`](../assets/palace/README.md) and are not duplicated as unused disk files. The INFO *text* is deliberately separate: `ARCHIVE.PRG` is the compact runtime payload loaded only when INFO opens, while `ARCHIVE.MD` is the readable sequential Markdown source.
 
 | Directory entry | Count | Purpose |
 | --- | ---: | --- |

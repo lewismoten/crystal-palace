@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).parents[1]
-ASSETS = ROOT / "assets" / "crystal-palace-screen-states"
-GENERATED = ROOT / "build" / "generated-assets"
+ASSETS = ROOT / "assets" / "palace"
+GENERATED = ROOT / "build" / "palace-assets"
 
 
 def load_builder():
@@ -41,22 +41,22 @@ def test_native_visual_bundles_are_source_exact_final_address_prgs(tmp_path):
     builder = load_builder()
     pages = builder.crystal_palace_art_prgs(tmp_path)
     expected = {
-        "TITCHAR.PRG": ("crystal-palace-charset.bin", 0xB000),
-        "TTLSCR.PRG": ("crystal-palace-title-player-1.screen.bin", 0x4000),
-        "TTLCOL.PRG": ("crystal-palace-title-player-1.color.bin", 0x4C00),
-        "INFSCR.PRG": ("crystal-palace-info.screen.bin", 0x5800),
-        "INFCOL.PRG": ("crystal-palace-info.color.bin", 0x5C00),
-        "GMBIT.PRG": ("crystal-palace-game-blank.bitmap.bin", 0x6000),
-        "GMSCR.PRG": ("crystal-palace-game-blank.screen.bin", 0x8000),
-        "GMCOL.PRG": ("crystal-palace-game-blank.color.bin", 0x8400),
-        "GXPAT.PRG": ("x-cells.bitmap.bin", 0x8800),
-        "GOPAT.PRG": ("o-cells.bitmap.bin", 0x9000),
-        "GMADR.PRG": ("bitmap-destination-addresses.bin", 0x9800),
+        "TITCHAR.PRG": ("charset.bin", 0xB000),
+        "TTLSCR.PRG": ("title/one/screen.bin", 0x4000),
+        "TTLCOL.PRG": ("title/one/color.bin", 0x4C00),
+        "INFSCR.PRG": ("info/screen.bin", 0x5800),
+        "INFCOL.PRG": ("info/color.bin", 0x5C00),
+        "GMBIT.PRG": ("game/blank/bitmap.bin", 0x6000),
+        "GMSCR.PRG": ("game/blank/screen.bin", 0x8000),
+        "GMCOL.PRG": ("game/blank/color.bin", 0x8400),
+        "GXPAT.PRG": ("game/cells/x.bitmap.bin", 0x8800),
+        "GOPAT.PRG": ("game/cells/o.bitmap.bin", 0x9000),
+        "GMADR.PRG": ("game/cells/destinations.bin", 0x9800),
     }
     assert set(pages) == set(expected)
     for disk_name, (asset, address) in expected.items():
         payload = pages[disk_name].read_bytes()
-        source_dir = GENERATED / "cells" if asset.startswith(("x-", "o-", "bitmap-")) else GENERATED
+        source_dir = GENERATED
         assert int.from_bytes(payload[:2], "little") == address
         assert payload[2:] == (source_dir / asset).read_bytes()
 
@@ -64,16 +64,16 @@ def test_native_visual_bundles_are_source_exact_final_address_prgs(tmp_path):
 def test_embedded_title_source_uses_no_screen_editor_output():
     source = (ROOT / "src" / "art_embedded_title.asm").read_text()
     assert "CHROUT" not in source
-    assert '.binary "../build/generated-assets/crystal-palace-charset.bin"' in source
-    assert '.binary "../build/generated-assets/runtime/crystal-palace-title-player-1.screen.bin"' in source
-    assert '.binary "../build/generated-assets/runtime/crystal-palace-title-player-1.color.bin"' in source
+    assert '.binary "../build/palace-assets/charset.bin"' in source
+    assert '.binary "../build/palace-assets/runtime/title-one.screen.bin"' in source
+    assert '.binary "../build/palace-assets/runtime/title-one.color.bin"' in source
 
 
 def test_runtime_title_planes_preserve_the_complete_supplied_radar_perimeter():
     """The runtime title must not erase the supplied radar perimeter artwork."""
     for plane in ("screen", "color"):
-        source = (GENERATED / f"crystal-palace-title-player-1.{plane}.bin").read_bytes()
-        runtime = (GENERATED / "runtime" / f"crystal-palace-title-player-1.{plane}.bin").read_bytes()
+        source = (GENERATED / "title" / "one" / f"{plane}.bin").read_bytes()
+        runtime = (GENERATED / "runtime" / f"title-one.{plane}.bin").read_bytes()
         assert len(runtime) == len(source) == 1000
         assert runtime == source
 
@@ -174,8 +174,8 @@ def test_assembled_embedded_title_copies_exact_planes_to_live_vic_memory(tmp_pat
     mpu.memory[load : load + len(image) - 2] = image[2:]
     mpu.memory[symbols["title_mode"]] = 1
     call(mpu, symbols["show_title"])
-    expected_screen = bytearray((GENERATED / "crystal-palace-title-player-1.screen.bin").read_bytes())
-    expected_colour = bytearray((GENERATED / "crystal-palace-title-player-1.color.bin").read_bytes())
+    expected_screen = bytearray((GENERATED / "title/one/screen.bin").read_bytes())
+    expected_colour = bytearray((GENERATED / "title/one/color.bin").read_bytes())
     expected_screen[882:886] = bytes((9, 14, 6, 15))
     expected_colour[882:886] = bytes((1, 12, 12, 12))
     expected_screen[922:926] = bytes((17, 21, 9, 20))
@@ -203,7 +203,7 @@ def test_embedded_preview_has_correct_game_vic_layout_and_live_a_to_i_marks(tmp_
     image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
     mpu.memory[load : load + len(image) - 2] = image[2:]
     call(mpu, symbols["show_game"])
-    expected_bitmap = bytearray((GENERATED / "crystal-palace-game-blank.bitmap.bin").read_bytes())
+    expected_bitmap = bytearray((GENERATED / "game/blank/bitmap.bin").read_bytes())
     label_glyphs = (
         b"\x00\x14\x41\x55\x41\x41\x41\x00", b"\x00\x54\x41\x54\x41\x41\x54\x00",
         b"\x00\x15\x40\x40\x40\x40\x15\x00", b"\x00\x54\x41\x41\x41\x41\x54\x00",
@@ -216,7 +216,7 @@ def test_embedded_preview_has_correct_game_vic_layout_and_live_a_to_i_marks(tmp_
         expected_bitmap[address - 0x2000 : address - 0x2000 + 8] = glyph
     expected_bitmap[0x3218 - 0x2000 : 0x3220 - 0x2000] = b"\x00\x41\x41\x14\x14\x41\x41\x00"
     assert bytes(mpu.memory[0x2000 : 0x3F40]) == bytes(expected_bitmap)
-    expected_screen = bytearray((GENERATED / "crystal-palace-game-blank.screen.bin").read_bytes())
+    expected_screen = bytearray((GENERATED / "game/blank/screen.bin").read_bytes())
     for index in range(9):
         address = int.from_bytes(mpu.memory[symbols["label_screen_destinations"] + index * 2 : symbols["label_screen_destinations"] + index * 2 + 2], "little")
         offset = address - 0x0400
@@ -227,8 +227,8 @@ def test_embedded_preview_has_correct_game_vic_layout_and_live_a_to_i_marks(tmp_
 
     mpu.memory[symbols["game_index"]] = 0; call(mpu, symbols["draw_x"])
     assert mpu.memory[symbols["board_state"]] == 1
-    patch = (GENERATED / "cells" / "x-cells.bitmap.bin").read_bytes()
-    destinations = (GENERATED / "cells" / "bitmap-destination-addresses.bin").read_bytes()
+    patch = (GENERATED / "game" / "cells" / "x.bitmap.bin").read_bytes()
+    destinations = (GENERATED / "game" / "cells" / "destinations.bin").read_bytes()
     for offset, value in enumerate(patch[:100]):
         address = int.from_bytes(destinations[offset * 2 : offset * 2 + 2], "little")
         assert mpu.memory[address] == value
@@ -263,15 +263,15 @@ def test_title_and_info_restore_after_live_board_patches(tmp_path):
     mpu.memory[0x3800 : 0x4000] = b"\x00" * 2048
     mpu.memory[symbols["title_mode"]] = 1
     call(mpu, symbols["show_title"])
-    assert bytes(mpu.memory[0x3800 : 0x4000]) == (GENERATED / "crystal-palace-charset.bin").read_bytes()
-    title = bytearray((GENERATED / "crystal-palace-title-player-1.screen.bin").read_bytes())
+    assert bytes(mpu.memory[0x3800 : 0x4000]) == (GENERATED / "charset.bin").read_bytes()
+    title = bytearray((GENERATED / "title/one/screen.bin").read_bytes())
     title[882:886] = bytes((9, 14, 6, 15))
     title[922:926] = bytes((17, 21, 9, 20))
 
     assert bytes(mpu.memory[0x0400 : 0x07E8]) == bytes(title)
     prepare_info_archive_load(mpu)
     call(mpu, symbols["show_info"])
-    source_info = bytearray((GENERATED / "crystal-palace-info.screen.bin").read_bytes())
+    source_info = bytearray((GENERATED / "info/screen.bin").read_bytes())
     source_info[23 * 40 + 4 : 24 * 40 - 1] = bytes((0, 0, 0, 0, 0, 0, 19, 3, 18, 15, 12, 12, 38, 0, 21, 16, 41, 4, 15, 23, 14, 0, 17, 21, 9, 20, 38, 0, 17, 0, 0, 0, 0, 0, 0))
     assert bytes(mpu.memory[0x0400 : 0x04A5]) == source_info[:165]
     assert bytes(mpu.memory[0x076B : 0x07E8]) == bytes(source_info[875:])
@@ -329,13 +329,13 @@ def test_sequential_a_to_i_x_patches_stay_in_the_game_planes_and_leave_title_inf
         mpu.memory[symbols["game_index"]] = game_index
         call(mpu, symbols["draw_x"])
     assert bytes(mpu.memory[symbols["board_state"] : symbols["board_state"] + 9]) == b"\x01" * 9
-    assert bytes(mpu.memory[0x2000 : 0x3F40]) != (GENERATED / "crystal-palace-game-blank.bitmap.bin").read_bytes()
+    assert bytes(mpu.memory[0x2000 : 0x3F40]) != (GENERATED / "game/blank/bitmap.bin").read_bytes()
     mpu.memory[symbols["title_mode"]] = 1
     call(mpu, symbols["show_title"])
-    assert bytes(mpu.memory[0x3800 : 0x4000]) == (GENERATED / "crystal-palace-charset.bin").read_bytes()
+    assert bytes(mpu.memory[0x3800 : 0x4000]) == (GENERATED / "charset.bin").read_bytes()
     prepare_info_archive_load(mpu)
     call(mpu, symbols["show_info"])
-    source_info = bytearray((GENERATED / "crystal-palace-info.screen.bin").read_bytes())
+    source_info = bytearray((GENERATED / "info/screen.bin").read_bytes())
     source_info[23 * 40 + 4 : 24 * 40 - 1] = bytes((0, 0, 0, 0, 0, 0, 19, 3, 18, 15, 12, 12, 38, 0, 21, 16, 41, 4, 15, 23, 14, 0, 17, 21, 9, 20, 38, 0, 17, 0, 0, 0, 0, 0, 0))
     assert bytes(mpu.memory[0x0400 : 0x04A5]) == source_info[:165]
     assert bytes(mpu.memory[0x076B : 0x07E8]) == bytes(source_info[875:])
@@ -390,7 +390,7 @@ def test_title_reloads_its_charset_even_when_already_in_title_mode(tmp_path):
 
     call(mpu, symbols["show_title"])
 
-    assert bytes(mpu.memory[0x3800 : 0x4000]) == (GENERATED / "crystal-palace-charset.bin").read_bytes()
+    assert bytes(mpu.memory[0x3800 : 0x4000]) == (GENERATED / "charset.bin").read_bytes()
 
 
 def test_title_selection_changes_only_selector_cells_without_blanking_display(tmp_path):
@@ -528,8 +528,8 @@ def test_main_title_getin_loop_accepts_real_screen_codes_and_blanks_only_reporte
     run_until(mpu, lambda state: state.memory[0x0002] >= 2)
     assert mpu.memory[symbols["title_mode"]] == 2
     assert mpu.memory[0x05C1] == 44
-    source_title = (GENERATED / "crystal-palace-title-player-1.screen.bin").read_bytes()
-    source_colour = (GENERATED / "crystal-palace-title-player-1.color.bin").read_bytes()
+    source_title = (GENERATED / "title/one/screen.bin").read_bytes()
+    source_colour = (GENERATED / "title/one/color.bin").read_bytes()
     for offset in (243, 244, 283, 284, 323, 324, 363, 364):
         assert (mpu.memory[0x0400 + offset], mpu.memory[0xD800 + offset]) == (source_title[offset], source_colour[offset])
 
@@ -569,7 +569,7 @@ def test_archive_compiler_uses_verified_charset_punctuation_zero_padding_and_wra
 
     spec = importlib.util.spec_from_file_location("compile_info_markdown", ROOT / "scripts" / "compile_info_markdown.py")
     compiler = importlib.util.module_from_spec(spec); spec.loader.exec_module(compiler)
-    charset = (GENERATED / "crystal-palace-charset.bin").read_bytes()
+    charset = (GENERATED / "charset.bin").read_bytes()
 
     assert charset[0 * 8 : 1 * 8] == b"\x00" * 8
     assert charset[39 * 8 : 40 * 8] == bytes((0, 0, 0, 0, 0, 16, 16, 0))  # period
@@ -744,8 +744,9 @@ def test_title_variants_are_exact_deltas_over_the_single_player_base(tmp_path):
     for mode in (0, 2):
         mpu.memory[symbols["title_mode"]] = mode
         call(mpu, symbols["show_title"])
-        expected_screen = bytearray((GENERATED / f"crystal-palace-title-player-{mode}.screen.bin").read_bytes())
-        expected_colour = bytearray((GENERATED / f"crystal-palace-title-player-{mode}.color.bin").read_bytes())
+        variant = {0: "auto", 2: "two"}[mode]
+        expected_screen = bytearray((GENERATED / "title" / variant / "screen.bin").read_bytes())
+        expected_colour = bytearray((GENERATED / "title" / variant / "color.bin").read_bytes())
         expected_screen[882:886] = bytes((9, 14, 6, 15)); expected_colour[882:886] = bytes((1, 12, 12, 12))
         expected_screen[922:926] = bytes((17, 21, 9, 20)); expected_colour[922:926] = bytes((1, 12, 12, 12))
 
@@ -930,8 +931,8 @@ def test_archive_source_plane_harness_uses_every_blank_frame_row_and_keeps_scrol
     sys.path.insert(0, str(ROOT / "tests"))
     from test_6502_embedding_gate import ASSEMBLER, call, labels
 
-    asset_screen = (GENERATED / "crystal-palace-info.screen.bin").read_bytes()
-    asset_colour = (GENERATED / "crystal-palace-info.color.bin").read_bytes()
+    asset_screen = (GENERATED / "info/screen.bin").read_bytes()
+    asset_colour = (GENERATED / "info/color.bin").read_bytes()
     panel_rows = [
         row for row in range(25)
         if asset_screen[row * 40 + 5 : row * 40 + 35] == bytes(30)

@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).parents[1]
-SOURCE = ROOT / "assets" / "crystal-palace-screen-states" / "ARCHIVE.md"
+SOURCE = ROOT / "assets" / "palace" / "archive" / "archive.md"
 OUTPUT = ROOT / "src" / "info_markdown.inc"
 ARCHIVE_OUTPUT = ROOT / "build" / "ARCHIVE.PRG"
 WIDTH = 29
@@ -198,7 +198,7 @@ def archive_payload() -> bytes:
 def main() -> None:
     chars, colours, count = compile_data()
     content = "\n".join((
-        "; Generated from assets/crystal-palace-screen-states/ARCHIVE.md; do not hand-edit.",
+        "; Generated from assets/palace/archive/archive.md; do not hand-edit.",
         f"INFO_LINE_COUNT = {count}",
         f"INFO_LINE_WIDTH = {WIDTH}",
         f"ARCHIVE_LOAD_ADDRESS = ${ARCHIVE_LOAD_ADDRESS:04x}",

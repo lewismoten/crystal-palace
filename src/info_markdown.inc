@@ -1,4 +1,4 @@
-; Generated from assets/crystal-palace-screen-states/ARCHIVE.md; do not hand-edit.
+; Generated from assets/palace/archive/archive.md; do not hand-edit.
 INFO_LINE_COUNT = 49
 INFO_LINE_WIDTH = 29
 ARCHIVE_LOAD_ADDRESS = $c000

@@ -15,11 +15,11 @@ RELEASE_IMAGE = ROOT / "release" / "crystal-palace-9.d64"
 CURRENT_STAGE = 86
 CURRENT_DESCRIPTION = "browser-verified-title-radar-blackout"
 PROGRAM_SOURCE = ROOT / "src" / "art_embedded_title.asm"
-ART = ROOT / "assets" / "crystal-palace-screen-states"
-GENERATED_ART = BUILD / "generated-assets"
+ART = ROOT / "assets" / "palace"
+GENERATED_ART = BUILD / "palace-assets"
 ARCHIVE_RUNTIME_FILENAME = "ARCHIVE.PRG"
 ARCHIVE_MARKDOWN_FILENAME = "ARCHIVE.MD"
-ARCHIVE_MARKDOWN_SOURCE = ART / "ARCHIVE.md"
+ARCHIVE_MARKDOWN_SOURCE = ART / "archive" / "archive.md"
 
 # Descriptive 1541 directory names. The local source-packet names remain
 # C9Wxx so the immutable transport ID and host-side parity fixtures stay
@@ -44,17 +44,17 @@ for expert in range(9):
 # Fixed-address, source-exact backing bundles.  They replace the obsolete
 # 49-page staging set; title selection never loads a second title variant.
 CRYSTAL_PALACE_ART = {
-    "TITCHAR.PRG": (GENERATED_ART / "crystal-palace-charset.bin", 0xB000),
-    "TTLSCR.PRG": (GENERATED_ART / "crystal-palace-title-player-1.screen.bin", 0x4000),
-    "TTLCOL.PRG": (GENERATED_ART / "crystal-palace-title-player-1.color.bin", 0x4C00),
-    "INFSCR.PRG": (GENERATED_ART / "crystal-palace-info.screen.bin", 0x5800),
-    "INFCOL.PRG": (GENERATED_ART / "crystal-palace-info.color.bin", 0x5C00),
-    "GMBIT.PRG": (GENERATED_ART / "crystal-palace-game-blank.bitmap.bin", 0x6000),
-    "GMSCR.PRG": (GENERATED_ART / "crystal-palace-game-blank.screen.bin", 0x8000),
-    "GMCOL.PRG": (GENERATED_ART / "crystal-palace-game-blank.color.bin", 0x8400),
-    "GXPAT.PRG": (GENERATED_ART / "cells" / "x-cells.bitmap.bin", 0x8800),
-    "GOPAT.PRG": (GENERATED_ART / "cells" / "o-cells.bitmap.bin", 0x9000),
-    "GMADR.PRG": (GENERATED_ART / "cells" / "bitmap-destination-addresses.bin", 0x9800),
+    "TITCHAR.PRG": (GENERATED_ART / "charset.bin", 0xB000),
+    "TTLSCR.PRG": (GENERATED_ART / "title" / "one" / "screen.bin", 0x4000),
+    "TTLCOL.PRG": (GENERATED_ART / "title" / "one" / "color.bin", 0x4C00),
+    "INFSCR.PRG": (GENERATED_ART / "info" / "screen.bin", 0x5800),
+    "INFCOL.PRG": (GENERATED_ART / "info" / "color.bin", 0x5C00),
+    "GMBIT.PRG": (GENERATED_ART / "game" / "blank" / "bitmap.bin", 0x6000),
+    "GMSCR.PRG": (GENERATED_ART / "game" / "blank" / "screen.bin", 0x8000),
+    "GMCOL.PRG": (GENERATED_ART / "game" / "blank" / "color.bin", 0x8400),
+    "GXPAT.PRG": (GENERATED_ART / "game" / "cells" / "x.bitmap.bin", 0x8800),
+    "GOPAT.PRG": (GENERATED_ART / "game" / "cells" / "o.bitmap.bin", 0x9000),
+    "GMADR.PRG": (GENERATED_ART / "game" / "cells" / "destinations.bin", 0x9800),
 }
 
 

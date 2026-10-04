@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).parents[1]
-ASSETS = ROOT / "assets" / "crystal-palace-screen-states"
+ASSETS = ROOT / "assets" / "palace"
 SCRIPT = ROOT / "scripts" / "render_screen_states.py"
 
 
@@ -47,24 +47,14 @@ def test_screen_state_previews_are_reproducible_indexed_c64_pngs():
 
 def test_screen_state_markdown_documents_png_sources_and_reviewed_final_screens():
     readme = (ASSETS / "README.md").read_text()
-    assert "This directory is PNG-first." in readme
-    assert "C64 `.bin` planes are **not** kept\nin Git" in readme
+    assert "`assets/palace/` contains editable" in readme
+    assert "No C64\nbinary plane is committed" in readme
     assert "colour type 3 (indexed)" in readme
     assert "glyph-map.png" in readme
     assert "bitmap-selectors.png" in readme
-    assert "final 320×200 screen\nreview" in readme
-    documented = {
-        "crystal-palace-charset-charmap.png",
-        "crystal-palace-title-player-1.png",
-        "crystal-palace-title-player-1.screen-mono.png",
-        "crystal-palace-title-player-1.color-plane.png",
-        "crystal-palace-info.png",
-        "crystal-palace-info.screen-mono.png",
-        "crystal-palace-info.color-plane.png",
-        "crystal-palace-game-blank.png",
-        "crystal-palace-game-all-x.png",
-        "crystal-palace-game-all-o.png",
-    }
+    assert "final game review is 320×200" in readme
+    documented = {"atlas.png", "preview.png", "glyphs.png", "colors.png", "all-x.png", "all-o.png"}
+
     assert documented <= {path.name for path in renderer().expected_images()}
     for name in documented:
         assert name in readme

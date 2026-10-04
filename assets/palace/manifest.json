@@ -1,0 +1,113 @@
+{
+  "format": "cp64-png-source-assets-v1",
+  "generated_bins": {
+    "charset.bin": {
+      "bytes": 2048,
+      "sha256": "dd43373cc20f54a3bef10ff0c332bed8aefecf61f0ab7145c17f8a4b8c13b5f1"
+    },
+    "game/all-o/bitmap.bin": {
+      "bytes": 8000,
+      "sha256": "18f09e9d4d3aa80448221148252b9c0a2bbb98034cde6e58e7d9d91f4b9023cf"
+    },
+    "game/all-o/color.bin": {
+      "bytes": 1000,
+      "sha256": "1ea0453eee4195dce4d1ac0cd193d2974888a9ada868fcdd97db277cf4d1f197"
+    },
+    "game/all-o/screen.bin": {
+      "bytes": 1000,
+      "sha256": "cadec15f37226c8254f06b3fa272e20ac8f009715ed6f7da8194ceb87eb12c3c"
+    },
+    "game/all-x/bitmap.bin": {
+      "bytes": 8000,
+      "sha256": "b4b9854c37e520411c3421e22e1343b41fb4e63c97968d33564928b2eaead5fc"
+    },
+    "game/all-x/color.bin": {
+      "bytes": 1000,
+      "sha256": "1ea0453eee4195dce4d1ac0cd193d2974888a9ada868fcdd97db277cf4d1f197"
+    },
+    "game/all-x/screen.bin": {
+      "bytes": 1000,
+      "sha256": "1c2280ad686729c1f8d46666983d485a38d3930a8df6bf656ddeefbda89b8228"
+    },
+    "game/blank/bitmap.bin": {
+      "bytes": 8000,
+      "sha256": "74724f6c4f2dd2f42b90fe0fe0241d7035eefd931a4e82323194553f5eee1dee"
+    },
+    "game/blank/color.bin": {
+      "bytes": 1000,
+      "sha256": "1ea0453eee4195dce4d1ac0cd193d2974888a9ada868fcdd97db277cf4d1f197"
+    },
+    "game/blank/screen.bin": {
+      "bytes": 1000,
+      "sha256": "4a82f2dc9ab8c0ff60b512cfa69adf55fc1b97df44d97417190de38336436146"
+    },
+    "game/cells/destinations.bin": {
+      "bytes": 1800,
+      "sha256": "eb78924fc010a9ef2e09b59660bb810b699c8c0948c8e816d212a9082aa6d7c7"
+    },
+    "game/cells/o.bitmap.bin": {
+      "bytes": 900,
+      "sha256": "2fce08b43a6010c8bd29e4aec1302f475b0df21766359a36450647a8dfd07b4f"
+    },
+    "game/cells/o.color.bin": {
+      "bytes": 144,
+      "sha256": "81c611f35bff79491538b2f7cf201c7597a661a5c549633541c62bdc8af1613f"
+    },
+    "game/cells/o.screen.bin": {
+      "bytes": 144,
+      "sha256": "cb584c7f984af73b1a82ff2b0fece1448367bb6657edca85399e46fa509839ec"
+    },
+    "game/cells/x.bitmap.bin": {
+      "bytes": 900,
+      "sha256": "06fd74d49e0b43fdf4dc6629acea10e27762726f4191513af2de7bb63e6c8cb8"
+    },
+    "game/cells/x.color.bin": {
+      "bytes": 144,
+      "sha256": "81c611f35bff79491538b2f7cf201c7597a661a5c549633541c62bdc8af1613f"
+    },
+    "game/cells/x.screen.bin": {
+      "bytes": 144,
+      "sha256": "ae1c3e3bf146bc5ba95df4ae20dd01b9dc20e437d69dbf0bcec37e3d4985b441"
+    },
+    "info/color.bin": {
+      "bytes": 1000,
+      "sha256": "ffe0663438e25b022c690a949dbaca2167af237c59311e27f081a2cfb87940aa"
+    },
+    "info/screen.bin": {
+      "bytes": 1000,
+      "sha256": "107206ae95e3a16eeda3cf9df701cded6f3c1512b63ee36b3e91fc80a3f17a39"
+    },
+    "runtime/title-one.color.bin": {
+      "bytes": 1000,
+      "sha256": "8a4d739b88f1ee698ca7e2f880d2c356153fd316cb9f6c98eae32947dd0fe3c4"
+    },
+    "runtime/title-one.screen.bin": {
+      "bytes": 1000,
+      "sha256": "ef158ea9e7c641c6590f26574701149bee0a3bbfbfeb434e65f1790785e969e6"
+    },
+    "title/auto/color.bin": {
+      "bytes": 1000,
+      "sha256": "66a415764a44aed99e0fbffd85b454af78bda15c72d4f7b0b3a7f366e749f7e9"
+    },
+    "title/auto/screen.bin": {
+      "bytes": 1000,
+      "sha256": "ad6b73e2fbc2d2a0b505c213f83a8411e16ac1ba97823d3403fc8e81431b81a1"
+    },
+    "title/one/color.bin": {
+      "bytes": 1000,
+      "sha256": "8a4d739b88f1ee698ca7e2f880d2c356153fd316cb9f6c98eae32947dd0fe3c4"
+    },
+    "title/one/screen.bin": {
+      "bytes": 1000,
+      "sha256": "ef158ea9e7c641c6590f26574701149bee0a3bbfbfeb434e65f1790785e969e6"
+    },
+    "title/two/color.bin": {
+      "bytes": 1000,
+      "sha256": "9844d62489bd876e0794d24fc586e2e7036224123599f440c51e38347adacd12"
+    },
+    "title/two/screen.bin": {
+      "bytes": 1000,
+      "sha256": "1d943f198e7867f80d603bcbafade641e11c5ea221e955824f62fc49f42e9bd6"
+    }
+  }
+}

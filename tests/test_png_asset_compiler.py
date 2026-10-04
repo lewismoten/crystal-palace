@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).parents[1]
-ASSETS = ROOT / "assets" / "crystal-palace-screen-states"
+ASSETS = ROOT / "assets" / "palace"
 
 
 def load_compiler():
@@ -21,7 +21,7 @@ def test_png_sources_compile_to_the_declared_c64_plane_digests(tmp_path: Path):
     compiler = load_compiler()
     compiler.compile_assets(ASSETS, tmp_path)
 
-    manifest = json.loads((ASSETS / "asset-manifest.json").read_text())
+    manifest = json.loads((ASSETS / "manifest.json").read_text())
     for relative_path, expected in manifest["generated_bins"].items():
         payload = (tmp_path / relative_path).read_bytes()
         assert len(payload) == expected["bytes"], relative_path

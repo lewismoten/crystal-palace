@@ -9,15 +9,17 @@ previews expose the raw character and colour planes independently.
 from __future__ import annotations
 
 import argparse
+import sys
 import struct
 import zlib
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
 from compile_c64_assets import compile_assets
 
 ROOT = Path(__file__).parents[1]
-ASSETS = ROOT / "assets" / "crystal-palace-screen-states"
-GENERATED = ROOT / "build" / "generated-assets"
+ASSETS = ROOT / "assets" / "palace"
+GENERATED = ROOT / "build" / "palace-assets"
 WIDTH = 320
 HEIGHT = 200
 
@@ -44,7 +46,7 @@ def read_exact(name: str, size: int) -> bytes:
 
 def render_character_state(screen_name: str, color_name: str) -> bytes:
     """Render 40×25 standard-character mode with the supplied custom charset."""
-    charset = read_exact("crystal-palace-charset.bin", 2048)
+    charset = read_exact("charset.bin", 2048)
     screen = read_exact(screen_name, 1000)
     colour = read_exact(color_name, 1000)
     pixels = bytearray(WIDTH * HEIGHT)
@@ -64,7 +66,7 @@ def render_character_state(screen_name: str, color_name: str) -> bytes:
 
 def render_character_screen_mono(screen_name: str) -> bytes:
     """Render only screen-character glyph bits: white ink on black."""
-    charset = read_exact("crystal-palace-charset.bin", 2048)
+    charset = read_exact("charset.bin", 2048)
     screen = read_exact(screen_name, 1000)
     pixels = bytearray(WIDTH * HEIGHT)
     for cell_y in range(25):
@@ -94,7 +96,7 @@ def render_colour_plane(color_name: str) -> bytes:
 
 def render_charset_charmap() -> bytes:
     """Render all 256 custom characters as a 16×16 black-and-white atlas."""
-    charset = read_exact("crystal-palace-charset.bin", 2048)
+    charset = read_exact("charset.bin", 2048)
     pixels = bytearray(128 * 128)
     for glyph_index in range(256):
         glyph_x = (glyph_index % 16) * 8
@@ -154,25 +156,25 @@ def indexed_png(pixels: bytes, width: int = WIDTH, height: int = HEIGHT) -> byte
 
 
 STATES = {
-    "crystal-palace-title-player-0.png": lambda: render_character_state("crystal-palace-title-player-0.screen.bin", "crystal-palace-title-player-0.color.bin"),
-    "crystal-palace-title-player-1.png": lambda: render_character_state("crystal-palace-title-player-1.screen.bin", "crystal-palace-title-player-1.color.bin"),
-    "crystal-palace-title-player-2.png": lambda: render_character_state("crystal-palace-title-player-2.screen.bin", "crystal-palace-title-player-2.color.bin"),
-    "crystal-palace-info.png": lambda: render_character_state("crystal-palace-info.screen.bin", "crystal-palace-info.color.bin"),
-    "crystal-palace-game-blank.png": lambda: render_multicolor_bitmap("crystal-palace-game-blank.bitmap.bin", "crystal-palace-game-blank.screen.bin", "crystal-palace-game-blank.color.bin"),
-    "crystal-palace-game-all-x.png": lambda: render_multicolor_bitmap("crystal-palace-game-all-x.bitmap.bin", "crystal-palace-game-all-x.screen.bin", "crystal-palace-game-all-x.color.bin"),
-    "crystal-palace-game-all-o.png": lambda: render_multicolor_bitmap("crystal-palace-game-all-o.bitmap.bin", "crystal-palace-game-all-o.screen.bin", "crystal-palace-game-all-o.color.bin"),
+    "title/auto/preview.png": lambda: render_character_state("title/auto/screen.bin", "title/auto/color.bin"),
+    "title/one/preview.png": lambda: render_character_state("title/one/screen.bin", "title/one/color.bin"),
+    "title/two/preview.png": lambda: render_character_state("title/two/screen.bin", "title/two/color.bin"),
+    "info/preview.png": lambda: render_character_state("info/screen.bin", "info/color.bin"),
+    "game/board/preview.png": lambda: render_multicolor_bitmap("game/blank/bitmap.bin", "game/blank/screen.bin", "game/blank/color.bin"),
+    "game/reference/all-x.png": lambda: render_multicolor_bitmap("game/all-x/bitmap.bin", "game/all-x/screen.bin", "game/all-x/color.bin"),
+    "game/reference/all-o.png": lambda: render_multicolor_bitmap("game/all-o/bitmap.bin", "game/all-o/screen.bin", "game/all-o/color.bin"),
 }
 
 DERIVED_VIEWS = {
-    "crystal-palace-charset-charmap.png": lambda: (render_charset_charmap(), 128, 128),
-    "crystal-palace-title-player-0.screen-mono.png": lambda: (render_character_screen_mono("crystal-palace-title-player-0.screen.bin"), WIDTH, HEIGHT),
-    "crystal-palace-title-player-0.color-plane.png": lambda: (render_colour_plane("crystal-palace-title-player-0.color.bin"), WIDTH, HEIGHT),
-    "crystal-palace-title-player-1.screen-mono.png": lambda: (render_character_screen_mono("crystal-palace-title-player-1.screen.bin"), WIDTH, HEIGHT),
-    "crystal-palace-title-player-1.color-plane.png": lambda: (render_colour_plane("crystal-palace-title-player-1.color.bin"), WIDTH, HEIGHT),
-    "crystal-palace-title-player-2.screen-mono.png": lambda: (render_character_screen_mono("crystal-palace-title-player-2.screen.bin"), WIDTH, HEIGHT),
-    "crystal-palace-title-player-2.color-plane.png": lambda: (render_colour_plane("crystal-palace-title-player-2.color.bin"), WIDTH, HEIGHT),
-    "crystal-palace-info.screen-mono.png": lambda: (render_character_screen_mono("crystal-palace-info.screen.bin"), WIDTH, HEIGHT),
-    "crystal-palace-info.color-plane.png": lambda: (render_colour_plane("crystal-palace-info.color.bin"), WIDTH, HEIGHT),
+    "charset/atlas.png": lambda: (render_charset_charmap(), 128, 128),
+    "title/auto/glyphs.png": lambda: (render_character_screen_mono("title/auto/screen.bin"), WIDTH, HEIGHT),
+    "title/auto/colors.png": lambda: (render_colour_plane("title/auto/color.bin"), WIDTH, HEIGHT),
+    "title/one/glyphs.png": lambda: (render_character_screen_mono("title/one/screen.bin"), WIDTH, HEIGHT),
+    "title/one/colors.png": lambda: (render_colour_plane("title/one/color.bin"), WIDTH, HEIGHT),
+    "title/two/glyphs.png": lambda: (render_character_screen_mono("title/two/screen.bin"), WIDTH, HEIGHT),
+    "title/two/colors.png": lambda: (render_colour_plane("title/two/color.bin"), WIDTH, HEIGHT),
+    "info/glyphs.png": lambda: (render_character_screen_mono("info/screen.bin"), WIDTH, HEIGHT),
+    "info/colors.png": lambda: (render_colour_plane("info/color.bin"), WIDTH, HEIGHT),
 }
 
 
