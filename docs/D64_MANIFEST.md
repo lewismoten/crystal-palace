@@ -1,11 +1,11 @@
 # CP64 D64 manifest
 
-The release disk contains the executable, the 48 immutable original Crystal-9 tensor packets, and two archive files. Title, INFO frame, game-room, charset, and cell-patch planes remain embedded byte-for-byte in `CP64.PRG`; their editable PNG sources are documented in [`assets/palace/README.md`](../assets/palace/README.md) and are not duplicated as unused disk files. The INFO *text* is deliberately separate: `ARCHIVE.PRG` is the compact runtime payload loaded only when INFO opens, while `ARCHIVE.MD` is the readable sequential Markdown source.
+The release disk contains the executable, the 48 immutable original Crystal-9 tensor packets, and two archive files. Title, INFO frame, game-room, charset, and cell-patch planes remain embedded byte-for-byte in `CP64.PRG`; their editable PNG sources are documented in [`assets/README.md`](../assets/README.md) and are not duplicated as unused disk files. The INFO *text* is deliberately separate: `ARCHIVE.PRG` is the compact runtime payload loaded only when INFO opens, while `ARCHIVE.MD` is the readable sequential Markdown source.
 
 | Directory entry | Count | Purpose |
 | --- | ---: | --- |
 | `CP64.PRG` | 1 | Browser-facing presentation/game executable: title, INFO frame/viewer, bitmap board, supplied visual planes, and narrowly bounded original-weight bridge code. It is deliberately the first directory entry and allocated nearest track 18. |
-| `ARCHIVE.PRG` | 1 | Versioned `ARCV` INFO-viewer payload. It is loaded into volatile `$c000` only when INFO opens, validated, then copied into the INFO character/colour RAM planes. |
+| `ARCHIVE.PRG` | 1 | Versioned `ARCV` INFO-viewer payload. It is loaded into volatile `$c000` only when INFO opens, validated, then copied into the INFO character/color RAM planes. |
 | `ARCHIVE.MD` | 1 | Authored disk-readable Markdown archive stored as a CBM sequential (`SEQ`) file. It is the build source for `ARCHIVE.PRG`, not a runtime parser input. |
 | Descriptive model packets | 48 | Verbatim original packed Crystal-9 tensor packets with readable 1541 directory names. The exact directory ranges are listed below. They are never regenerated, distilled, or requantized by the C64 build. |
 

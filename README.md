@@ -47,14 +47,14 @@ See [Building CP64](docs/BUILDING.md) for Linux/macOS setup, assembler details, 
 - [Runtime memory and disk-paging architecture](docs/RUNTIME_MEMORY_ARCHITECTURE.md)
 - [D64 layout and original packet map](docs/D64_MANIFEST.md)
 - [Stage history and proof boundaries](docs/STAGE_HISTORY.md)
-- [Native screen-state assets, previews, palette, and VIC-II layout](assets/palace/README.md)
+- [Native screen-state assets, previews, palette, and VIC-II layout](assets/README.md)
 - [C64 Online acceptance target](https://c64online.com/c64-online-emulator/)
 
 ## Repository layout
 
 - `src/` — 6502 assembly, including the isolated original-token materialization module.
 - `scripts/` — build, packet export, asset derivation, and D64 packaging tools.
-- `assets/palace/` — editable PNG title, INFO, game, charset, mark, and layout assets.
+- `assets/` — editable PNG title, INFO, game, charset, mark, and layout assets.
 - `docs/` — build instructions, memory/paging design, manifest, and stage/proof documentation.
 - `tests/` — 6502, disk, packet, asset, and build regressions.
 - `release/` — generated local D64 output; ignored by Git.

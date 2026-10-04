@@ -7,14 +7,14 @@ The current `CP64.PRG` payload spans `$0801-$b7ff` (45,055 bytes after its two-b
 | Range | Bytes | Current purpose |
 |---|---:|---|
 | `$3800-$3fff` | 2,048 | active title/INFO custom charset |
-| `$4000-$43e7` + `$4c00-$4fe7` | 2,000 | title screen and colour planes |
-| `$5800-$5fe7` | 2,000 | embedded INFO screen and colour planes |
-| `$6000-$87e7` | 10,000 | blank game bitmap, screen, and colour planes |
+| `$4000-$43e7` + `$4c00-$4fe7` | 2,000 | title screen and color planes |
+| `$5800-$5fe7` | 2,000 | embedded INFO screen and color planes |
+| `$6000-$87e7` | 10,000 | blank game bitmap, screen, and color planes |
 | `$8800-$94a3` | 2,376 | supplied X/O bitmap and attribute patches |
 | `$9800-$9f07` | 1,800 | bitmap patch destination-address table |
 | `$b000-$b7ff` | 2,048 | immutable title charset source used to restore `$3800` |
 
-There is only one resident title base plane. Player-count selection is already a small delta: an arrow cell and the selected row's colour bytes. CP64 must retain that property.
+There is only one resident title base plane. Player-count selection is already a small delta: an arrow cell and the selected row's color bytes. CP64 must retain that property.
 
 ## Target view lifecycle
 

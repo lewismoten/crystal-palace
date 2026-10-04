@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).parents[1]
-SOURCE = ROOT / "assets" / "palace" / "archive" / "archive.md"
+SOURCE = ROOT / "assets" / "archive" / "archive.md"
 OUTPUT = ROOT / "src" / "info_markdown.inc"
 ARCHIVE_OUTPUT = ROOT / "build" / "ARCHIVE.PRG"
 WIDTH = 29
@@ -14,7 +14,7 @@ ARCHIVE_LOAD_ADDRESS = 0xC000
 ARCHIVE_HEADER_SIZE = 8
 ARCHIVE_VERSION = 1
 
-COLOUR = {"body": 1, "header": 7, "bold": 10, "italic": 3, "quote": 4, "list": 13, "table": 14}
+COLOR = {"body": 1, "header": 7, "bold": 10, "italic": 3, "quote": 4, "list": 13, "table": 14}
 
 
 def screen_code(character: str) -> int:
@@ -178,36 +178,36 @@ def parse_markdown(text: str) -> list[list[tuple[str, str]]]:
 def compile_data() -> tuple[bytes, bytes, int]:
     lines = parse_markdown(SOURCE.read_text())
     chars = bytearray()
-    colours = bytearray()
+    colors = bytearray()
     for line in lines:
         line = line[:WIDTH]
         chars.extend(screen_code(char) for char, _ in line)
         chars.extend(bytes(WIDTH - len(line)))
-        colours.extend(COLOUR[style] for _, style in line)
-        colours.extend(bytes((COLOUR["body"],)) * (WIDTH - len(line)))
-    return bytes(chars), bytes(colours), len(lines)
+        colors.extend(COLOR[style] for _, style in line)
+        colors.extend(bytes((COLOR["body"],)) * (WIDTH - len(line)))
+    return bytes(chars), bytes(colors), len(lines)
 
 
 def archive_payload() -> bytes:
     """Return the versioned disk PRG consumed only when INFO is opened."""
-    chars, colours, count = compile_data()
+    chars, colors, count = compile_data()
     header = b"ARCV" + bytes((ARCHIVE_VERSION,)) + count.to_bytes(2, "little") + bytes((WIDTH,))
-    return ARCHIVE_LOAD_ADDRESS.to_bytes(2, "little") + header + chars + colours
+    return ARCHIVE_LOAD_ADDRESS.to_bytes(2, "little") + header + chars + colors
 
 
 def main() -> None:
-    chars, colours, count = compile_data()
+    chars, colors, count = compile_data()
     content = "\n".join((
-        "; Generated from assets/palace/archive/archive.md; do not hand-edit.",
+        "; Generated from assets/archive/archive.md; do not hand-edit.",
         f"INFO_LINE_COUNT = {count}",
         f"INFO_LINE_WIDTH = {WIDTH}",
         f"ARCHIVE_LOAD_ADDRESS = ${ARCHIVE_LOAD_ADDRESS:04x}",
         f"ARCHIVE_HEADER_SIZE = {ARCHIVE_HEADER_SIZE}",
-        f"ARCHIVE_PAYLOAD_BYTES = {len(chars) + len(colours)}",
+        f"ARCHIVE_PAYLOAD_BYTES = {len(chars) + len(colors)}",
         f"ARCHIVE_COPY_FULL_PAGES = {len(chars) // 256}",
         f"ARCHIVE_COPY_TAIL = {len(chars) % 256}",
         "info_markdown_chars = $a600",
-        "info_markdown_colours = $b800",
+        "info_markdown_colors = $b800",
         "",
     ))
     OUTPUT.write_text(content)

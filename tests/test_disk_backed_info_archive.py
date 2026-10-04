@@ -22,11 +22,11 @@ def test_archive_compiler_writes_a_versioned_runtime_prg_without_embedding_text(
     compiler = load_module("compile_info_markdown", "scripts/compile_info_markdown.py")
 
     payload = compiler.archive_payload()
-    chars, colours, line_count = compiler.compile_data()
+    chars, colors, line_count = compiler.compile_data()
 
     assert payload[:2] == compiler.ARCHIVE_LOAD_ADDRESS.to_bytes(2, "little")
     assert payload[2 : 2 + compiler.ARCHIVE_HEADER_SIZE] == b"ARCV\x01" + line_count.to_bytes(2, "little") + bytes((compiler.WIDTH,))
-    assert payload[2 + compiler.ARCHIVE_HEADER_SIZE :] == chars + colours
+    assert payload[2 + compiler.ARCHIVE_HEADER_SIZE :] == chars + colors
     assert "info_markdown_chars:" not in compiler.OUTPUT.read_text()
 
 

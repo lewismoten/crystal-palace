@@ -2,9 +2,9 @@
 """Render source-exact Crystal Palace VIC-II planes as indexed PNG reviews.
 
 The binary planes remain authoritative. Every output pixel is an index in the
-fixed C64/Pepto 16-colour palette; no RGB conversion, alpha, or quantization is
-used. Combined previews show the normal VIC-II result. Mono and colour-plane
-previews expose the raw character and colour planes independently.
+fixed C64/Pepto 16-color palette; no RGB conversion, alpha, or quantization is
+used. Combined previews show the normal VIC-II result. Mono and color-plane
+previews expose the raw character and color planes independently.
 """
 from __future__ import annotations
 
@@ -18,12 +18,12 @@ sys.path.insert(0, str(Path(__file__).parent))
 from compile_c64_assets import compile_assets
 
 ROOT = Path(__file__).parents[1]
-ASSETS = ROOT / "assets" / "palace"
-GENERATED = ROOT / "build" / "palace-assets"
+ASSETS = ROOT / "assets"
+GENERATED = ROOT / "build" / "assets"
 WIDTH = 320
 HEIGHT = 200
 
-# C64 Pepto palette, indexed by native VIC-II colour number 0..15.
+# C64 Pepto palette, indexed by native VIC-II color number 0..15.
 C64_PALETTE = (
     (0x00, 0x00, 0x00), (0xFF, 0xFF, 0xFF), (0x68, 0x37, 0x2B), (0x70, 0xA4, 0xB2),
     (0x6F, 0x3D, 0x86), (0x58, 0x8D, 0x43), (0x35, 0x28, 0x79), (0xB8, 0xC7, 0x6F),
@@ -48,13 +48,13 @@ def render_character_state(screen_name: str, color_name: str) -> bytes:
     """Render 40×25 standard-character mode with the supplied custom charset."""
     charset = read_exact("charset.bin", 2048)
     screen = read_exact(screen_name, 1000)
-    colour = read_exact(color_name, 1000)
+    color = read_exact(color_name, 1000)
     pixels = bytearray(WIDTH * HEIGHT)
     for cell_y in range(25):
         for cell_x in range(40):
             cell = cell_y * 40 + cell_x
             glyph = screen[cell] * 8
-            foreground = colour[cell] & 0x0F
+            foreground = color[cell] & 0x0F
             for scanline in range(8):
                 pattern = charset[glyph + scanline]
                 row = (cell_y * 8 + scanline) * WIDTH + cell_x * 8
@@ -68,18 +68,18 @@ def render_info_runtime_preview() -> bytes:
     """Render INFO as entered: its runtime footer replaces stale frame text."""
     charset = read_exact("charset.bin", 2048)
     screen = bytearray(read_exact("info/screen.bin", 1000))
-    colour = bytearray(read_exact("info/color.bin", 1000))
+    color = bytearray(read_exact("info/color.bin", 1000))
     footer_chars = (0, 0, 0, 0, 0, 0, 19, 3, 18, 15, 12, 12, 38, 0, 21, 16, 41, 4, 15, 23, 14, 0, 17, 21, 9, 20, 38, 0, 17, 0, 0, 0, 0, 0, 0)
-    footer_colours = (0, 0, 0, 0, 0, 0, 12, 12, 12, 12, 12, 12, 12, 12, 1, 1, 1, 1, 1, 1, 1, 0, 12, 12, 12, 12, 12, 12, 1, 0, 0, 0, 0, 0, 0)
+    footer_colors = (0, 0, 0, 0, 0, 0, 12, 12, 12, 12, 12, 12, 12, 12, 1, 1, 1, 1, 1, 1, 1, 0, 12, 12, 12, 12, 12, 12, 1, 0, 0, 0, 0, 0, 0)
     start = 23 * 40 + 4
     screen[start : start + len(footer_chars)] = bytes(footer_chars)
-    colour[start : start + len(footer_colours)] = bytes(footer_colours)
+    color[start : start + len(footer_colors)] = bytes(footer_colors)
     pixels = bytearray(WIDTH * HEIGHT)
     for cell_y in range(25):
         for cell_x in range(40):
             cell = cell_y * 40 + cell_x
             glyph = screen[cell] * 8
-            foreground = colour[cell] & 0x0F
+            foreground = color[cell] & 0x0F
             for scanline in range(8):
                 pattern = charset[glyph + scanline]
                 row = (cell_y * 8 + scanline) * WIDTH + cell_x * 8
@@ -106,13 +106,13 @@ def render_character_screen_mono(screen_name: str) -> bytes:
     return bytes(pixels)
 
 
-def render_colour_plane(color_name: str) -> bytes:
-    """Render raw colour-RAM nibbles as 40×25 coloured 8×8 tiles."""
-    colour = read_exact(color_name, 1000)
+def render_color_plane(color_name: str) -> bytes:
+    """Render raw color-RAM nibbles as 40×25 colored 8×8 tiles."""
+    color = read_exact(color_name, 1000)
     pixels = bytearray(WIDTH * HEIGHT)
     for cell_y in range(25):
         for cell_x in range(40):
-            value = colour[cell_y * 40 + cell_x] & 0x0F
+            value = color[cell_y * 40 + cell_x] & 0x0F
             for scanline in range(8):
                 row = (cell_y * 8 + scanline) * WIDTH + cell_x * 8
                 pixels[row : row + 8] = bytes((value,)) * 8
@@ -136,27 +136,27 @@ def render_charset_charmap() -> bytes:
 
 
 def render_multicolor_bitmap(bitmap_name: str, screen_name: str, color_name: str) -> bytes:
-    """Render VIC-II multicolour bitmap data to 320×200 physical pixels.
+    """Render VIC-II multicolor bitmap data to 320×200 physical pixels.
 
     Each 2-bit logical pixel is expanded horizontally. Values map as 00: global
     background ($d021), 01: screen high nibble, 10: screen low nibble, 11:
-    colour RAM nibble. This is three local colours plus one shared background.
+    color RAM nibble. This is three local colors plus one shared background.
     """
     bitmap = read_exact(bitmap_name, 8000)
     screen = read_exact(screen_name, 1000)
-    colour = read_exact(color_name, 1000)
+    color = read_exact(color_name, 1000)
     pixels = bytearray(WIDTH * HEIGHT)
     for char_y in range(25):
         for char_x in range(40):
             cell = char_y * 40 + char_x
             screen_byte = screen[cell]
-            colours = (0, screen_byte >> 4, screen_byte & 0x0F, colour[cell] & 0x0F)
+            colors = (0, screen_byte >> 4, screen_byte & 0x0F, color[cell] & 0x0F)
             for scanline in range(8):
                 pattern = bitmap[cell * 8 + scanline]
                 row = (char_y * 8 + scanline) * WIDTH + char_x * 8
                 for pair in range(4):
-                    native_colour = colours[(pattern >> (6 - pair * 2)) & 0x03]
-                    pixels[row + pair * 2 : row + pair * 2 + 2] = bytes((native_colour,)) * 2
+                    native_color = colors[(pattern >> (6 - pair * 2)) & 0x03]
+                    pixels[row + pair * 2 : row + pair * 2 + 2] = bytes((native_color,)) * 2
     return bytes(pixels)
 
 
@@ -192,13 +192,13 @@ STATES = {
 DERIVED_VIEWS = {
     "charset/atlas.png": lambda: (render_charset_charmap(), 128, 128),
     "title/auto/glyphs.png": lambda: (render_character_screen_mono("title/auto/screen.bin"), WIDTH, HEIGHT),
-    "title/auto/colors.png": lambda: (render_colour_plane("title/auto/color.bin"), WIDTH, HEIGHT),
+    "title/auto/colors.png": lambda: (render_color_plane("title/auto/color.bin"), WIDTH, HEIGHT),
     "title/one/glyphs.png": lambda: (render_character_screen_mono("title/one/screen.bin"), WIDTH, HEIGHT),
-    "title/one/colors.png": lambda: (render_colour_plane("title/one/color.bin"), WIDTH, HEIGHT),
+    "title/one/colors.png": lambda: (render_color_plane("title/one/color.bin"), WIDTH, HEIGHT),
     "title/two/glyphs.png": lambda: (render_character_screen_mono("title/two/screen.bin"), WIDTH, HEIGHT),
-    "title/two/colors.png": lambda: (render_colour_plane("title/two/color.bin"), WIDTH, HEIGHT),
+    "title/two/colors.png": lambda: (render_color_plane("title/two/color.bin"), WIDTH, HEIGHT),
     "info/glyphs.png": lambda: (render_character_screen_mono("info/screen.bin"), WIDTH, HEIGHT),
-    "info/colors.png": lambda: (render_colour_plane("info/color.bin"), WIDTH, HEIGHT),
+    "info/colors.png": lambda: (render_color_plane("info/color.bin"), WIDTH, HEIGHT),
 }
 
 

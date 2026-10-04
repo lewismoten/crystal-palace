@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).parents[1]
-ASSETS = ROOT / "assets" / "palace"
+ASSETS = ROOT / "assets"
 
 
 def load_compiler():
@@ -35,7 +35,7 @@ def test_png_sources_are_indexed_c64_palette_assets():
         assert image.palette == compiler.C64_PALETTE
 
 
-def test_mark_sources_use_logical_multicolour_pixels_and_allow_two_ink_colours():
+def test_mark_sources_use_logical_multicolor_pixels_and_allow_two_ink_colors():
     compiler = load_compiler()
     for mark in ("x", "o"):
         image = compiler.read_indexed_png(ASSETS / "game" / "marks" / f"{mark}.png")

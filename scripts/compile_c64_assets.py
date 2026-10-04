@@ -10,10 +10,10 @@ import zlib
 from pathlib import Path
 
 ROOT = Path(__file__).parents[1]
-ASSETS = ROOT / "assets" / "palace"
-OUTPUT = ROOT / "build" / "palace-assets"
+ASSETS = ROOT / "assets"
+OUTPUT = ROOT / "build" / "assets"
 
-# C64 Pepto palette; every source PNG is indexed directly by VIC-II colour ID.
+# C64 Pepto palette; every source PNG is indexed directly by VIC-II color ID.
 C64_PALETTE = (
     (0x00, 0x00, 0x00), (0xFF, 0xFF, 0xFF), (0x68, 0x37, 0x2B), (0x70, 0xA4, 0xB2),
     (0x6F, 0x3D, 0x86), (0x58, 0x8D, 0x43), (0x35, 0x28, 0x79), (0xB8, 0xC7, 0x6F),
@@ -45,7 +45,7 @@ def read_indexed_png(path: Path) -> IndexedPNG:
     payload = path.read_bytes()
     if payload[:8] != b"\x89PNG\r\n\x1a\n":
         raise ValueError(f"{path}: not a PNG")
-    width = height = bit_depth = colour_type = interlace = None
+    width = height = bit_depth = color_type = interlace = None
     palette = None
     compressed = bytearray()
     cursor = 8
@@ -55,7 +55,7 @@ def read_indexed_png(path: Path) -> IndexedPNG:
         chunk = payload[cursor + 8:cursor + 8 + length]
         cursor += length + 12
         if kind == b"IHDR":
-            width, height, bit_depth, colour_type, compression, filtering, interlace = struct.unpack(">IIBBBBB", chunk)
+            width, height, bit_depth, color_type, compression, filtering, interlace = struct.unpack(">IIBBBBB", chunk)
             if compression or filtering:
                 raise ValueError(f"{path}: unsupported PNG compression/filter method")
         elif kind == b"PLTE":
@@ -66,7 +66,7 @@ def read_indexed_png(path: Path) -> IndexedPNG:
             compressed.extend(chunk)
         elif kind == b"IEND":
             break
-    if None in (width, height) or bit_depth != 8 or colour_type != 3 or interlace != 0 or palette is None:
+    if None in (width, height) or bit_depth != 8 or color_type != 3 or interlace != 0 or palette is None:
         raise ValueError(f"{path}: expected a non-interlaced 8-bit indexed PNG")
     if palette != C64_PALETTE:
         raise ValueError(f"{path}: palette must be the project C64 palette")
@@ -120,16 +120,16 @@ def compile_charset(source: Path, output: Path) -> None:
 
 def compile_character_state(source: Path, output: Path, relative: str) -> None:
     glyphs = require_pixels(source, f"{relative}/glyph-map.png", 80, 25)
-    colours = require_pixels(source, f"{relative}/color-map.png", 40, 25)
+    colors = require_pixels(source, f"{relative}/color-map.png", 40, 25)
     write_plane(output, f"{relative}/screen.bin", bytes((glyphs[cell * 2] << 4) | glyphs[cell * 2 + 1] for cell in range(1000)))
-    write_plane(output, f"{relative}/color.bin", bytes(colours))
+    write_plane(output, f"{relative}/color.bin", bytes(colors))
 
 
 def compile_blank_board(source: Path, output: Path) -> None:
     selectors = require_pixels(source, "game/board/bitmap-selectors.png", 160, 200)
     high = require_pixels(source, "game/board/screen-hi.png", 40, 25)
     low = require_pixels(source, "game/board/screen-lo.png", 40, 25)
-    colour = require_pixels(source, "game/board/color-lo.png", 40, 25)
+    color = require_pixels(source, "game/board/color-lo.png", 40, 25)
     if any(index > 3 for index in selectors):
         raise ValueError("game/board/bitmap-selectors.png: selectors must be 0..3")
     bitmap = bytearray(8000)
@@ -139,7 +139,7 @@ def compile_blank_board(source: Path, output: Path) -> None:
             bitmap[cell * 8 + y % 8] |= selectors[y * 160 + x] << (6 - 2 * (x % 4))
     write_plane(output, "game/blank/bitmap.bin", bytes(bitmap))
     write_plane(output, "game/blank/screen.bin", bytes((left << 4) | right for left, right in zip(high, low)))
-    write_plane(output, "game/blank/color.bin", bytes(colour))
+    write_plane(output, "game/blank/color.bin", bytes(color))
 
 
 def set_selector(bitmap: bytearray, x: int, y: int, selector: int) -> None:
@@ -167,17 +167,17 @@ def exchange_local_selectors(bitmap: bytearray, screen_cell: int) -> None:
 
 def compile_mark_board(source: Path, output: Path, mark: str, cells: str = "abcdefghi", output_name: str | None = None, base_name: str = "game/blank") -> None:
     pixels = require_pixels(source, f"game/marks/{mark}.png", 14, 24)
-    colours = {value for value in pixels if value}
-    if not 1 <= len(colours) <= 2:
-        raise ValueError(f"game/marks/{mark}.png: black background plus one or two C64 mark colours required")
+    colors = {value for value in pixels if value}
+    if not 1 <= len(colors) <= 2:
+        raise ValueError(f"game/marks/{mark}.png: black background plus one or two C64 mark colors required")
     primary = 10 if mark == "x" else 3
-    if primary not in colours:
-        raise ValueError(f"game/marks/{mark}.png: primary colour must be palette index {primary}")
-    accent = next(iter(colours - {primary}), 0)
+    if primary not in colors:
+        raise ValueError(f"game/marks/{mark}.png: primary color must be palette index {primary}")
+    accent = next(iter(colors - {primary}), 0)
     bitmap = bytearray((output / f"{base_name}/bitmap.bin").read_bytes())
     blank_screen = (output / f"{base_name}/screen.bin").read_bytes()
     screen = bytearray(blank_screen)
-    colour_ram = bytearray((output / f"{base_name}/color.bin").read_bytes())
+    color_ram = bytearray((output / f"{base_name}/color.bin").read_bytes())
     coordinates = json.loads((source / "layout/board.json").read_text())["cell_rectangles"]
     remapped_cells: set[int] = set()
     for cell in cells:
@@ -203,14 +203,14 @@ def compile_mark_board(source: Path, output: Path, mark: str, cells: str = "abcd
                     screen[screen_cell] = (primary << 4) | (original & 0x0f)
                     remapped_cells.add(screen_cell)
                 if pixel == accent and accent:
-                    colour_ram[screen_cell] = accent
+                    color_ram[screen_cell] = accent
                     set_selector(bitmap, logical_x, logical_y, 3)
                 else:
                     set_selector(bitmap, logical_x, logical_y, 1)
     relative = output_name or f"game/all-{mark}"
     write_plane(output, f"{relative}/bitmap.bin", bytes(bitmap))
     write_plane(output, f"{relative}/screen.bin", bytes(screen))
-    write_plane(output, f"{relative}/color.bin", bytes(colour_ram))
+    write_plane(output, f"{relative}/color.bin", bytes(color_ram))
 
 
 def bitmap_offsets(x_logical: int, y: int, width_logical: int, height: int) -> list[int]:
@@ -239,10 +239,10 @@ def compile_cells(source: Path, output: Path) -> None:
     write_plane(output, "game/cells/destinations.bin", b"".join(address.to_bytes(2, "little") for address in destinations))
     for mark in ("x", "o"):
         root = output / f"game/all-{mark}"
-        bitmap, screen, colour = (root / "bitmap.bin").read_bytes(), (root / "screen.bin").read_bytes(), (root / "color.bin").read_bytes()
+        bitmap, screen, color = (root / "bitmap.bin").read_bytes(), (root / "screen.bin").read_bytes(), (root / "color.bin").read_bytes()
         write_plane(output, f"game/cells/{mark}.bitmap.bin", bytes(bitmap[address] for group in bitmap_per_cell for address in group))
         write_plane(output, f"game/cells/{mark}.screen.bin", bytes(screen[address] for group in screen_per_cell for address in group))
-        write_plane(output, f"game/cells/{mark}.color.bin", bytes(colour[address] for group in screen_per_cell for address in group))
+        write_plane(output, f"game/cells/{mark}.color.bin", bytes(color[address] for group in screen_per_cell for address in group))
 
 
 def validate_manifest(source: Path, output: Path) -> None:

@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).parents[1]
-ASSETS = ROOT / "assets" / "palace"
+ASSETS = ROOT / "assets"
 SCRIPT = ROOT / "scripts" / "render_screen_states.py"
 
 
@@ -36,8 +36,8 @@ def test_screen_state_previews_are_reproducible_indexed_c64_pngs():
     for path, expected in module.expected_images().items():
         content = path.read_bytes()
         chunks = dict(png_chunks(content))
-        width, height, depth, colour_type, compression, filtering, interlace = struct.unpack(">IIBBBBB", chunks[b"IHDR"])
-        assert (width, height, depth, colour_type, compression, filtering, interlace) in {
+        width, height, depth, color_type, compression, filtering, interlace = struct.unpack(">IIBBBBB", chunks[b"IHDR"])
+        assert (width, height, depth, color_type, compression, filtering, interlace) in {
             (320, 200, 8, 3, 0, 0, 0),
             (128, 128, 8, 3, 0, 0, 0),
         }
@@ -47,14 +47,24 @@ def test_screen_state_previews_are_reproducible_indexed_c64_pngs():
 
 def test_screen_state_markdown_documents_png_sources_and_reviewed_final_screens():
     readme = (ASSETS / "README.md").read_text()
-    assert "`assets/palace/` contains editable" in readme
-    assert "No C64\nbinary plane is committed" in readme
-    assert "colour type 3 (indexed)" in readme
+    assert "`assets/` is the editable visual source" in readme
+    assert "Generated\nC64 planes are ignored" in readme
+    assert "color type 3 (indexed)" in readme
     assert "glyph-map.png" in readme
     assert "bitmap-selectors.png" in readme
-    assert "final game review is 320×200" in readme
+    assert "320×200 physical pixels" in readme
     documented = {"atlas.png", "preview.png", "glyphs.png", "colors.png"}
 
     assert documented <= {path.name for path in renderer().expected_images()}
     for name in documented:
         assert name in readme
+
+
+def test_authored_repository_writing_uses_us_english():
+    forbidden = tuple(word + suffix for word in ("colo", "Colo", "COLO") for suffix in ("ur", "urs")) + tuple(word + suffix for word in ("gre", "Gre", "GRE", "cent", "Cent", "CENT") for suffix in ("y", "re"))
+    roots = (ROOT / "assets", ROOT / "docs", ROOT / "scripts", ROOT / "src", ROOT / "tests")
+    text_files = [ROOT / "README.md"]
+    for root in roots:
+        text_files.extend(path for path in root.rglob("*") if path.suffix in {".asm", ".inc", ".json", ".md", ".py", ".sh", ".txt"})
+    for path in text_files:
+        assert not any(word in path.read_text() for word in forbidden), path

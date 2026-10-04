@@ -4694,7 +4694,7 @@ draw_cells:
     clc
     adc #$01            ; C64 screen codes A through I
     sta (pointer),y
-    lda #$0c            ; dim grey address label
+    lda #$0c            ; dim gray address label
     sta (color_pointer),y
     inx
     inx

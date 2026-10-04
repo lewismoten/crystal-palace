@@ -91,12 +91,12 @@ def next_directory_sector(sector: int) -> int:
     return candidate
 
 
-def centre_out_tracks() -> list[int]:
+def center_out_tracks() -> list[int]:
     return [track for distance in range(1, 18) for track in (DIRECTORY_TRACK - distance, DIRECTORY_TRACK + distance) if 1 <= track <= 35]
 
 
 def first_free_sector(free: set[tuple[int, int]]) -> tuple[int, int]:
-    for track in centre_out_tracks():
+    for track in center_out_tracks():
         candidates = [address for address in free if address[0] == track]
         if candidates:
             return min(candidates, key=lambda address: address[1])
@@ -106,7 +106,7 @@ def first_free_sector(free: set[tuple[int, int]]) -> tuple[int, int]:
 def file_start_order() -> list[tuple[int, int]]:
     """Spread independent file starts across rotational slots near track 18."""
     order: list[tuple[int, int]] = []
-    for track in centre_out_tracks():
+    for track in center_out_tracks():
         sectors = sectors_on_track(track)
         interleave = 10 if math.gcd(10, sectors) == 1 else 7
         order.extend((track, sector) for sector in interleaved_sectors(track, sectors, interleave))

@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).parents[1]
-ASSETS = ROOT / "assets" / "palace"
-GENERATED = ROOT / "build" / "palace-assets"
+ASSETS = ROOT / "assets"
+GENERATED = ROOT / "build" / "assets"
 
 
 def load_builder():
@@ -64,9 +64,9 @@ def test_native_visual_bundles_are_source_exact_final_address_prgs(tmp_path):
 def test_embedded_title_source_uses_no_screen_editor_output():
     source = (ROOT / "src" / "art_embedded_title.asm").read_text()
     assert "CHROUT" not in source
-    assert '.binary "../build/palace-assets/charset.bin"' in source
-    assert '.binary "../build/palace-assets/runtime/title-one.screen.bin"' in source
-    assert '.binary "../build/palace-assets/runtime/title-one.color.bin"' in source
+    assert '.binary "../build/assets/charset.bin"' in source
+    assert '.binary "../build/assets/runtime/title-one.screen.bin"' in source
+    assert '.binary "../build/assets/runtime/title-one.color.bin"' in source
 
 
 def test_runtime_title_planes_preserve_the_complete_supplied_radar_perimeter():
@@ -175,15 +175,15 @@ def test_assembled_embedded_title_copies_exact_planes_to_live_vic_memory(tmp_pat
     mpu.memory[symbols["title_mode"]] = 1
     call(mpu, symbols["show_title"])
     expected_screen = bytearray((GENERATED / "title/one/screen.bin").read_bytes())
-    expected_colour = bytearray((GENERATED / "title/one/color.bin").read_bytes())
+    expected_color = bytearray((GENERATED / "title/one/color.bin").read_bytes())
     expected_screen[882:886] = bytes((9, 14, 6, 15))
-    expected_colour[882:886] = bytes((1, 12, 12, 12))
+    expected_color[882:886] = bytes((1, 12, 12, 12))
     expected_screen[922:926] = bytes((17, 21, 9, 20))
-    expected_colour[922:926] = bytes((1, 12, 12, 12))
+    expected_color[922:926] = bytes((1, 12, 12, 12))
 
-    for offset in (371, 451, 531): expected_colour[offset] = 7
+    for offset in (371, 451, 531): expected_color[offset] = 7
     assert bytes(mpu.memory[0x0400 : 0x0400 + 1000]) == bytes(expected_screen)
-    assert bytes(mpu.memory[0xD800 : 0xD800 + 1000]) == bytes(expected_colour)
+    assert bytes(mpu.memory[0xD800 : 0xD800 + 1000]) == bytes(expected_color)
 
 
 def test_embedded_preview_has_correct_game_vic_layout_and_live_a_to_i_marks(tmp_path):
@@ -282,7 +282,7 @@ def test_middle_mark_does_not_repaint_the_top_mark_shared_attribute_row(tmp_path
 
     That row belongs to a-c's final diagonal byte. Its screen/color attributes
     must not be copied from d-f's empty leading source row, or a later O changes
-    the earlier X's border/colour definition.
+    the earlier X's border/color definition.
     """
     import subprocess
     import pytest
@@ -301,13 +301,13 @@ def test_middle_mark_does_not_repaint_the_top_mark_shared_attribute_row(tmp_path
     mpu.memory[symbols["game_index"]] = 0  # a: last mark scanline is character row 6
     call(mpu, symbols["draw_x"])
     shared_screen = bytes(mpu.memory[0x0400 + 6 * 40 + 14 : 0x0400 + 6 * 40 + 18])
-    shared_colour = bytes(mpu.memory[0xD800 + 6 * 40 + 14 : 0xD800 + 6 * 40 + 18])
+    shared_color = bytes(mpu.memory[0xD800 + 6 * 40 + 14 : 0xD800 + 6 * 40 + 18])
 
     mpu.memory[symbols["game_index"]] = 3  # d: first source attribute row is empty
     call(mpu, symbols["draw_o"])
 
     assert bytes(mpu.memory[0x0400 + 6 * 40 + 14 : 0x0400 + 6 * 40 + 18]) == shared_screen
-    assert bytes(mpu.memory[0xD800 + 6 * 40 + 14 : 0xD800 + 6 * 40 + 18]) == shared_colour
+    assert bytes(mpu.memory[0xD800 + 6 * 40 + 14 : 0xD800 + 6 * 40 + 18]) == shared_color
 
 
 def test_sequential_a_to_i_x_patches_stay_in_the_game_planes_and_leave_title_info_restorable(tmp_path):
@@ -529,9 +529,9 @@ def test_main_title_getin_loop_accepts_real_screen_codes_and_blanks_only_reporte
     assert mpu.memory[symbols["title_mode"]] == 2
     assert mpu.memory[0x05C1] == 44
     source_title = (GENERATED / "title/one/screen.bin").read_bytes()
-    source_colour = (GENERATED / "title/one/color.bin").read_bytes()
+    source_color = (GENERATED / "title/one/color.bin").read_bytes()
     for offset in (243, 244, 283, 284, 323, 324, 363, 364):
-        assert (mpu.memory[0x0400 + offset], mpu.memory[0xD800 + offset]) == (source_title[offset], source_colour[offset])
+        assert (mpu.memory[0x0400 + offset], mpu.memory[0xD800 + offset]) == (source_title[offset], source_color[offset])
 
     # Screen-code 9 is I in the browser/C64 uppercase keyboard mode. With the
     # actual archive payload and KERNAL-load stubs present, it must enter INFO
@@ -662,12 +662,12 @@ def test_archive_footer_centers_scroll_and_quit_commands(tmp_path):
 
     footer = 23 * 40 + 4
     screen = bytes(mpu.memory[0x0400 + footer : 0x0400 + footer + 35])
-    colours = bytes(mpu.memory[0xD800 + footer : 0xD800 + footer + 35])
+    colors = bytes(mpu.memory[0xD800 + footer : 0xD800 + footer + 35])
     scroll = bytes((19, 3, 18, 15, 12, 12, 38, 0, 21, 16, 41, 4, 15, 23, 14))
     quit_command = bytes((17, 21, 9, 20, 38, 0, 17))
 
     assert screen == bytes(6) + scroll + b"\0" + quit_command + bytes(6)
-    assert colours == bytes(6) + bytes((12,)) * 8 + bytes((1,)) * 7 + b"\0" + bytes((12,)) * 6 + b"\x01" + bytes(6)
+    assert colors == bytes(6) + bytes((12,)) * 8 + bytes((1,)) * 7 + b"\0" + bytes((12,)) * 6 + b"\x01" + bytes(6)
 
 
 def test_archive_renderer_banks_in_ram_for_the_a600_compiled_text():
@@ -680,11 +680,11 @@ def test_archive_renderer_banks_in_ram_for_the_a600_compiled_text():
     assert render.rfind("sta $01") > render.index("render_info_scrollbar:")
 
 
-def test_info_colour_plane_is_relocated_beyond_the_title_charset_backup():
+def test_info_color_plane_is_relocated_beyond_the_title_charset_backup():
     """49 archive rows no longer fit below $b000 beside the title charset."""
     generated = (ROOT / "src" / "info_markdown.inc").read_text()
     assert "info_markdown_chars = $a600" in generated
-    assert "info_markdown_colours = $b800" in generated
+    assert "info_markdown_colors = $b800" in generated
 
 
 def test_info_cursor_down_is_checked_before_ambiguous_screen_code_q():
@@ -699,7 +699,7 @@ def test_title_hints_keep_the_shortcut_brighter_without_erasing_radar_art():
     shown = source[source.index("show_title:") : source.index("patch_title_variant:")]
     assert "cleanup_title_radar_labels" not in shown
     hints = source[source.index("patch_title_hints:") : source.index("set_title_vic:")]
-    assert "lda #12" in hints  # descriptive INFO/QUIT text is dimmer light grey
+    assert "lda #12" in hints  # descriptive INFO/QUIT text is dimmer light gray
     assert "lda #1                   ; bright white direct key" in hints
 
 
@@ -746,13 +746,13 @@ def test_title_variants_are_exact_deltas_over_the_single_player_base(tmp_path):
         call(mpu, symbols["show_title"])
         variant = {0: "auto", 2: "two"}[mode]
         expected_screen = bytearray((GENERATED / "title" / variant / "screen.bin").read_bytes())
-        expected_colour = bytearray((GENERATED / "title" / variant / "color.bin").read_bytes())
-        expected_screen[882:886] = bytes((9, 14, 6, 15)); expected_colour[882:886] = bytes((1, 12, 12, 12))
-        expected_screen[922:926] = bytes((17, 21, 9, 20)); expected_colour[922:926] = bytes((1, 12, 12, 12))
+        expected_color = bytearray((GENERATED / "title" / variant / "color.bin").read_bytes())
+        expected_screen[882:886] = bytes((9, 14, 6, 15)); expected_color[882:886] = bytes((1, 12, 12, 12))
+        expected_screen[922:926] = bytes((17, 21, 9, 20)); expected_color[922:926] = bytes((1, 12, 12, 12))
 
-        for offset in (371, 451, 531): expected_colour[offset] = 7
+        for offset in (371, 451, 531): expected_color[offset] = 7
         assert bytes(mpu.memory[0x0400 : 0x07E8]) == bytes(expected_screen)
-        assert bytes(mpu.memory[0xD800 : 0xDBE8]) == bytes(expected_colour)
+        assert bytes(mpu.memory[0xD800 : 0xDBE8]) == bytes(expected_color)
 
 
 def test_lowercase_g_runs_the_actual_game_input_subroutine_without_disk_load(tmp_path):
@@ -816,9 +816,9 @@ def test_archive_markdown_is_compiled_and_scrolls_a_fixed_panel(tmp_path):
     prepare_info_archive_load(mpu)
     call(mpu, symbols["show_info"])
     first = bytes(mpu.memory[0x04A5 : 0x04A5 + 29])
-    colours = bytes(mpu.memory[0xD8A5 : 0xD8A5 + 29])
+    colors = bytes(mpu.memory[0xD8A5 : 0xD8A5 + 29])
     assert first[:7] == bytes((3, 18, 25, 19, 20, 1, 12))  # CRYSTAL custom charset codes
-    assert colours[:7] == b"\x07" * 7
+    assert colors[:7] == b"\x07" * 7
     assert mpu.memory[0x04C2] != 0
     call(mpu, symbols["archive_scroll_down"])
     assert mpu.memory[symbols["info_scroll"]] == 1
@@ -863,7 +863,7 @@ def test_game_presentation_labels_empty_cells_shows_turns_and_reports_terminal_s
         bitmap_address = int.from_bytes(label_bitmap[index * 2 : index * 2 + 2], "little")
         screen_address = int.from_bytes(label_screen[index * 2 : index * 2 + 2], "little")
         assert bytes(mpu.memory[bitmap_address : bitmap_address + 8]) == glyph
-        assert mpu.memory[screen_address] >> 4 == 11  # dim-grey A-I labels
+        assert mpu.memory[screen_address] >> 4 == 11  # dim-gray A-I labels
 
     # The one-cell turn status is centered on the board's midpoint below its
     # bottom grid edge: character row 14, column 19 (bitmap $3218/screen $0643).
@@ -914,7 +914,7 @@ def test_two_player_draw_reports_draw_and_locks_the_board_without_an_ai_fallback
         mpu.a = key; call(mpu, symbols["process_game_key"])
     assert mpu.memory[symbols["game_winner"]] == 3
     assert mpu.memory[symbols["game_terminal_ticks"]] > 0
-    assert mpu.memory[symbols["turn_indicator_colour"]] == 7
+    assert mpu.memory[symbols["turn_indicator_color"]] == 7
     before = bytes(mpu.memory[symbols["board_state"] : symbols["board_state"] + 9])
     mpu.a = ord("a"); call(mpu, symbols["process_game_key"])
     assert bytes(mpu.memory[symbols["board_state"] : symbols["board_state"] + 9]) == before
@@ -932,7 +932,7 @@ def test_archive_source_plane_harness_uses_every_blank_frame_row_and_keeps_scrol
     from test_6502_embedding_gate import ASSEMBLER, call, labels
 
     asset_screen = (GENERATED / "info/screen.bin").read_bytes()
-    asset_colour = (GENERATED / "info/color.bin").read_bytes()
+    asset_color = (GENERATED / "info/color.bin").read_bytes()
     panel_rows = [
         row for row in range(25)
         if asset_screen[row * 40 + 5 : row * 40 + 35] == bytes(30)
@@ -943,7 +943,7 @@ def test_archive_source_plane_harness_uses_every_blank_frame_row_and_keeps_scrol
 
     spec = importlib.util.spec_from_file_location("compile_info_markdown", ROOT / "scripts" / "compile_info_markdown.py")
     compiler = importlib.util.module_from_spec(spec); spec.loader.exec_module(compiler)
-    chars, colours, line_count = compiler.compile_data()
+    chars, colors, line_count = compiler.compile_data()
     text_columns, scrollbar_column = 29, 34
 
     subprocess.run([sys.executable, str(ROOT / "scripts" / "compile_info_markdown.py")], check=True)
@@ -958,9 +958,9 @@ def test_archive_source_plane_harness_uses_every_blank_frame_row_and_keeps_scrol
         offset = panel_rows[viewport_row] * 40
         expected = slice(source_row * text_columns, (source_row + 1) * text_columns)
         assert bytes(mpu.memory[0x0400 + offset + 5 : 0x0400 + offset + 34]) == chars[expected]
-        assert bytes(mpu.memory[0xD800 + offset + 5 : 0xD800 + offset + 34]) == colours[expected]
+        assert bytes(mpu.memory[0xD800 + offset + 5 : 0xD800 + offset + 34]) == colors[expected]
         assert mpu.memory[0x0400 + offset + 35] == asset_screen[offset + 35]
-        assert mpu.memory[0xD800 + offset + 35] == asset_colour[offset + 35]
+        assert mpu.memory[0xD800 + offset + 35] == asset_color[offset + 35]
     assert [mpu.memory[0x0400 + row * 40 + scrollbar_column] for row in panel_rows].count(42) == 1
 
     for _ in range(line_count + 1):
@@ -972,7 +972,7 @@ def test_archive_source_plane_harness_uses_every_blank_frame_row_and_keeps_scrol
         source_row = maximum_scroll + viewport_row
         expected = slice(source_row * text_columns, (source_row + 1) * text_columns)
         assert bytes(mpu.memory[0x0400 + offset + 5 : 0x0400 + offset + 34]) == chars[expected]
-        assert bytes(mpu.memory[0xD800 + offset + 5 : 0xD800 + offset + 34]) == colours[expected]
+        assert bytes(mpu.memory[0xD800 + offset + 5 : 0xD800 + offset + 34]) == colors[expected]
     scrollbar = [mpu.memory[0x0400 + row * 40 + scrollbar_column] for row in panel_rows]
     assert scrollbar.count(42) == 1
     assert scrollbar[-1] == 42

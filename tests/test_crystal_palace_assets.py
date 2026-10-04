@@ -3,8 +3,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).parents[1]
-ASSETS = ROOT / "assets" / "palace"
-GENERATED = ROOT / "build" / "palace-assets"
+ASSETS = ROOT / "assets"
+GENERATED = ROOT / "build" / "assets"
 SOURCE = Path("/tmp/crystal-palace-screen-states")
 
 
@@ -156,7 +156,7 @@ def test_6502_native_game_patches_one_x_cell_from_the_supplied_all_x_plane(tmp_p
     all_x = (GENERATED / "game/all-x/bitmap.bin").read_bytes()
     mpu.memory[0x6000 : 0x6000 + 8000] = blank
     mpu.memory[0x8000 : 0x8000 + 8000] = all_x
-    mpu.memory[symbols["computer_cell"]] = 4  # centre cell e
+    mpu.memory[symbols["computer_cell"]] = 4  # center cell e
 
     call(mpu, symbols["ui_patch_native_x_cell"])
 

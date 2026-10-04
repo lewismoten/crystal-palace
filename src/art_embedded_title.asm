@@ -18,7 +18,7 @@ EMBEDDING_VECTOR = $c100
 src = $fb
 out = $fd
 dest = $f9
-info_colour_out = $f7
+info_color_out = $f7
 ; The one-cell turn/result status is centered below the 3×3 grid, not in the
 ; monitor border above cell C.  Bitmap-mode cells are 16 physical pixels wide.
 TURN_BITMAP = $3218           ; character row 14, column 19
@@ -236,9 +236,9 @@ show_title:
     lda #<title1_screen
     ldy #>title1_screen
     jsr copy_screen
-    lda #<title1_colour
-    ldy #>title1_colour
-    jsr copy_colour
+    lda #<title1_color
+    ldy #>title1_color
+    jsr copy_color
     jsr patch_title_variant
 title_done:
     jsr patch_title_hints
@@ -258,12 +258,12 @@ patch_title_variant:
     lda #13                  ; dim unselected player-one row
     sta $d973
     ldx #0
-patch_title_common_colour:
+patch_title_common_color:
     lda #13
     sta $d975,x
     inx
     cpx #12
-    bne patch_title_common_colour
+    bne patch_title_common_color
     lda title_mode
     beq patch_title_zero
     lda #44                  ; arrow at player-two screen offset 449
@@ -271,12 +271,12 @@ patch_title_common_colour:
     lda #7
     sta $d9c3
     ldx #0
-patch_title_two_colour:
+patch_title_two_color:
     lda #7
     sta $d9c5,x
     inx
     cpx #16
-    bne patch_title_two_colour
+    bne patch_title_two_color
     rts
 patch_title_zero:
     lda #44                  ; arrow at AI-vs-AI screen offset 529
@@ -284,17 +284,17 @@ patch_title_zero:
     lda #7
     sta $da13
     ldx #0
-patch_title_zero_colour:
+patch_title_zero_color:
     lda #7
     sta $da15,x
     inx
     cpx #8
-    bne patch_title_zero_colour
+    bne patch_title_zero_color
 title_variant_done:
     rts
 
 ; Title navigation leaves the already-visible base plane intact.  It changes
-; only the three selector cells and their menu-row colours, avoiding both the
+; only the three selector cells and their menu-row colors, avoiding both the
 ; full-screen display-disable blink and an intermediate player-one selector.
 update_title_selection:
     lda #0
@@ -379,9 +379,9 @@ show_info_charset_ready:
     lda #<info_screen
     ldy #>info_screen
     jsr copy_screen
-    lda #<info_colour
-    ldy #>info_colour
-    jsr copy_colour
+    lda #<info_color
+    ldy #>info_color
+    jsr copy_color
     lda #0
     sta info_scroll
     jsr patch_info_footer
@@ -394,7 +394,7 @@ show_info_load_failed:
     jmp show_title
 
 ; ARCHIVE.PRG is a compact runtime transport: header followed by character and
-; colour planes. It enters the volatile $c000 load window then copies into the
+; color planes. It enters the volatile $c000 load window then copies into the
 ; fixed RAM planes used by the INFO renderer, avoiding title charset backup RAM.
 load_info_archive:
     lda #11
@@ -449,9 +449,9 @@ load_info_archive:
     lda #>info_markdown_chars
     sta dest+1
     jsr archive_copy_plane
-    lda #<info_markdown_colours
+    lda #<info_markdown_colors
     sta dest
-    lda #>info_markdown_colours
+    lda #>info_markdown_colors
     sta dest+1
     jsr archive_copy_plane
     lda archive_memory_config
@@ -462,7 +462,7 @@ archive_load_failed:
     sec
     rts
 
-; Copies one INFO plane. Source advances from characters to colours between
+; Copies one INFO plane. Source advances from characters to colors between
 ; calls; both planes have INFO_LINE_COUNT × INFO_LINE_WIDTH bytes.
 archive_copy_plane:
     ldx #ARCHIVE_COPY_FULL_PAGES
@@ -501,9 +501,9 @@ show_game:
     lda #<game_screen
     ldy #>game_screen
     jsr copy_screen
-    lda #<game_colour
-    ldy #>game_colour
-    jsr copy_colour
+    lda #<game_color
+    ldy #>game_color
+    jsr copy_color
     lda #0
     ldx #8
 clear_board:
@@ -528,31 +528,31 @@ clear_board:
 
 ; The archive viewer overlays its supplied decorative frame only inside the
 ; 29×18 vacant panel. Markdown is precompiled at build time; this runtime path
-; just copies bounded character and colour rows and paints an honest position
+; just copies bounded character and color rows and paints an honest position
 ; marker beside them.
 INFO_ROWS = 18
 INFO_TEXT_COLUMNS = 29
 INFO_TEXT_SCREEN = $04a5           ; row 4, column 5
-INFO_TEXT_COLOUR = $d8a5
+INFO_TEXT_COLOR = $d8a5
 INFO_SCROLLBAR_SCREEN = $04c2       ; row 4, column 34
-INFO_SCROLLBAR_COLOUR = $d8c2
+INFO_SCROLLBAR_COLOR = $d8c2
 INFO_FOOTER_SCREEN = $079c    ; row 23, column 4: centered archive commands
-INFO_FOOTER_COLOUR = $db9c
+INFO_FOOTER_COLOR = $db9c
 INFO_FOOTER_WIDTH = 35
 patch_info_footer:
     ldx #0
 info_footer_loop:
     lda info_footer_chars,x
     sta INFO_FOOTER_SCREEN,x
-    lda info_footer_colours,x
-    sta INFO_FOOTER_COLOUR,x
+    lda info_footer_colors,x
+    sta INFO_FOOTER_COLOR,x
     inx
     cpx #INFO_FOOTER_WIDTH
     bne info_footer_loop
     rts
 ; Six black cells, SCROLL: UP/DOWN, one black separator, QUIT: Q, six black.
 info_footer_chars: .byte 0,0,0,0,0,0,19,3,18,15,12,12,38,0,21,16,41,4,15,23,14,0,17,21,9,20,38,0,17,0,0,0,0,0,0
-info_footer_colours: .byte 0,0,0,0,0,0,12,12,12,12,12,12,12,12,1,1,1,1,1,1,1,0,12,12,12,12,12,12,1,0,0,0,0,0,0
+info_footer_colors: .byte 0,0,0,0,0,0,12,12,12,12,12,12,12,12,1,1,1,1,1,1,1,0,12,12,12,12,12,12,1,0,0,0,0,0,0
 ; INFO_LINE_COUNT is 49 and the source frame supplies 18 track cells.  These
 ; 32 positions map scroll offsets 0..31 across the complete visible track.
 info_scrollbar_positions: .byte 0,1,1,2,2,3,3,4,4,5,5,6,7,7,8,8,9,9,10,10,11,12,12,13,13,14,14,15,15,16,16,17
@@ -581,7 +581,7 @@ archive_scroll_done:
     rts
 render_info_markdown:
     ; The compiled rows live at $a600 under BASIC ROM.  Bank BASIC out while
-    ; reading them, but leave I/O visible so colour RAM writes still reach VIC.
+    ; reading them, but leave I/O visible so color RAM writes still reach VIC.
     lda $01
     sta info_markdown_memory_config
     and #$fe
@@ -590,9 +590,9 @@ render_info_markdown:
     sta src
     lda #>info_markdown_chars
     sta src+1
-    lda #<info_markdown_colours
+    lda #<info_markdown_colors
     sta dest
-    lda #>info_markdown_colours
+    lda #>info_markdown_colors
     sta dest+1
     ldx info_scroll
 info_seek_scroll:
@@ -609,9 +609,9 @@ info_seek_chars_no_carry:
     lda dest
     adc #INFO_LINE_WIDTH
     sta dest
-    bcc info_seek_colours_no_carry
+    bcc info_seek_colors_no_carry
     inc dest+1
-info_seek_colours_no_carry:
+info_seek_colors_no_carry:
     dex
     jmp info_seek_scroll
 info_seek_done:
@@ -619,10 +619,10 @@ info_seek_done:
     sta out
     lda #>INFO_TEXT_SCREEN
     sta out+1
-    lda #<INFO_TEXT_COLOUR
-    sta info_colour_out
-    lda #>INFO_TEXT_COLOUR
-    sta info_colour_out+1
+    lda #<INFO_TEXT_COLOR
+    sta info_color_out
+    lda #>INFO_TEXT_COLOR
+    sta info_color_out+1
     ldx #INFO_ROWS
 info_copy_row:
     ldy #0
@@ -630,7 +630,7 @@ info_copy_character:
     lda (src),y
     sta (out),y
     lda (dest),y
-    sta (info_colour_out),y
+    sta (info_color_out),y
     iny
     cpy #INFO_TEXT_COLUMNS
     bne info_copy_character
@@ -645,9 +645,9 @@ info_chars_advanced:
     lda dest
     adc #INFO_LINE_WIDTH
     sta dest
-    bcc info_colours_advanced
+    bcc info_colors_advanced
     inc dest+1
-info_colours_advanced:
+info_colors_advanced:
     clc
     lda out
     adc #40
@@ -656,12 +656,12 @@ info_colours_advanced:
     inc out+1
 info_screen_advanced:
     clc
-    lda info_colour_out
+    lda info_color_out
     adc #40
-    sta info_colour_out
-    bcc info_colour_screen_advanced
-    inc info_colour_out+1
-info_colour_screen_advanced:
+    sta info_color_out
+    bcc info_color_screen_advanced
+    inc info_color_out+1
+info_color_screen_advanced:
     dex
     bne info_copy_row
     jmp render_info_scrollbar
@@ -670,10 +670,10 @@ render_info_scrollbar:
     sta out
     lda #>INFO_SCROLLBAR_SCREEN
     sta out+1
-    lda #<INFO_SCROLLBAR_COLOUR
-    sta info_colour_out
-    lda #>INFO_SCROLLBAR_COLOUR
-    sta info_colour_out+1
+    lda #<INFO_SCROLLBAR_COLOR
+    sta info_color_out
+    lda #>INFO_SCROLLBAR_COLOR
+    sta info_color_out+1
     ldx info_scroll
     lda info_scrollbar_positions,x
     sta info_scrollbar_marker
@@ -682,14 +682,14 @@ render_info_scrollbar:
 info_scrollbar_row:
     lda #46                  ; dot-like track glyph
     sta (out),y
-    lda #11                  ; dim grey track
-    sta (info_colour_out),y
+    lda #11                  ; dim gray track
+    sta (info_color_out),y
     cpx info_scrollbar_marker
     bne info_scrollbar_advance
     lda #42                  ; visibly distinct scroll position glyph
     sta (out),y
     lda #7
-    sta (info_colour_out),y
+    sta (info_color_out),y
 info_scrollbar_advance:
     clc
     lda out
@@ -699,12 +699,12 @@ info_scrollbar_advance:
     inc out+1
 info_scrollbar_screen_done:
     clc
-    lda info_colour_out
+    lda info_color_out
     adc #40
-    sta info_colour_out
-    bcc info_scrollbar_colour_done
-    inc info_colour_out+1
-info_scrollbar_colour_done:
+    sta info_color_out
+    bcc info_scrollbar_color_done
+    inc info_color_out+1
+info_scrollbar_color_done:
     inx
     cpx #INFO_ROWS
     bne info_scrollbar_row
@@ -895,7 +895,7 @@ bitmap_done:
     rts
 
 ; The game is bitmap mode, so empty-cell address labels and the small turn
-; marker are explicit bitmap pixels using screen high-nibble colour 1.  They
+; marker are explicit bitmap pixels using screen high-nibble color 1.  They
 ; only touch interior character cells that the X/O patches fully replace.
 draw_empty_labels:
     ldx #0
@@ -913,8 +913,8 @@ draw_empty_label:
     sta out
     lda label_screen_dest_hi,x
     sta out+1
-    lda #11                 ; dark grey / dim A-I address label
-    jsr paint_high_colour
+    lda #11                 ; dark gray / dim A-I address label
+    jsr paint_high_color
     inx
     cpx #9
     bne draw_empty_label
@@ -942,10 +942,10 @@ draw_draw_indicator:
     ldy #>draw_glyph
     lda #7                  ; yellow D means terminal draw
 draw_indicator:
-    sta turn_indicator_colour
-    sta terminal_colour
-    lda #<turn_x_glyph      ; restore pointer low after selecting the colour
-    ; A cannot carry both colour and source low. Select source again by state.
+    sta turn_indicator_color
+    sta terminal_color
+    lda #<turn_x_glyph      ; restore pointer low after selecting the color
+    ; A cannot carry both color and source low. Select source again by state.
     lda game_winner
     cmp #3
     beq indicator_source_draw
@@ -975,8 +975,8 @@ indicator_source_ready:
     sta out
     lda #>TURN_SCREEN
     sta out+1
-    lda turn_indicator_colour
-    jmp paint_high_colour
+    lda turn_indicator_color
+    jmp paint_high_color
 
 copy_eight_bytes:
     ldy #0
@@ -988,9 +988,9 @@ copy_eight_byte:
     bne copy_eight_byte
     rts
 
-; A contains the desired VIC screen high-nibble colour; out identifies the
+; A contains the desired VIC screen high-nibble color; out identifies the
 ; sole screen character containing a label or indicator glyph.
-paint_high_colour:
+paint_high_color:
     asl
     asl
     asl
@@ -1013,7 +1013,7 @@ game_begin_terminal:
     cmp #3
     beq game_terminal_ready
     lda #7                  ; yellow winning-line phase
-    sta terminal_colour
+    sta terminal_color
     jsr paint_winning_line
 game_terminal_ready:
     rts
@@ -1027,7 +1027,7 @@ game_terminal_tick:
     sta game_terminal_phase
     beq game_terminal_restore_line
     lda #7
-    sta terminal_colour
+    sta terminal_color
     jsr paint_winning_line
     jmp game_terminal_countdown
 game_terminal_restore_line:
@@ -1056,34 +1056,34 @@ game_terminal_pause_inner:
 paint_winning_line:
     ldx game_winning_line
     ldy winning_cells,x
-    jsr paint_board_cell_colour
-    ; paint_board_cell_colour uses X for its cell patch loop.  Reload the
+    jsr paint_board_cell_color
+    ; paint_board_cell_color uses X for its cell patch loop.  Reload the
     ; winning-line offset for each member instead of incrementing clobbered X.
     ldx game_winning_line
     inx
     ldy winning_cells,x
-    jsr paint_board_cell_colour
+    jsr paint_board_cell_color
     ldx game_winning_line
     inx
     inx
     ldy winning_cells,x
-    jmp paint_board_cell_colour
+    jmp paint_board_cell_color
 
 restore_winning_line:
     ldx game_winning_line
     ldy winning_cells,x
-    jsr restore_board_cell_colour
+    jsr restore_board_cell_color
     ldx game_winning_line
     inx
     ldy winning_cells,x
-    jsr restore_board_cell_colour
+    jsr restore_board_cell_color
     ldx game_winning_line
     inx
     inx
     ldy winning_cells,x
-    jmp restore_board_cell_colour
+    jmp restore_board_cell_color
 
-restore_board_cell_colour:
+restore_board_cell_color:
     sty game_index
     lda board_state,y
     cmp #1
@@ -1092,9 +1092,9 @@ restore_board_cell_colour:
 restore_x_cell:
     jmp draw_x
 
-; Recolour the same 4x4 screen attribute patch used by a live mark. Middle-row
+; Recolor the same 4x4 screen attribute patch used by a live mark. Middle-row
 ; patches skip their shared leading character row, preserving the top-row edge.
-paint_board_cell_colour:
+paint_board_cell_color:
     sty game_index
     ldx game_index
     lda screen_out_lo,x
@@ -1123,7 +1123,7 @@ paint_cell_byte:
     lda (out),y
     and #$0f
     sta dest
-    lda terminal_colour
+    lda terminal_color
     asl
     asl
     asl
@@ -1168,13 +1168,13 @@ draw_x:
     sta out+1
     jsr patch_screen
     ldx game_index
-    lda x_colour_lo,x
+    lda x_color_lo,x
     sta src
-    lda x_colour_hi,x
+    lda x_color_hi,x
     sta src+1
-    lda colour_out_lo,x
+    lda color_out_lo,x
     sta out
-    lda colour_out_hi,x
+    lda color_out_hi,x
     sta out+1
     jsr patch_screen
     rts
@@ -1203,13 +1203,13 @@ draw_o:
     sta out+1
     jsr patch_screen
     ldx game_index
-    lda o_colour_lo,x
+    lda o_color_lo,x
     sta src
-    lda o_colour_hi,x
+    lda o_color_hi,x
     sta src+1
-    lda colour_out_lo,x
+    lda color_out_lo,x
     sta out
-    lda colour_out_hi,x
+    lda color_out_hi,x
     sta out+1
     jsr patch_screen
     rts
@@ -1305,20 +1305,20 @@ bitmap_destination_lo: .byte <bitmap_destinations, <bitmap_destinations+200, <bi
 bitmap_destination_hi: .byte >bitmap_destinations, >bitmap_destinations+200, >bitmap_destinations+400, >bitmap_destinations+600, >bitmap_destinations+800, >bitmap_destinations+1000, >bitmap_destinations+1200, >bitmap_destinations+1400, >bitmap_destinations+1600
 screen_out_lo: .byte <$0486, <$048a, <$048e, <$04fe, <$0502, <$0506, <$059e, <$05a2, <$05a6
 screen_out_hi: .byte >$0486, >$048a, >$048e, >$04fe, >$0502, >$0506, >$059e, >$05a2, >$05a6
-colour_out_lo: .byte <$d886, <$d88a, <$d88e, <$d8fe, <$d902, <$d906, <$d99e, <$d9a2, <$d9a6
-colour_out_hi: .byte >$d886, >$d88a, >$d88e, >$d8fe, >$d902, >$d906, >$d99e, >$d9a2, >$d9a6
+color_out_lo: .byte <$d886, <$d88a, <$d88e, <$d8fe, <$d902, <$d906, <$d99e, <$d9a2, <$d9a6
+color_out_hi: .byte >$d886, >$d88a, >$d88e, >$d8fe, >$d902, >$d906, >$d99e, >$d9a2, >$d9a6
 x_bitmap_lo: .byte <x_cells_bitmap, <x_cells_bitmap+100, <x_cells_bitmap+200, <x_cells_bitmap+300, <x_cells_bitmap+400, <x_cells_bitmap+500, <x_cells_bitmap+600, <x_cells_bitmap+700, <x_cells_bitmap+800
 x_bitmap_hi: .byte >x_cells_bitmap, >x_cells_bitmap+100, >x_cells_bitmap+200, >x_cells_bitmap+300, >x_cells_bitmap+400, >x_cells_bitmap+500, >x_cells_bitmap+600, >x_cells_bitmap+700, >x_cells_bitmap+800
 o_bitmap_lo: .byte <o_cells_bitmap, <o_cells_bitmap+100, <o_cells_bitmap+200, <o_cells_bitmap+300, <o_cells_bitmap+400, <o_cells_bitmap+500, <o_cells_bitmap+600, <o_cells_bitmap+700, <o_cells_bitmap+800
 o_bitmap_hi: .byte >o_cells_bitmap, >o_cells_bitmap+100, >o_cells_bitmap+200, >o_cells_bitmap+300, >o_cells_bitmap+400, >o_cells_bitmap+500, >o_cells_bitmap+600, >o_cells_bitmap+700, >o_cells_bitmap+800
 x_screen_lo: .byte <x_cells_screen, <x_cells_screen+16, <x_cells_screen+32, <x_cells_screen+48, <x_cells_screen+64, <x_cells_screen+80, <x_cells_screen+96, <x_cells_screen+112, <x_cells_screen+128
 x_screen_hi: .byte >x_cells_screen, >x_cells_screen+16, >x_cells_screen+32, >x_cells_screen+48, >x_cells_screen+64, >x_cells_screen+80, >x_cells_screen+96, >x_cells_screen+112, >x_cells_screen+128
-x_colour_lo: .byte <x_cells_colour, <x_cells_colour+16, <x_cells_colour+32, <x_cells_colour+48, <x_cells_colour+64, <x_cells_colour+80, <x_cells_colour+96, <x_cells_colour+112, <x_cells_colour+128
-x_colour_hi: .byte >x_cells_colour, >x_cells_colour+16, >x_cells_colour+32, >x_cells_colour+48, >x_cells_colour+64, >x_cells_colour+80, >x_cells_colour+96, >x_cells_colour+112, >x_cells_colour+128
+x_color_lo: .byte <x_cells_color, <x_cells_color+16, <x_cells_color+32, <x_cells_color+48, <x_cells_color+64, <x_cells_color+80, <x_cells_color+96, <x_cells_color+112, <x_cells_color+128
+x_color_hi: .byte >x_cells_color, >x_cells_color+16, >x_cells_color+32, >x_cells_color+48, >x_cells_color+64, >x_cells_color+80, >x_cells_color+96, >x_cells_color+112, >x_cells_color+128
 o_screen_lo: .byte <o_cells_screen, <o_cells_screen+16, <o_cells_screen+32, <o_cells_screen+48, <o_cells_screen+64, <o_cells_screen+80, <o_cells_screen+96, <o_cells_screen+112, <o_cells_screen+128
 o_screen_hi: .byte >o_cells_screen, >o_cells_screen+16, >o_cells_screen+32, >o_cells_screen+48, >o_cells_screen+64, >o_cells_screen+80, >o_cells_screen+96, >o_cells_screen+112, >o_cells_screen+128
-o_colour_lo: .byte <o_cells_colour, <o_cells_colour+16, <o_cells_colour+32, <o_cells_colour+48, <o_cells_colour+64, <o_cells_colour+80, <o_cells_colour+96, <o_cells_colour+112, <o_cells_colour+128
-o_colour_hi: .byte >o_cells_colour, >o_cells_colour+16, >o_cells_colour+32, >o_cells_colour+48, >o_cells_colour+64, >o_cells_colour+80, >o_cells_colour+96, >o_cells_colour+112, >o_cells_colour+128
+o_color_lo: .byte <o_cells_color, <o_cells_color+16, <o_cells_color+32, <o_cells_color+48, <o_cells_color+64, <o_cells_color+80, <o_cells_color+96, <o_cells_color+112, <o_cells_color+128
+o_color_hi: .byte >o_cells_color, >o_cells_color+16, >o_cells_color+32, >o_cells_color+48, >o_cells_color+64, >o_cells_color+80, >o_cells_color+96, >o_cells_color+112, >o_cells_color+128
 
 copy_screen:
     sta src
@@ -1328,7 +1328,7 @@ copy_screen:
     lda #>$0400
     sta out+1
     jmp copy_1000
-copy_colour:
+copy_color:
     sta src
     sty src+1
     lda #<COLOR
@@ -1419,7 +1419,7 @@ ambient_light_lo: .byte <$da7a, <$da87, <$dad2, <$dadb
 ambient_light_hi: .byte >$da7a, >$da87, >$dad2, >$dadb
 
 ; The visible line sits directly below the grid. It advances only at real
-; immediate-move boundaries: bitmap patch, screen patch, then colour patch.
+; immediate-move boundaries: bitmap patch, screen patch, then color patch.
 ; The browser input path deliberately does not invoke an unaccepted disk load.
 PROGRESS_SCREEN = $063e
 PROGRESS_BITMAP = $31f4
@@ -1460,18 +1460,18 @@ progress_orange:
 progress_light_red:
     lda #$a0
 paint_progress_segment:
-    sta progress_colour_nibble
+    sta progress_color_nibble
     lda progress_bitmap_lo,x
     sta out
     lda progress_bitmap_hi,x
     sta out+1
     lda PROGRESS_SCREEN,x
     and #$0f
-    ora progress_colour_nibble
+    ora progress_color_nibble
     sta PROGRESS_SCREEN,x
-    lda progress_colour_nibble
+    lda progress_color_nibble
     beq progress_unlit_pattern
-    lda #$55                 ; 01 01 01 01: screen high-nibble colour
+    lda #$55                 ; 01 01 01 01: screen high-nibble color
     bne progress_pattern_ready
 progress_unlit_pattern:
     lda #0
@@ -1499,7 +1499,7 @@ patch_title_hints:
 hint_info_loop:
     lda title_info_hint,x
     sta $0772,x              ; row 22: INFO
-    lda #12                  ; light grey descriptive text
+    lda #12                  ; light gray descriptive text
     sta $db72,x
     inx
     cpx #4
@@ -1510,7 +1510,7 @@ hint_info_loop:
 hint_quit_loop:
     lda title_quit_hint,x
     sta $079a,x              ; row 23: QUIT, below INFO
-    lda #12                  ; light grey descriptive text
+    lda #12                  ; light gray descriptive text
     sta $db9a,x
     inx
     cpx #4
@@ -1581,7 +1581,7 @@ label_screen_dest_lo: .byte <$04af,<$04b3,<$04b7, <$0527,<$052b,<$052f, <$05c7,<
 label_screen_dest_hi: .byte >$04af,>$04b3,>$04b7, >$0527,>$052b,>$052f, >$05c7,>$05cb,>$05cf
 label_glyph_lo: .byte <label_a,<label_b,<label_c,<label_d,<label_e,<label_f,<label_g,<label_h,<label_i
 label_glyph_hi: .byte >label_a,>label_b,>label_c,>label_d,>label_e,>label_f,>label_g,>label_h,>label_i
-; Each non-zero pair is multicolour bitmap pixel code 01, selected through the
+; Each non-zero pair is multicolor bitmap pixel code 01, selected through the
 ; screen high nibble. They are intentionally sparse so grid boundaries remain
 ; visible beneath the dim keyboard affordances.
 label_a: .byte $00,$14,$41,$55,$41,$41,$41,$00
@@ -1607,11 +1607,11 @@ game_ai_pending: .byte 0
 game_winning_line: .byte 0
 game_terminal_ticks: .byte 0
 game_terminal_phase: .byte 0
-turn_indicator_colour: .byte 10
-terminal_colour: .byte 0
+turn_indicator_color: .byte 10
+terminal_color: .byte 0
 mark_byte: .byte 0
 progress_filled: .byte 0
-progress_colour_nibble: .byte 0
+progress_color_nibble: .byte 0
 title_charset_memory_config: .byte 0
 info_scroll: .byte 0
 info_scrollbar_marker: .byte 0
@@ -1640,35 +1640,35 @@ embedding_sumhi: .byte 0
 ; EMBEDDING_VECTOR is the persistent 64-byte Q8.8 destination.
 
 * = $3800
-.binary "../build/palace-assets/charset.bin"
+.binary "../build/assets/charset.bin"
 * = $4000
 ; Runtime presentation delta: the supplied source plane remains immutable.
 ; These two derived planes make the four user-rejected radar glyph cells black
 ; before the first title copy, rather than relying on a later RAM mutation.
-title1_screen: .binary "../build/palace-assets/runtime/title-one.screen.bin"
+title1_screen: .binary "../build/assets/runtime/title-one.screen.bin"
 * = $4c00
-title1_colour: .binary "../build/palace-assets/runtime/title-one.color.bin"
+title1_color: .binary "../build/assets/runtime/title-one.color.bin"
 * = $5800
-info_screen: .binary "../build/palace-assets/info/screen.bin"
+info_screen: .binary "../build/assets/info/screen.bin"
 * = $5c00
-info_colour: .binary "../build/palace-assets/info/color.bin"
+info_color: .binary "../build/assets/info/color.bin"
 * = $6000
-.binary "../build/palace-assets/game/blank/bitmap.bin"
+.binary "../build/assets/game/blank/bitmap.bin"
 * = $8000
-game_screen: .binary "../build/palace-assets/game/blank/screen.bin"
+game_screen: .binary "../build/assets/game/blank/screen.bin"
 * = $8400
-game_colour: .binary "../build/palace-assets/game/blank/color.bin"
+game_color: .binary "../build/assets/game/blank/color.bin"
 * = $8800
-x_cells_bitmap: .binary "../build/palace-assets/game/cells/x.bitmap.bin"
-x_cells_screen: .binary "../build/palace-assets/game/cells/x.screen.bin"
-x_cells_colour: .binary "../build/palace-assets/game/cells/x.color.bin"
+x_cells_bitmap: .binary "../build/assets/game/cells/x.bitmap.bin"
+x_cells_screen: .binary "../build/assets/game/cells/x.screen.bin"
+x_cells_color: .binary "../build/assets/game/cells/x.color.bin"
 * = $9000
-o_cells_bitmap: .binary "../build/palace-assets/game/cells/o.bitmap.bin"
-o_cells_screen: .binary "../build/palace-assets/game/cells/o.screen.bin"
-o_cells_colour: .binary "../build/palace-assets/game/cells/o.color.bin"
+o_cells_bitmap: .binary "../build/assets/game/cells/o.bitmap.bin"
+o_cells_screen: .binary "../build/assets/game/cells/o.screen.bin"
+o_cells_color: .binary "../build/assets/game/cells/o.color.bin"
 * = $9800
-bitmap_destinations: .binary "../build/palace-assets/game/cells/destinations.bin"
+bitmap_destinations: .binary "../build/assets/game/cells/destinations.bin"
 * = $a600
 .include "info_markdown.inc"
 * = $b000
-title_charset_backup: .binary "../build/palace-assets/charset.bin"
+title_charset_backup: .binary "../build/assets/charset.bin"
