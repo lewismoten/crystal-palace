@@ -355,13 +355,13 @@ def test_stage_058_preview_uses_only_native_art_navigation_and_restores_title_mo
     call(mpu, symbols["preview_title_up"]); assert mpu.memory[symbols["preview_title_mode"]] == 2
 
 
-def test_stage_085_build_keeps_disk_backed_info_with_title_input_recovery(tmp_path):
-    """The release builder advances title recovery without losing disk-backed INFO."""
+def test_stage_086_build_keeps_disk_backed_info_with_browser_verified_radar_blackout(tmp_path):
+    """The release builder preserves disk-backed INFO and uses the verified cells."""
     import importlib.util
     import sys
 
     sys.path.insert(0, str(ROOT / "scripts"))
     spec = importlib.util.spec_from_file_location("build_disk", ROOT / "scripts" / "build_disk.py")
     builder = importlib.util.module_from_spec(spec); spec.loader.exec_module(builder)
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (85, "title-input-and-runtime-plane-recovery")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (86, "browser-verified-title-radar-blackout")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"

@@ -31,7 +31,7 @@ def prepare_info_archive_load(mpu) -> None:
 
 def test_stage_084_declares_disk_backed_info_archive():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (85, "title-input-and-runtime-plane-recovery")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (86, "browser-verified-title-radar-blackout")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
 
 
@@ -59,13 +59,13 @@ def test_embedded_title_source_uses_no_screen_editor_output():
 
 
 def test_runtime_title_planes_are_a_bounded_blackout_delta_over_immutable_source_art():
-    """Only the four rejected radar glyph cells differ from the supplied planes."""
+    """Only the eight browser-verified radar-label cells differ from supplied art."""
     for plane in ("screen", "color"):
         source = (ASSETS / f"crystal-palace-title-player-1.{plane}.bin").read_bytes()
         runtime = (ASSETS / "runtime" / f"crystal-palace-title-player-1.{plane}.bin").read_bytes()
         assert len(runtime) == len(source) == 1000
-        assert {index for index, (before, after) in enumerate(zip(source, runtime)) if before != after} == {242, 282, 321, 322}
-        assert all(runtime[index] == 0 for index in (242, 282, 321, 322))
+        assert {index for index, (before, after) in enumerate(zip(source, runtime)) if before != after} == {243, 244, 283, 284, 323, 324, 363, 364}
+        assert all(runtime[index] == 0 for index in (243, 244, 283, 284, 323, 324, 363, 364))
 
 
 @pytest.mark.parametrize("game_index", range(9))
@@ -170,7 +170,7 @@ def test_assembled_embedded_title_copies_exact_planes_to_live_vic_memory(tmp_pat
     expected_colour[882:886] = bytes((1, 12, 12, 12))
     expected_screen[922:926] = bytes((17, 21, 9, 20))
     expected_colour[922:926] = bytes((1, 12, 12, 12))
-    for offset in (242, 282, 321, 322):
+    for offset in (243, 244, 283, 284, 323, 324, 363, 364):
         expected_screen[offset] = 0
         expected_colour[offset] = 0
     for offset in (371, 451, 531): expected_colour[offset] = 7
@@ -259,7 +259,7 @@ def test_title_and_info_restore_after_live_board_patches(tmp_path):
     title = bytearray((ASSETS / "crystal-palace-title-player-1.screen.bin").read_bytes())
     title[882:886] = bytes((9, 14, 6, 15))
     title[922:926] = bytes((17, 21, 9, 20))
-    for offset in (242, 282, 321, 322): title[offset] = 0
+    for offset in (243, 244, 283, 284, 323, 324, 363, 364): title[offset] = 0
     assert bytes(mpu.memory[0x0400 : 0x07E8]) == bytes(title)
     prepare_info_archive_load(mpu)
     call(mpu, symbols["show_info"])
@@ -441,7 +441,7 @@ def test_title_blanks_only_the_four_unwanted_radar_glyph_cells(tmp_path):
 
     call(mpu, symbols["show_title"])
 
-    for offset in (242, 282, 321, 322):
+    for offset in (243, 244, 283, 284, 323, 324, 363, 364):
         assert mpu.memory[0x0400 + offset] == 0
         assert mpu.memory[0xD800 + offset] == 0
 
@@ -522,8 +522,9 @@ def test_main_title_getin_loop_accepts_real_screen_codes_and_blanks_only_reporte
     run_until(mpu, lambda state: state.memory[0x0002] >= 2)
     assert mpu.memory[symbols["title_mode"]] == 2
     assert mpu.memory[0x05C1] == 44
-    assert {offset: (mpu.memory[0x0400 + offset], mpu.memory[0xD800 + offset]) for offset in (242, 282, 321, 322)} == {
-        242: (0, 0), 282: (0, 0), 321: (0, 0), 322: (0, 0)
+    assert {offset: (mpu.memory[0x0400 + offset], mpu.memory[0xD800 + offset]) for offset in (243, 244, 283, 284, 323, 324, 363, 364)} == {
+        243: (0, 0), 244: (0, 0), 283: (0, 0), 284: (0, 0),
+        323: (0, 0), 324: (0, 0), 363: (0, 0), 364: (0, 0),
     }
 
     # Screen-code 9 is I in the browser/C64 uppercase keyboard mode. With the
@@ -741,7 +742,7 @@ def test_title_variants_are_exact_deltas_over_the_single_player_base(tmp_path):
         expected_colour = bytearray((ASSETS / f"crystal-palace-title-player-{mode}.color.bin").read_bytes())
         expected_screen[882:886] = bytes((9, 14, 6, 15)); expected_colour[882:886] = bytes((1, 12, 12, 12))
         expected_screen[922:926] = bytes((17, 21, 9, 20)); expected_colour[922:926] = bytes((1, 12, 12, 12))
-        for offset in (242, 282, 321, 322):
+        for offset in (243, 244, 283, 284, 323, 324, 363, 364):
             expected_screen[offset] = 0; expected_colour[offset] = 0
         for offset in (371, 451, 531): expected_colour[offset] = 7
         assert bytes(mpu.memory[0x0400 : 0x07E8]) == bytes(expected_screen)

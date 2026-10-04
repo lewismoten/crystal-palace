@@ -368,18 +368,26 @@ title_selection_light_one:
     bne title_selection_light_one
     rts
 
-; These four supplied map-panel glyphs read as Y/4/4/7 labels in the title's
-; black radar area. Remove only those requested cells at presentation time.
+; The browser-rendered Y/4/4/7 labels occupy these eight map-panel cells.
+; Remove only those requested cells at presentation time.
 cleanup_title_radar_labels:
     lda #0
-    sta $04f2                ; row 6, col 2
-    sta $051a                ; row 7, col 2
-    sta $0541                ; row 8, col 1
-    sta $0542                ; row 8, col 2
-    sta $d8f2
-    sta $d91a
-    sta $d941
-    sta $d942
+    sta $04f3                ; row 6, cols 3-4
+    sta $04f4
+    sta $051b                ; row 7, cols 3-4
+    sta $051c
+    sta $0543                ; row 8, cols 3-4
+    sta $0544
+    sta $056b                ; row 9, cols 3-4
+    sta $056c
+    sta $d8f3
+    sta $d8f4
+    sta $d91b
+    sta $d91c
+    sta $d943
+    sta $d944
+    sta $d96b
+    sta $d96c
     rts
 
 show_info:

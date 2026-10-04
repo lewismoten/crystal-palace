@@ -11,8 +11,8 @@ from make_d64 import SEQ_FILE_TYPE, build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
-CURRENT_STAGE = 85
-CURRENT_DESCRIPTION = "title-input-and-runtime-plane-recovery"
+CURRENT_STAGE = 86
+CURRENT_DESCRIPTION = "browser-verified-title-radar-blackout"
 PROGRAM_SOURCE = ROOT / "src" / "art_embedded_title.asm"
 ART = ROOT / "assets" / "crystal-palace-screen-states"
 ARCHIVE_RUNTIME_FILENAME = "ARCHIVE.PRG"

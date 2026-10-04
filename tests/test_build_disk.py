@@ -24,8 +24,8 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
 def test_current_disk_stage_reports_title_input_and_runtime_plane_recovery():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 85
-    assert builder.CURRENT_DESCRIPTION == "title-input-and-runtime-plane-recovery"
+    assert builder.CURRENT_STAGE == 86
+    assert builder.CURRENT_DESCRIPTION == "browser-verified-title-radar-blackout"
 
 
 def test_disk_tensor_filenames_are_descriptive_but_preserve_packet_identity():

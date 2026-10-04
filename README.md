@@ -6,9 +6,9 @@ A Commodore 64 feasibility project for evaluating **the original Crystal-9 packe
 
 The executable is an engineering preview, not a claim of finished playable model parity. It combines source-exact Crystal Palace screen art with bounded, source-byte-backed Crystal-9 proof gates.
 
-## Current milestone — Stage 085
+## Current milestone — Stage 086
 
-`cs64-085-title-input-and-runtime-plane-recovery.d64` is the current locally built image. Opening **INFO** performs the only presentation-side KERNAL load: it reads `ARCHIVE.PRG` into the volatile `$c000` window, validates its `ARCV` header/version/line geometry, then copies its character and colour planes into the fixed INFO RAM ranges. A failed or mismatched archive returns safely to the title instead of rendering stale RAM. Normal A–I board input does not load from disk. The title's four rejected radar-panel glyph cells are made black in derived runtime title planes before the first screen copy; the supplied source planes remain unchanged.
+`cs64-086-browser-verified-title-radar-blackout.d64` is the current locally built image. Opening **INFO** performs the only presentation-side KERNAL load: it reads `ARCHIVE.PRG` into the volatile `$c000` window, validates its `ARCV` header/version/line geometry, then copies its character and colour planes into the fixed INFO RAM ranges. A failed or mismatched archive returns safely to the title instead of rendering stale RAM. Normal A–I board input does not load from disk. The exact eight radar-label cells visibly rendered by C64 Online as Y/4/4/7 are made black in derived runtime title planes before the first screen copy; the supplied source planes remain unchanged.
 
 The D64 also includes `ARCHIVE.MD` as a sequential (`SEQ`) file. It is the authored, disk-readable Markdown source for the compiled viewer payload; edit it, then rebuild. The runtime reads `ARCHIVE.PRG`, not Markdown text, because the 6502 viewer needs bounded custom-charset character and colour planes.
 

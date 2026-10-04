@@ -61,6 +61,6 @@ def test_d64_can_contain_a_readable_sequential_markdown_file(tmp_path):
 def test_release_builder_packages_runtime_payload_and_readable_markdown():
     builder = load_module("build_disk", "scripts/build_disk.py")
 
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (85, "title-input-and-runtime-plane-recovery")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (86, "browser-verified-title-radar-blackout")
     assert builder.ARCHIVE_RUNTIME_FILENAME == "ARCHIVE.PRG"
     assert builder.ARCHIVE_MARKDOWN_FILENAME == "ARCHIVE.MD"

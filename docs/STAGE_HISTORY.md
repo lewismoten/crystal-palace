@@ -1,6 +1,6 @@
 # CP64 stage history
 
-This file is the release/proof ledger. A stage number identifies a bounded artifact or engineering gate; it is **not** a claim that all later gameplay behavior is working. The current checked-in source milestone is Stage 085. Generated D64 files are intentionally Git-ignored.
+This file is the release/proof ledger. A stage number identifies a bounded artifact or engineering gate; it is **not** a claim that all later gameplay behavior is working. The current checked-in source milestone is Stage 086. Generated D64 files are intentionally Git-ignored.
 
 ## Interpretation rules
 
