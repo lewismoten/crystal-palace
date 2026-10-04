@@ -4,6 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parents[1]
 ASSETS = ROOT / "assets" / "crystal-palace-screen-states"
+GENERATED = ROOT / "build" / "generated-assets"
 SOURCE = Path("/tmp/crystal-palace-screen-states")
 
 
@@ -26,15 +27,14 @@ REQUIRED = (
     "crystal-palace-game-all-o.bitmap.bin",
     "crystal-palace-game-all-o.screen.bin",
     "crystal-palace-game-all-o.color.bin",
-    "crystal-palace-board-coordinates.json",
 )
 
 
 def test_immutable_crystal_palace_source_assets_are_exact_copies():
-    """The native UI bytes are versioned copies, never regenerated approximations."""
-    assert ASSETS.is_dir(), "copy the supplied native Crystal Palace assets into the repository"
+    """PNG compilation must recreate the supplied native UI bytes exactly."""
+    assert ASSETS.is_dir(), "copy the supplied Crystal Palace PNG sources into the repository"
     for name in REQUIRED:
-        copied = ASSETS / name
+        copied = GENERATED / name
         supplied = SOURCE / name
         assert copied.is_file(), name
         assert hashlib.sha256(copied.read_bytes()).digest() == hashlib.sha256(supplied.read_bytes()).digest(), name
@@ -42,14 +42,14 @@ def test_immutable_crystal_palace_source_assets_are_exact_copies():
 
 def test_crystal_palace_assets_have_declared_raw_graphics_sizes():
     """Title/info are 1K char planes; game is 8K bitmap plus 1K screen/color planes."""
-    assert (ASSETS / "crystal-palace-charset.bin").stat().st_size == 2048
+    assert (GENERATED / "crystal-palace-charset.bin").stat().st_size == 2048
     for prefix in ("crystal-palace-title-player-0", "crystal-palace-title-player-1", "crystal-palace-title-player-2", "crystal-palace-info"):
-        assert (ASSETS / f"{prefix}.screen.bin").stat().st_size == 1000
-        assert (ASSETS / f"{prefix}.color.bin").stat().st_size == 1000
+        assert (GENERATED / f"{prefix}.screen.bin").stat().st_size == 1000
+        assert (GENERATED / f"{prefix}.color.bin").stat().st_size == 1000
     for prefix in ("crystal-palace-game-blank", "crystal-palace-game-all-x", "crystal-palace-game-all-o"):
-        assert (ASSETS / f"{prefix}.bitmap.bin").stat().st_size == 8000
-    assert (ASSETS / "crystal-palace-game-blank.screen.bin").stat().st_size == 1000
-    assert (ASSETS / "crystal-palace-game-blank.color.bin").stat().st_size == 1000
+        assert (GENERATED / f"{prefix}.bitmap.bin").stat().st_size == 8000
+    assert (GENERATED / "crystal-palace-game-blank.screen.bin").stat().st_size == 1000
+    assert (GENERATED / "crystal-palace-game-blank.color.bin").stat().st_size == 1000
 
 
 def test_build_packages_native_art_as_fixed_address_prgs_without_model_window_overlap(tmp_path):
@@ -84,7 +84,7 @@ def test_blank_game_bitmap_is_one_final_address_bundle():
     builder = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(builder)
 
-    assert builder.CRYSTAL_PALACE_ART["GMBIT.PRG"] == (ASSETS / "crystal-palace-game-blank.bitmap.bin", 0x6000)
+    assert builder.CRYSTAL_PALACE_ART["GMBIT.PRG"] == (GENERATED / "crystal-palace-game-blank.bitmap.bin", 0x6000)
 
 
 def test_6502_native_title_and_game_art_activate_at_declared_vic_locations(tmp_path):
@@ -110,8 +110,8 @@ def test_6502_native_title_and_game_art_activate_at_declared_vic_locations(tmp_p
     load_address = int.from_bytes(image[:2], "little")
     mpu.memory[load_address : load_address + len(image) - 2] = image[2:]
 
-    title_screen = (ASSETS / "crystal-palace-title-player-1.screen.bin").read_bytes()
-    title_color = (ASSETS / "crystal-palace-title-player-1.color.bin").read_bytes()
+    title_screen = (GENERATED / "crystal-palace-title-player-1.screen.bin").read_bytes()
+    title_color = (GENERATED / "crystal-palace-title-player-1.color.bin").read_bytes()
     mpu.memory[0x5000 : 0x5000 + 1000] = title_screen
     mpu.memory[0x5400 : 0x5400 + 1000] = title_color
     call(mpu, symbols["ui_show_native_title"])
@@ -119,9 +119,9 @@ def test_6502_native_title_and_game_art_activate_at_declared_vic_locations(tmp_p
     assert bytes(mpu.memory[0xD800 : 0xD800 + 1000]) == title_color
     assert (mpu.memory[0xD011] & 0x20, mpu.memory[0xD016] & 0x10, mpu.memory[0xD018], mpu.memory[0xDD00] & 3) == (0, 0, 0x1E, 3)
 
-    bitmap = (ASSETS / "crystal-palace-game-blank.bitmap.bin").read_bytes()
-    game_screen = (ASSETS / "crystal-palace-game-blank.screen.bin").read_bytes()
-    game_color = (ASSETS / "crystal-palace-game-blank.color.bin").read_bytes()
+    bitmap = (GENERATED / "crystal-palace-game-blank.bitmap.bin").read_bytes()
+    game_screen = (GENERATED / "crystal-palace-game-blank.screen.bin").read_bytes()
+    game_color = (GENERATED / "crystal-palace-game-blank.color.bin").read_bytes()
     mpu.memory[0x6000 : 0x6000 + 8000] = bitmap
     mpu.memory[0x5000 : 0x5000 + 1000] = game_screen
     mpu.memory[0x5400 : 0x5400 + 1000] = game_color
@@ -151,8 +151,8 @@ def test_6502_native_game_patches_one_x_cell_from_the_supplied_all_x_plane(tmp_p
     assert {"ui_patch_native_x_cell", "computer_cell"} <= symbols.keys()
     mpu = MPU(); image = prg.read_bytes(); load = int.from_bytes(image[:2], "little")
     mpu.memory[load : load + len(image) - 2] = image[2:]
-    blank = (ASSETS / "crystal-palace-game-blank.bitmap.bin").read_bytes()
-    all_x = (ASSETS / "crystal-palace-game-all-x.bitmap.bin").read_bytes()
+    blank = (GENERATED / "crystal-palace-game-blank.bitmap.bin").read_bytes()
+    all_x = (GENERATED / "crystal-palace-game-all-x.bitmap.bin").read_bytes()
     mpu.memory[0x6000 : 0x6000 + 8000] = blank
     mpu.memory[0x8000 : 0x8000 + 8000] = all_x
     mpu.memory[symbols["computer_cell"]] = 4  # centre cell e
@@ -186,8 +186,8 @@ def test_6502_native_game_patches_one_o_cell_from_the_supplied_all_o_plane(tmp_p
     assert {"ui_patch_native_o_cell", "computer_cell"} <= symbols.keys()
     mpu = MPU(); image = prg.read_bytes(); load = int.from_bytes(image[:2], "little")
     mpu.memory[load : load + len(image) - 2] = image[2:]
-    blank = (ASSETS / "crystal-palace-game-blank.bitmap.bin").read_bytes()
-    all_o = (ASSETS / "crystal-palace-game-all-o.bitmap.bin").read_bytes()
+    blank = (GENERATED / "crystal-palace-game-blank.bitmap.bin").read_bytes()
+    all_o = (GENERATED / "crystal-palace-game-all-o.bitmap.bin").read_bytes()
     mpu.memory[0x6000 : 0x6000 + 8000] = blank
     mpu.memory[0x8000 : 0x8000 + 8000] = all_o
     mpu.memory[symbols["computer_cell"]] = 4
@@ -311,11 +311,11 @@ def test_stage_058_preview_uses_only_native_art_navigation_and_restores_title_mo
     assert {"preview_show_title", "preview_show_game", "preview_show_info", "preview_title_down", "preview_title_up", "preview_mode", "preview_title_mode"} <= symbols.keys()
     mpu = MPU(); image = prg.read_bytes(); load = int.from_bytes(image[:2], "little")
     mpu.memory[load : load + len(image) - 2] = image[2:]
-    charset = (ASSETS / "crystal-palace-charset.bin").read_bytes()
+    charset = (GENERATED / "crystal-palace-charset.bin").read_bytes()
     mpu.memory[0x3800 : 0x4000] = charset
 
-    title_screen = (ASSETS / "crystal-palace-title-player-1.screen.bin").read_bytes()
-    title_color = (ASSETS / "crystal-palace-title-player-1.color.bin").read_bytes()
+    title_screen = (GENERATED / "crystal-palace-title-player-1.screen.bin").read_bytes()
+    title_color = (GENERATED / "crystal-palace-title-player-1.color.bin").read_bytes()
     mpu.memory[0x5000 : 0x53e8] = title_screen; mpu.memory[0x5400 : 0x57e8] = title_color
     call(mpu, symbols["preview_show_title"])
     assert bytes(mpu.memory[0x0400 : 0x07e8]) == title_screen
@@ -324,9 +324,9 @@ def test_stage_058_preview_uses_only_native_art_navigation_and_restores_title_mo
     assert mpu.memory[symbols["preview_mode"]] == 0
     assert (mpu.memory[0xd011] & 0x20, mpu.memory[0xd016] & 0x10, mpu.memory[0xd018], mpu.memory[0xdd00] & 3) == (0, 0, 0x1e, 3)
 
-    game_bitmap = (ASSETS / "crystal-palace-game-blank.bitmap.bin").read_bytes()
-    game_screen = (ASSETS / "crystal-palace-game-blank.screen.bin").read_bytes()
-    game_color = (ASSETS / "crystal-palace-game-blank.color.bin").read_bytes()
+    game_bitmap = (GENERATED / "crystal-palace-game-blank.bitmap.bin").read_bytes()
+    game_screen = (GENERATED / "crystal-palace-game-blank.screen.bin").read_bytes()
+    game_color = (GENERATED / "crystal-palace-game-blank.color.bin").read_bytes()
     mpu.memory[0x6000 : 0x7f40] = game_bitmap; mpu.memory[0x5000 : 0x53e8] = game_screen; mpu.memory[0x5400 : 0x57e8] = game_color
     call(mpu, symbols["preview_show_game"])
     assert bytes(mpu.memory[0x6000 : 0x7f40]) == game_bitmap
@@ -335,8 +335,8 @@ def test_stage_058_preview_uses_only_native_art_navigation_and_restores_title_mo
     assert mpu.memory[symbols["preview_mode"]] == 1
     assert (mpu.memory[0xd011] & 0x20, mpu.memory[0xd016] & 0x10, mpu.memory[0xd018], mpu.memory[0xdd00] & 3, mpu.memory[0xd021]) == (0x20, 0x10, 0x08, 2, 0)
 
-    info_screen = (ASSETS / "crystal-palace-info.screen.bin").read_bytes()
-    info_color = (ASSETS / "crystal-palace-info.color.bin").read_bytes()
+    info_screen = (GENERATED / "crystal-palace-info.screen.bin").read_bytes()
+    info_color = (GENERATED / "crystal-palace-info.color.bin").read_bytes()
     mpu.memory[0x5000 : 0x53e8] = info_screen; mpu.memory[0x5400 : 0x57e8] = info_color
     call(mpu, symbols["preview_show_info"])
     assert bytes(mpu.memory[0x0400 : 0x07e8]) == info_screen

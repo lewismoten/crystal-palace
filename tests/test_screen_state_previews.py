@@ -45,12 +45,14 @@ def test_screen_state_previews_are_reproducible_indexed_c64_pngs():
         assert content == expected
 
 
-def test_screen_state_markdown_documents_reviewed_previews_and_raw_contract():
+def test_screen_state_markdown_documents_png_sources_and_reviewed_final_screens():
     readme = (ASSETS / "README.md").read_text()
-    assert "The `.bin` planes are authoritative." in readme
-    assert "PNG colour type **3** (indexed)" in readme
-    # The two alternate title states are byte-delta documented rather than
-    # consuming README space with near-identical full-screen PNGs.
+    assert "This directory is PNG-first." in readme
+    assert "C64 `.bin` planes are **not** kept\nin Git" in readme
+    assert "colour type 3 (indexed)" in readme
+    assert "glyph-map.png" in readme
+    assert "bitmap-selectors.png" in readme
+    assert "final 320×200 screen\nreview" in readme
     documented = {
         "crystal-palace-charset-charmap.png",
         "crystal-palace-title-player-1.png",
@@ -66,5 +68,3 @@ def test_screen_state_markdown_documents_reviewed_previews_and_raw_contract():
     assert documented <= {path.name for path in renderer().expected_images()}
     for name in documented:
         assert name in readme
-    assert "Player 2 | 2 | 30" in readme
-    assert "AI vs AI | 2 | 22" in readme

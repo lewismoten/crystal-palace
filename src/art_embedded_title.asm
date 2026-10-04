@@ -1640,35 +1640,35 @@ embedding_sumhi: .byte 0
 ; EMBEDDING_VECTOR is the persistent 64-byte Q8.8 destination.
 
 * = $3800
-.binary "../assets/crystal-palace-screen-states/crystal-palace-charset.bin"
+.binary "../build/generated-assets/crystal-palace-charset.bin"
 * = $4000
 ; Runtime presentation delta: the supplied source plane remains immutable.
 ; These two derived planes make the four user-rejected radar glyph cells black
 ; before the first title copy, rather than relying on a later RAM mutation.
-title1_screen: .binary "../assets/crystal-palace-screen-states/runtime/crystal-palace-title-player-1.screen.bin"
+title1_screen: .binary "../build/generated-assets/runtime/crystal-palace-title-player-1.screen.bin"
 * = $4c00
-title1_colour: .binary "../assets/crystal-palace-screen-states/runtime/crystal-palace-title-player-1.color.bin"
+title1_colour: .binary "../build/generated-assets/runtime/crystal-palace-title-player-1.color.bin"
 * = $5800
-info_screen: .binary "../assets/crystal-palace-screen-states/crystal-palace-info.screen.bin"
+info_screen: .binary "../build/generated-assets/crystal-palace-info.screen.bin"
 * = $5c00
-info_colour: .binary "../assets/crystal-palace-screen-states/crystal-palace-info.color.bin"
+info_colour: .binary "../build/generated-assets/crystal-palace-info.color.bin"
 * = $6000
-.binary "../assets/crystal-palace-screen-states/crystal-palace-game-blank.bitmap.bin"
+.binary "../build/generated-assets/crystal-palace-game-blank.bitmap.bin"
 * = $8000
-game_screen: .binary "../assets/crystal-palace-screen-states/crystal-palace-game-blank.screen.bin"
+game_screen: .binary "../build/generated-assets/crystal-palace-game-blank.screen.bin"
 * = $8400
-game_colour: .binary "../assets/crystal-palace-screen-states/crystal-palace-game-blank.color.bin"
+game_colour: .binary "../build/generated-assets/crystal-palace-game-blank.color.bin"
 * = $8800
-x_cells_bitmap: .binary "../assets/crystal-palace-screen-states/cells/x-cells.bitmap.bin"
-x_cells_screen: .binary "../assets/crystal-palace-screen-states/cells/x-cells.screen.bin"
-x_cells_colour: .binary "../assets/crystal-palace-screen-states/cells/x-cells.color.bin"
+x_cells_bitmap: .binary "../build/generated-assets/cells/x-cells.bitmap.bin"
+x_cells_screen: .binary "../build/generated-assets/cells/x-cells.screen.bin"
+x_cells_colour: .binary "../build/generated-assets/cells/x-cells.color.bin"
 * = $9000
-o_cells_bitmap: .binary "../assets/crystal-palace-screen-states/cells/o-cells.bitmap.bin"
-o_cells_screen: .binary "../assets/crystal-palace-screen-states/cells/o-cells.screen.bin"
-o_cells_colour: .binary "../assets/crystal-palace-screen-states/cells/o-cells.color.bin"
+o_cells_bitmap: .binary "../build/generated-assets/cells/o-cells.bitmap.bin"
+o_cells_screen: .binary "../build/generated-assets/cells/o-cells.screen.bin"
+o_cells_colour: .binary "../build/generated-assets/cells/o-cells.color.bin"
 * = $9800
-bitmap_destinations: .binary "../assets/crystal-palace-screen-states/cells/bitmap-destination-addresses.bin"
+bitmap_destinations: .binary "../build/generated-assets/cells/bitmap-destination-addresses.bin"
 * = $a600
 .include "info_markdown.inc"
 * = $b000
-title_charset_backup: .binary "../assets/crystal-palace-screen-states/crystal-palace-charset.bin"
+title_charset_backup: .binary "../build/generated-assets/crystal-palace-charset.bin"

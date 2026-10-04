@@ -13,8 +13,11 @@ import struct
 import zlib
 from pathlib import Path
 
+from compile_c64_assets import compile_assets
+
 ROOT = Path(__file__).parents[1]
 ASSETS = ROOT / "assets" / "crystal-palace-screen-states"
+GENERATED = ROOT / "build" / "generated-assets"
 WIDTH = 320
 HEIGHT = 200
 
@@ -32,7 +35,8 @@ class StateError(ValueError):
 
 
 def read_exact(name: str, size: int) -> bytes:
-    data = (ASSETS / name).read_bytes()
+    compile_assets(ASSETS, GENERATED)
+    data = (GENERATED / name).read_bytes()
     if len(data) != size:
         raise StateError(f"{name}: expected {size} bytes, found {len(data)}")
     return data
