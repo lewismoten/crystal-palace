@@ -19,8 +19,9 @@ scripts/bootstrap_64tass.sh
 Export the original Crystal-9 packet files, then build and test:
 
 ```sh
-~/crystal-9/.venv/bin/python scripts/export_c64_layers.py \
-  --artifact /absolute/path/to/crystal-9-int4-group2-packed-fp16-scales-v1.pt \
+.venv/bin/python -m pip install torch
+.venv/bin/python scripts/export_c64_layers.py \
+  --artifact /path/to/crystal-9-int4-group2-packed-fp16-scales-v1.pt \
   --output build/layers
 
 .venv/bin/python scripts/build_disk.py

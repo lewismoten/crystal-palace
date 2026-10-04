@@ -48,11 +48,15 @@ ln -sf "$(command -v 64tass)" tools/64tass/usr/bin/64tass
 
 ## Original model artifact
 
-CP64 does not generate substitute model data. Export the 48 D64 packet files from the original artifact with the Crystal-9 Python environment:
+CP64 does not generate substitute model data. You do **not** need a separate
+`~/crystal-9` checkout. Obtain the original packed artifact, choose any local
+path for it, then install `torch` into this repository's `.venv` and export the
+48 D64 packet files from here:
 
 ```sh
-~/crystal-9/.venv/bin/python scripts/export_c64_layers.py \
-  --artifact /absolute/path/to/crystal-9-int4-group2-packed-fp16-scales-v1.pt \
+.venv/bin/python -m pip install torch
+.venv/bin/python scripts/export_c64_layers.py \
+  --artifact /path/to/crystal-9-int4-group2-packed-fp16-scales-v1.pt \
   --output build/layers
 ```
 
