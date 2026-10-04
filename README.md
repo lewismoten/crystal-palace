@@ -27,7 +27,6 @@ The documented commands assume a Debian/Ubuntu-like host with:
 Create the development test environment:
 
 ```sh
-cd ~/cp64
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements-dev.txt
 scripts/bootstrap_64tass.sh
