@@ -20,9 +20,9 @@ def load_builder():
     return module
 
 
-def test_stage_082_declares_archive_colour_plane_separation():
+def test_stage_083_declares_visible_game_state_and_info_viewport():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (82, "archive-colour-plane-separation")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (83, "visible-game-state-and-info-viewport")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
 
 
@@ -151,6 +151,9 @@ def test_assembled_embedded_title_copies_exact_planes_to_live_vic_memory(tmp_pat
     expected_colour[882:886] = bytes((1, 12, 12, 12))
     expected_screen[922:926] = bytes((17, 21, 9, 20))
     expected_colour[922:926] = bytes((1, 12, 12, 12))
+    for offset in (242, 282, 321, 322):
+        expected_screen[offset] = 0
+        expected_colour[offset] = 0
     for offset in (371, 451, 531): expected_colour[offset] = 7
     assert bytes(mpu.memory[0x0400 : 0x0400 + 1000]) == bytes(expected_screen)
     assert bytes(mpu.memory[0xD800 : 0xD800 + 1000]) == bytes(expected_colour)
@@ -173,10 +176,26 @@ def test_embedded_preview_has_correct_game_vic_layout_and_live_a_to_i_marks(tmp_
     image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
     mpu.memory[load : load + len(image) - 2] = image[2:]
     call(mpu, symbols["show_game"])
-    expected_bitmap = (ASSETS / "crystal-palace-game-blank.bitmap.bin").read_bytes()
-    assert bytes(mpu.memory[0x2000 : 0x3F40]) == expected_bitmap
-    expected_screen = (ASSETS / "crystal-palace-game-blank.screen.bin").read_bytes()
-    assert bytes(mpu.memory[0x0400 : 0x07E8]) == expected_screen
+    expected_bitmap = bytearray((ASSETS / "crystal-palace-game-blank.bitmap.bin").read_bytes())
+    label_glyphs = (
+        b"\x00\x14\x41\x55\x41\x41\x41\x00", b"\x00\x54\x41\x54\x41\x41\x54\x00",
+        b"\x00\x15\x40\x40\x40\x40\x15\x00", b"\x00\x54\x41\x41\x41\x41\x54\x00",
+        b"\x00\x55\x40\x54\x40\x40\x55\x00", b"\x00\x55\x40\x54\x40\x40\x40\x00",
+        b"\x00\x15\x40\x45\x41\x41\x15\x00", b"\x00\x41\x41\x55\x41\x41\x41\x00",
+        b"\x00\x55\x14\x14\x14\x14\x55\x00",
+    )
+    for index, glyph in enumerate(label_glyphs):
+        address = int.from_bytes(mpu.memory[symbols["label_bitmap_destinations"] + index * 2 : symbols["label_bitmap_destinations"] + index * 2 + 2], "little")
+        expected_bitmap[address - 0x2000 : address - 0x2000 + 8] = glyph
+    expected_bitmap[0x2338 - 0x2000 : 0x2340 - 0x2000] = b"\x00\x41\x41\x14\x14\x41\x41\x00"
+    assert bytes(mpu.memory[0x2000 : 0x3F40]) == bytes(expected_bitmap)
+    expected_screen = bytearray((ASSETS / "crystal-palace-game-blank.screen.bin").read_bytes())
+    for index in range(9):
+        address = int.from_bytes(mpu.memory[symbols["label_screen_destinations"] + index * 2 : symbols["label_screen_destinations"] + index * 2 + 2], "little")
+        offset = address - 0x0400
+        expected_screen[offset] = (expected_screen[offset] & 0x0F) | 0xB0
+    expected_screen[0x0467 - 0x0400] = (expected_screen[0x0467 - 0x0400] & 0x0F) | 0xA0
+    assert bytes(mpu.memory[0x0400 : 0x07E8]) == bytes(expected_screen)
     assert (mpu.memory[0xD011] & 0x20, mpu.memory[0xD016] & 0x10, mpu.memory[0xD018], mpu.memory[0xDD00] & 3) == (0x20, 0x10, 0x18, 3)
 
     mpu.memory[symbols["game_index"]] = 0; call(mpu, symbols["draw_x"])
@@ -221,12 +240,13 @@ def test_title_and_info_restore_after_live_board_patches(tmp_path):
     title = bytearray((ASSETS / "crystal-palace-title-player-1.screen.bin").read_bytes())
     title[882:886] = bytes((9, 14, 6, 15))
     title[922:926] = bytes((17, 21, 9, 20))
+    for offset in (242, 282, 321, 322): title[offset] = 0
     assert bytes(mpu.memory[0x0400 : 0x07E8]) == bytes(title)
     call(mpu, symbols["show_info"])
     source_info = bytearray((ASSETS / "crystal-palace-info.screen.bin").read_bytes())
     source_info[23 * 40 + 4 : 24 * 40 - 1] = bytes((0, 0, 0, 0, 0, 0, 19, 3, 18, 15, 12, 12, 38, 0, 21, 16, 41, 4, 15, 23, 14, 0, 17, 21, 9, 20, 38, 0, 17, 0, 0, 0, 0, 0, 0))
-    assert bytes(mpu.memory[0x0400 : 0x047D]) == source_info[:125]
-    assert bytes(mpu.memory[0x0725 : 0x07E8]) == bytes(source_info[805:])
+    assert bytes(mpu.memory[0x0400 : 0x04A5]) == source_info[:165]
+    assert bytes(mpu.memory[0x076B : 0x07E8]) == bytes(source_info[875:])
 
 
 def test_middle_mark_does_not_repaint_the_top_mark_shared_attribute_row(tmp_path):
@@ -288,8 +308,8 @@ def test_sequential_a_to_i_x_patches_stay_in_the_game_planes_and_leave_title_inf
     call(mpu, symbols["show_info"])
     source_info = bytearray((ASSETS / "crystal-palace-info.screen.bin").read_bytes())
     source_info[23 * 40 + 4 : 24 * 40 - 1] = bytes((0, 0, 0, 0, 0, 0, 19, 3, 18, 15, 12, 12, 38, 0, 21, 16, 41, 4, 15, 23, 14, 0, 17, 21, 9, 20, 38, 0, 17, 0, 0, 0, 0, 0, 0))
-    assert bytes(mpu.memory[0x0400 : 0x047D]) == source_info[:125]
-    assert bytes(mpu.memory[0x0725 : 0x07E8]) == bytes(source_info[805:])
+    assert bytes(mpu.memory[0x0400 : 0x04A5]) == source_info[:165]
+    assert bytes(mpu.memory[0x076B : 0x07E8]) == bytes(source_info[875:])
 
 
 def test_charset_restore_reads_the_ram_copy_hidden_under_basic_rom_on_real_c64s():
@@ -344,8 +364,8 @@ def test_title_reloads_its_charset_even_when_already_in_title_mode(tmp_path):
     assert bytes(mpu.memory[0x3800 : 0x4000]) == (ASSETS / "crystal-palace-charset.bin").read_bytes()
 
 
-def test_title_selection_hides_the_base_player_one_arrow_while_patching_player_two(tmp_path):
-    """Up from AI-vs-AI must not visibly flash the copied player-one selector."""
+def test_title_selection_changes_only_selector_cells_without_blanking_display(tmp_path):
+    """A title navigation tap must not black out and repaint the full title."""
     import subprocess
     import pytest
 
@@ -360,8 +380,8 @@ def test_title_selection_hides_the_base_player_one_arrow_while_patching_player_t
             self.events = []
 
         def __setitem__(self, address, value):
-            if isinstance(address, int) and address == 0x0571:
-                self.events.append((value, bool(self[0xD011] & 0x10)))
+            if isinstance(address, int) and (address == 0xD011 or 0x0400 <= address < 0x07E8):
+                self.events.append((address, value, bool(self[0xD011] & 0x10)))
             super().__setitem__(address, value)
 
     prg, labels_path = tmp_path / "CP64.PRG", tmp_path / "embedded.lbl"
@@ -377,8 +397,32 @@ def test_title_selection_hides_the_base_player_one_arrow_while_patching_player_t
     call(mpu, symbols["select_title_up"])
 
     assert mpu.memory[symbols["title_mode"]] == 2
-    assert (44, False) in trace.events
-    assert (44, True) not in trace.events
+    assert not [event for event in trace.events if event[0] == 0xD011 and not event[2]]
+    assert not [event for event in trace.events if 0x0400 <= event[0] < 0x0570]
+    assert not [event for event in trace.events if 0x0572 <= event[0] < 0x05C1]
+    assert (0x05C1, 44, True) in trace.events
+
+
+def test_title_blanks_only_the_four_unwanted_radar_glyph_cells(tmp_path):
+    """The requested black title cells remove glyph noise without altering its art."""
+    import subprocess
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+
+    prg, labels_path = tmp_path / "CP64.PRG", tmp_path / "embedded.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "art_embedded_title.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+
+    call(mpu, symbols["show_title"])
+
+    for offset in (242, 282, 321, 322):
+        assert mpu.memory[0x0400 + offset] == 0
+        assert mpu.memory[0xD800 + offset] == 0
 
 
 def test_title_actions_return_to_the_key_loop_without_falling_into_basic():
@@ -545,7 +589,7 @@ def test_info_cursor_down_is_checked_before_ambiguous_screen_code_q():
 def test_title_hints_keep_the_shortcut_brighter_without_runtime_radar_mutation():
     source = (ROOT / "src" / "art_embedded_title.asm").read_text()
     shown = source[source.index("show_title:") : source.index("patch_title_variant:")]
-    assert "cleanup_title_radar_labels" not in shown
+    assert "jsr cleanup_title_radar_labels" in shown
     hints = source[source.index("patch_title_hints:") : source.index("set_title_vic:")]
     assert "lda #12" in hints  # descriptive INFO/QUIT text is dimmer light grey
     assert "lda #1                   ; bright white direct key" in hints
@@ -596,6 +640,8 @@ def test_title_variants_are_exact_deltas_over_the_single_player_base(tmp_path):
         expected_colour = bytearray((ASSETS / f"crystal-palace-title-player-{mode}.color.bin").read_bytes())
         expected_screen[882:886] = bytes((9, 14, 6, 15)); expected_colour[882:886] = bytes((1, 12, 12, 12))
         expected_screen[922:926] = bytes((17, 21, 9, 20)); expected_colour[922:926] = bytes((1, 12, 12, 12))
+        for offset in (242, 282, 321, 322):
+            expected_screen[offset] = 0; expected_colour[offset] = 0
         for offset in (371, 451, 531): expected_colour[offset] = 7
         assert bytes(mpu.memory[0x0400 : 0x07E8]) == bytes(expected_screen)
         assert bytes(mpu.memory[0xD800 : 0xDBE8]) == bytes(expected_colour)
@@ -657,18 +703,149 @@ def test_archive_markdown_is_compiled_and_scrolls_a_fixed_panel(tmp_path):
     symbols = labels(labels_path); image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
     mpu.memory[load : load + len(image) - 2] = image[2:]
     call(mpu, symbols["show_info"])
-    first = bytes(mpu.memory[0x047D : 0x047D + 29])
-    colours = bytes(mpu.memory[0xD87D : 0xD87D + 29])
+    first = bytes(mpu.memory[0x04A5 : 0x04A5 + 29])
+    colours = bytes(mpu.memory[0xD8A5 : 0xD8A5 + 29])
     assert first[:7] == bytes((3, 18, 25, 19, 20, 1, 12))  # CRYSTAL custom charset codes
     assert colours[:7] == b"\x07" * 7
-    assert mpu.memory[0x049A] != 0
+    assert mpu.memory[0x04C2] != 0
     call(mpu, symbols["archive_scroll_down"])
     assert mpu.memory[symbols["info_scroll"]] == 1
-    assert bytes(mpu.memory[0x047D : 0x047D + 29]) != first
+    assert bytes(mpu.memory[0x04A5 : 0x04A5 + 29]) != first
     for _ in range(80): call(mpu, symbols["archive_scroll_down"])
-    assert mpu.memory[symbols["info_scroll"]] == 32
+    assert mpu.memory[symbols["info_scroll"]] == 31
     # The final wrapped URL reaches the last content row; no blank viewport rows
     # or clipped tail remain at the absolute end of the archive.
-    last_row = 0x047D + 16 * 40
+    last_row = 0x04A5 + 17 * 40
     assert bytes(mpu.memory[last_row : last_row + 9]) == bytes((1, 12, 42, 16, 1, 12, 1, 3, 5))  # AL-PALACE
     assert bytes(mpu.memory[last_row + 9 : last_row + 29]) == b"\0" * 20
+
+
+def test_game_presentation_labels_empty_cells_shows_turns_and_reports_terminal_states(tmp_path):
+    """The safe local two-player preview must explain board state without AI moves."""
+    import subprocess
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+
+    prg, labels_path = tmp_path / "CP64.PRG", tmp_path / "embedded.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "art_embedded_title.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+
+    mpu.memory[symbols["title_mode"]] = 2
+    call(mpu, symbols["show_game"])
+    assert {"draw_empty_labels", "draw_turn_indicator", "game_terminal_tick", "game_winning_line", "game_terminal_ticks"} <= symbols.keys()
+    label_bitmap = bytes(mpu.memory[symbols["label_bitmap_destinations"] : symbols["label_bitmap_destinations"] + 18])
+    label_screen = bytes(mpu.memory[symbols["label_screen_destinations"] : symbols["label_screen_destinations"] + 18])
+    for index in range(9):
+        bitmap_address = int.from_bytes(label_bitmap[index * 2 : index * 2 + 2], "little")
+        screen_address = int.from_bytes(label_screen[index * 2 : index * 2 + 2], "little")
+        assert bytes(mpu.memory[bitmap_address : bitmap_address + 8]) != b"\0" * 8
+        assert mpu.memory[screen_address] >> 4 == 11  # dim-grey A-I labels
+
+    mpu.a = ord("a"); call(mpu, symbols["process_game_key"])
+    assert mpu.memory[symbols["board_state"]] == 1
+    assert mpu.memory[int.from_bytes(label_screen[:2], "little")] >> 4 == 10  # X replaces A in light red
+    assert mpu.memory[symbols["turn_mark"]] == 2
+    assert mpu.memory[symbols["turn_indicator_colour"]] == 3  # next player is cyan O
+
+    mpu.a = ord("b"); call(mpu, symbols["process_game_key"])
+    assert mpu.memory[symbols["board_state"] + 1] == 2
+    assert mpu.memory[int.from_bytes(label_screen[2:4], "little")] >> 4 == 3  # O replaces B in cyan
+    for key in b"cdefg":
+        mpu.a = key; call(mpu, symbols["process_game_key"])
+    assert mpu.memory[symbols["game_winner"]] == 1
+    assert mpu.memory[symbols["game_winning_line"]] == 21  # C-E-G diagonal
+    assert mpu.memory[symbols["game_terminal_ticks"]] > 0
+    winning_label = int.from_bytes(label_screen[4:6], "little")
+    before = mpu.memory[winning_label] >> 4
+    call(mpu, symbols["game_terminal_tick"])
+    assert mpu.memory[winning_label] >> 4 != before  # winning line visibly blinks
+    while mpu.memory[symbols["game_terminal_ticks"]]:
+        call(mpu, symbols["game_terminal_tick"])
+    assert mpu.memory[symbols["view_mode"]] == 0  # short terminal sequence returns to title
+
+
+def test_two_player_draw_reports_draw_and_locks_the_board_without_an_ai_fallback(tmp_path):
+    import subprocess
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+
+    prg, labels_path = tmp_path / "CP64.PRG", tmp_path / "embedded.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "art_embedded_title.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+    mpu.memory[symbols["title_mode"]] = 2
+    call(mpu, symbols["show_game"])
+    for key in b"abcedfhgi":
+        mpu.a = key; call(mpu, symbols["process_game_key"])
+    assert mpu.memory[symbols["game_winner"]] == 3
+    assert mpu.memory[symbols["game_terminal_ticks"]] > 0
+    assert mpu.memory[symbols["turn_indicator_colour"]] == 7
+    before = bytes(mpu.memory[symbols["board_state"] : symbols["board_state"] + 9])
+    mpu.a = ord("a"); call(mpu, symbols["process_game_key"])
+    assert bytes(mpu.memory[symbols["board_state"] : symbols["board_state"] + 9]) == before
+
+
+def test_archive_source_plane_harness_uses_every_blank_frame_row_and_keeps_scrollbar_visible(tmp_path):
+    """The assembled INFO viewer must occupy the supplied frame's full 18-row cavity."""
+    import importlib.util
+    import subprocess
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+
+    asset_screen = (ASSETS / "crystal-palace-info.screen.bin").read_bytes()
+    asset_colour = (ASSETS / "crystal-palace-info.color.bin").read_bytes()
+    panel_rows = [
+        row for row in range(25)
+        if asset_screen[row * 40 + 5 : row * 40 + 35] == bytes(30)
+        and asset_screen[row * 40 + 4] != 0
+        and asset_screen[row * 40 + 35] != 0
+    ]
+    assert panel_rows == list(range(4, 22))
+
+    spec = importlib.util.spec_from_file_location("compile_info_markdown", ROOT / "scripts" / "compile_info_markdown.py")
+    compiler = importlib.util.module_from_spec(spec); spec.loader.exec_module(compiler)
+    chars, colours, line_count = compiler.compile_data()
+    text_columns, scrollbar_column = 29, 34
+
+    subprocess.run([sys.executable, str(ROOT / "scripts" / "compile_info_markdown.py")], check=True)
+    prg, labels_path = tmp_path / "CP64.PRG", tmp_path / "embedded.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "art_embedded_title.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+
+    call(mpu, symbols["show_info"])
+    for viewport_row, source_row in enumerate(range(len(panel_rows))):
+        offset = panel_rows[viewport_row] * 40
+        expected = slice(source_row * text_columns, (source_row + 1) * text_columns)
+        assert bytes(mpu.memory[0x0400 + offset + 5 : 0x0400 + offset + 34]) == chars[expected]
+        assert bytes(mpu.memory[0xD800 + offset + 5 : 0xD800 + offset + 34]) == colours[expected]
+        assert mpu.memory[0x0400 + offset + 35] == asset_screen[offset + 35]
+        assert mpu.memory[0xD800 + offset + 35] == asset_colour[offset + 35]
+    assert [mpu.memory[0x0400 + row * 40 + scrollbar_column] for row in panel_rows].count(42) == 1
+
+    for _ in range(line_count + 1):
+        call(mpu, symbols["archive_scroll_down"])
+    maximum_scroll = line_count - len(panel_rows)
+    assert mpu.memory[symbols["info_scroll"]] == maximum_scroll
+    for viewport_row, row in enumerate(panel_rows):
+        offset = row * 40
+        source_row = maximum_scroll + viewport_row
+        expected = slice(source_row * text_columns, (source_row + 1) * text_columns)
+        assert bytes(mpu.memory[0x0400 + offset + 5 : 0x0400 + offset + 34]) == chars[expected]
+        assert bytes(mpu.memory[0xD800 + offset + 5 : 0xD800 + offset + 34]) == colours[expected]
+    scrollbar = [mpu.memory[0x0400 + row * 40 + scrollbar_column] for row in panel_rows]
+    assert scrollbar.count(42) == 1
+    assert scrollbar[-1] == 42

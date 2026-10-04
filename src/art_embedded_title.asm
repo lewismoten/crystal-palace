@@ -19,12 +19,22 @@ src = $fb
 out = $fd
 dest = $f9
 info_colour_out = $f7
+TURN_BITMAP = $2338
+TURN_SCREEN = $0467
 
 start:
     lda #1
     sta title_mode
     jsr show_title
 key_loop:
+    lda view_mode
+    cmp #1
+    bne key_loop_poll
+    lda game_terminal_ticks
+    beq key_loop_poll
+    jsr game_terminal_tick
+    jmp key_loop
+key_loop_poll:
     jsr GETIN
     beq key_loop
     ldx view_mode            ; preserve GETIN's key in A
@@ -183,7 +193,7 @@ up_to_two: lda #2
 up_to_one: lda #1
 store_title:
     sta title_mode
-    jsr show_title
+    jsr update_title_selection
     rts
 title_down:
     jsr select_title_down
@@ -201,7 +211,7 @@ down_to_one: lda #1
 down_to_two: lda #2
 store_title_down:
     sta title_mode
-    jsr show_title
+    jsr update_title_selection
     rts
 return_title:
     jsr show_title
@@ -224,6 +234,7 @@ show_title:
     ldy #>title1_colour
     jsr copy_colour
     jsr patch_title_variant
+    jsr cleanup_title_radar_labels
 title_done:
     jsr patch_title_hints
     lda #0
@@ -277,15 +288,92 @@ patch_title_zero_colour:
 title_variant_done:
     rts
 
+; Title navigation leaves the already-visible base plane intact.  It changes
+; only the three selector cells and their menu-row colours, avoiding both the
+; full-screen display-disable blink and an intermediate player-one selector.
+update_title_selection:
+    lda #0
+    sta $0571                ; player-one arrow
+    sta $05c1                ; player-two arrow
+    sta $0611                ; AI-vs-AI arrow
+    lda #13
+    sta $d973
+    ldx #0
+title_selection_dim_one:
+    sta $d975,x
+    inx
+    cpx #12
+    bne title_selection_dim_one
+    lda #13
+    sta $d9c3
+    ldx #0
+title_selection_dim_two:
+    sta $d9c5,x
+    inx
+    cpx #16
+    bne title_selection_dim_two
+    lda #13
+    sta $da13
+    ldx #0
+title_selection_dim_zero:
+    sta $da15,x
+    inx
+    cpx #8
+    bne title_selection_dim_zero
+    lda #7                   ; direct-selection digits stay bright
+    sta $d973
+    sta $d9c3
+    sta $da13
+    lda title_mode
+    beq title_selection_zero
+    cmp #1
+    beq title_selection_one
+title_selection_two:
+    lda #44
+    sta $05c1
+    lda #7
+    ldx #0
+title_selection_light_two:
+    sta $d9c5,x
+    inx
+    cpx #16
+    bne title_selection_light_two
+    rts
+title_selection_zero:
+    lda #44
+    sta $0611
+    lda #7
+    ldx #0
+title_selection_light_zero:
+    sta $da15,x
+    inx
+    cpx #8
+    bne title_selection_light_zero
+    rts
+title_selection_one:
+    lda #44
+    sta $0571
+    lda #7
+    ldx #0
+title_selection_light_one:
+    sta $d975,x
+    inx
+    cpx #12
+    bne title_selection_light_one
+    rts
+
 ; These four supplied map-panel glyphs read as Y/4/4/7 labels in the title's
-; radar art. Keep the source plane immutable but soften them at presentation
-; time so they recede into the map instead of competing with the menu.
+; black radar area. Remove only those requested cells at presentation time.
 cleanup_title_radar_labels:
-    lda #11                  ; dark grey
-    sta $d8f2                ; row 6, col 2
-    sta $d91a                ; row 7, col 2
-    sta $d941                ; row 8, col 1
-    sta $d942                ; row 8, col 2
+    lda #0
+    sta $04f2                ; row 6, col 2
+    sta $051a                ; row 7, col 2
+    sta $0541                ; row 8, col 1
+    sta $0542                ; row 8, col 2
+    sta $d8f2
+    sta $d91a
+    sta $d941
+    sta $d942
     rts
 
 show_info:
@@ -328,20 +416,25 @@ clear_board:
     lda #0
     sta game_winner
     sta game_ai_pending
+    sta game_terminal_ticks
+    sta game_terminal_phase
+    sta game_winning_line
     lda #1
     sta view_mode
-    jmp set_game_vic
+    jsr set_game_vic
+    jsr draw_empty_labels
+    jmp draw_turn_indicator
 
 ; The archive viewer overlays its supplied decorative frame only inside the
-; 29×17 vacant panel. Markdown is precompiled at build time; this runtime path
+; 29×18 vacant panel. Markdown is precompiled at build time; this runtime path
 ; just copies bounded character and colour rows and paints an honest position
 ; marker beside them.
-INFO_ROWS = 17
+INFO_ROWS = 18
 INFO_TEXT_COLUMNS = 29
-INFO_TEXT_SCREEN = $047d           ; row 3, column 5
-INFO_TEXT_COLOUR = $d87d
-INFO_SCROLLBAR_SCREEN = $049a ; row 3, column 34
-INFO_SCROLLBAR_COLOUR = $d89a
+INFO_TEXT_SCREEN = $04a5           ; row 4, column 5
+INFO_TEXT_COLOUR = $d8a5
+INFO_SCROLLBAR_SCREEN = $04c2       ; row 4, column 34
+INFO_SCROLLBAR_COLOUR = $d8c2
 INFO_FOOTER_SCREEN = $079c    ; row 23, column 4: centered archive commands
 INFO_FOOTER_COLOUR = $db9c
 INFO_FOOTER_WIDTH = 35
@@ -359,6 +452,9 @@ info_footer_loop:
 ; Six black cells, SCROLL: UP/DOWN, one black separator, QUIT: Q, six black.
 info_footer_chars: .byte 0,0,0,0,0,0,19,3,18,15,12,12,38,0,21,16,41,4,15,23,14,0,17,21,9,20,38,0,17,0,0,0,0,0,0
 info_footer_colours: .byte 0,0,0,0,0,0,12,12,12,12,12,12,12,12,1,1,1,1,1,1,1,0,12,12,12,12,12,12,1,0,0,0,0,0,0
+; INFO_LINE_COUNT is 49 and the source frame supplies 18 track cells.  These
+; 32 positions map scroll offsets 0..31 across the complete visible track.
+info_scrollbar_positions: .byte 0,1,1,2,2,3,3,4,4,5,5,6,7,7,8,8,9,9,10,10,11,12,12,13,13,14,14,15,15,16,16,17
 archive_scroll_up:
     lda info_scroll
     beq archive_scroll_done
@@ -477,6 +573,9 @@ render_info_scrollbar:
     sta info_colour_out
     lda #>INFO_SCROLLBAR_COLOUR
     sta info_colour_out+1
+    ldx info_scroll
+    lda info_scrollbar_positions,x
+    sta info_scrollbar_marker
     ldy #0
     ldx #0
 info_scrollbar_row:
@@ -484,7 +583,7 @@ info_scrollbar_row:
     sta (out),y
     lda #11                  ; dim grey track
     sta (info_colour_out),y
-    cpx info_scroll
+    cpx info_scrollbar_marker
     bne info_scrollbar_advance
     lda #42                  ; visibly distinct scroll position glyph
     sta (out),y
@@ -585,13 +684,22 @@ game_human_o:
 game_move_finished:
     jsr board_winner
     sta game_winner
-    bne game_key_done
+    bne game_terminal_begin
+    jsr board_is_full
+    beq game_move_not_terminal
+    lda #3
+    sta game_winner
+game_terminal_begin:
+    jsr game_begin_terminal
+    jmp game_key_done
+game_move_not_terminal:
     lda game_mode
     cmp #2
     bne game_player_vs_ai_pending
     lda turn_mark
     eor #3
     sta turn_mark
+    jsr draw_turn_indicator
     jmp game_key_done
 game_player_vs_ai_pending:
     lda #1
@@ -626,9 +734,24 @@ board_winner_advance:
     lda #0
     rts
 board_winner_found:
+    stx game_winning_line
     lda mark_byte
     rts
 winning_cells: .byte 0,1,2, 3,4,5, 6,7,8, 0,3,6, 1,4,7, 2,5,8, 0,4,8, 2,4,6
+
+board_is_full:
+    ldx #0
+board_full_loop:
+    lda board_state,x
+    beq board_not_full
+    inx
+    cpx #9
+    bne board_full_loop
+    lda #1
+    rts
+board_not_full:
+    lda #0
+    rts
 
 ; Accepted board keys remain human X marks.  This bridge only pages and decodes
 ; the selected original token row; it neither selects nor paints a model move.
@@ -961,6 +1084,248 @@ bitmap_tail:
     iny
     bne bitmap_tail
 bitmap_done:
+    rts
+
+; The game is bitmap mode, so empty-cell address labels and the small turn
+; marker are explicit bitmap pixels using screen high-nibble colour 1.  They
+; only touch interior character cells that the X/O patches fully replace.
+draw_empty_labels:
+    ldx #0
+draw_empty_label:
+    lda label_glyph_lo,x
+    sta src
+    lda label_glyph_hi,x
+    sta src+1
+    lda label_bitmap_dest_lo,x
+    sta out
+    lda label_bitmap_dest_hi,x
+    sta out+1
+    jsr copy_eight_bytes
+    lda label_screen_dest_lo,x
+    sta out
+    lda label_screen_dest_hi,x
+    sta out+1
+    lda #11                 ; dark grey / dim A-I address label
+    jsr paint_high_colour
+    inx
+    cpx #9
+    bne draw_empty_label
+    rts
+
+draw_turn_indicator:
+    lda game_winner
+    cmp #3
+    beq draw_draw_indicator
+    lda turn_mark
+    cmp #2
+    beq draw_o_indicator
+draw_x_indicator:
+    lda #<turn_x_glyph
+    ldy #>turn_x_glyph
+    lda #10                 ; light red X
+    bne draw_indicator
+draw_o_indicator:
+    lda #<turn_o_glyph
+    ldy #>turn_o_glyph
+    lda #3                  ; cyan O
+    bne draw_indicator
+draw_draw_indicator:
+    lda #<draw_glyph
+    ldy #>draw_glyph
+    lda #7                  ; yellow D means terminal draw
+draw_indicator:
+    sta turn_indicator_colour
+    sta terminal_colour
+    lda #<turn_x_glyph      ; restore pointer low after selecting the colour
+    ; A cannot carry both colour and source low. Select source again by state.
+    lda game_winner
+    cmp #3
+    beq indicator_source_draw
+    lda turn_mark
+    cmp #2
+    beq indicator_source_o
+indicator_source_x:
+    lda #<turn_x_glyph
+    ldy #>turn_x_glyph
+    bne indicator_source_ready
+indicator_source_o:
+    lda #<turn_o_glyph
+    ldy #>turn_o_glyph
+    bne indicator_source_ready
+indicator_source_draw:
+    lda #<draw_glyph
+    ldy #>draw_glyph
+indicator_source_ready:
+    sta src
+    sty src+1
+    lda #<TURN_BITMAP
+    sta out
+    lda #>TURN_BITMAP
+    sta out+1
+    jsr copy_eight_bytes
+    lda #<TURN_SCREEN
+    sta out
+    lda #>TURN_SCREEN
+    sta out+1
+    lda turn_indicator_colour
+    jmp paint_high_colour
+
+copy_eight_bytes:
+    ldy #0
+copy_eight_byte:
+    lda (src),y
+    sta (out),y
+    iny
+    cpy #8
+    bne copy_eight_byte
+    rts
+
+; A contains the desired VIC screen high-nibble colour; out identifies the
+; sole screen character containing a label or indicator glyph.
+paint_high_colour:
+    asl
+    asl
+    asl
+    asl
+    sta mark_byte
+    ldy #0
+    lda (out),y
+    and #$0f
+    ora mark_byte
+    sta (out),y
+    rts
+
+game_begin_terminal:
+    lda #8
+    sta game_terminal_ticks
+    lda #1
+    sta game_terminal_phase
+    jsr draw_turn_indicator
+    lda game_winner
+    cmp #3
+    beq game_terminal_ready
+    lda #7                  ; yellow winning-line phase
+    sta terminal_colour
+    jsr paint_winning_line
+game_terminal_ready:
+    rts
+
+game_terminal_tick:
+    lda game_winner
+    cmp #3
+    beq game_terminal_countdown
+    lda game_terminal_phase
+    eor #1
+    sta game_terminal_phase
+    beq game_terminal_restore_line
+    lda #7
+    sta terminal_colour
+    jsr paint_winning_line
+    jmp game_terminal_countdown
+game_terminal_restore_line:
+    jsr restore_winning_line
+game_terminal_countdown:
+    jsr game_terminal_pause
+    dec game_terminal_ticks
+    bne game_terminal_done
+    jsr show_title
+game_terminal_done:
+    rts
+
+; Roughly 1/20 second on a stock C64. Eight phases give a short, visible
+; terminal acknowledgement without accepting another key or claiming AI work.
+game_terminal_pause:
+    ldx #$c0
+game_terminal_pause_outer:
+    ldy #0
+game_terminal_pause_inner:
+    dey
+    bne game_terminal_pause_inner
+    dex
+    bne game_terminal_pause_outer
+    rts
+
+paint_winning_line:
+    ldx game_winning_line
+    ldy winning_cells,x
+    jsr paint_board_cell_colour
+    inx
+    ldy winning_cells,x
+    jsr paint_board_cell_colour
+    inx
+    ldy winning_cells,x
+    jmp paint_board_cell_colour
+
+restore_winning_line:
+    ldx game_winning_line
+    ldy winning_cells,x
+    jsr restore_board_cell_colour
+    inx
+    ldy winning_cells,x
+    jsr restore_board_cell_colour
+    inx
+    ldy winning_cells,x
+    jmp restore_board_cell_colour
+
+restore_board_cell_colour:
+    sty game_index
+    lda board_state,y
+    cmp #1
+    beq restore_x_cell
+    jmp draw_o
+restore_x_cell:
+    jmp draw_x
+
+; Recolour the same 4x4 screen attribute patch used by a live mark. Middle-row
+; patches skip their shared leading character row, preserving the top-row edge.
+paint_board_cell_colour:
+    sty game_index
+    ldx game_index
+    lda screen_out_lo,x
+    sta out
+    lda screen_out_hi,x
+    sta out+1
+    ldx game_index
+    cpx #3
+    bcc paint_cell_full
+    cpx #6
+    bcs paint_cell_full
+    clc
+    lda out
+    adc #40
+    sta out
+    bcc paint_cell_skip_done
+    inc out+1
+paint_cell_skip_done:
+    ldx #3
+    bne paint_cell_row
+paint_cell_full:
+    ldx #4
+paint_cell_row:
+    ldy #0
+paint_cell_byte:
+    lda (out),y
+    and #$0f
+    sta dest
+    lda terminal_colour
+    asl
+    asl
+    asl
+    asl
+    ora dest
+    sta (out),y
+    iny
+    cpy #4
+    bne paint_cell_byte
+    clc
+    lda out
+    adc #40
+    sta out
+    bcc paint_cell_next_row
+    inc out+1
+paint_cell_next_row:
+    dex
+    bne paint_cell_row
     rts
 
 draw_x:
@@ -1387,6 +1752,35 @@ set_text_vic:
     sta $d018
     rts
 
+; One interior character cell per board square carries a dim address glyph.
+; The destinations are deliberately inside the source-derived 4×4 X/O patch
+; rectangles, so a legal mark clears its label without touching grid bytes.
+label_bitmap_destinations:
+    .word $2578,$2598,$25b8, $2938,$2958,$2978, $2cf8,$2d18,$2d38
+label_screen_destinations:
+    .word $04af,$04b3,$04b7, $0527,$052b,$052f, $05c7,$05cb,$05cf
+label_bitmap_dest_lo: .byte <$2578,<$2598,<$25b8, <$2938,<$2958,<$2978, <$2cf8,<$2d18,<$2d38
+label_bitmap_dest_hi: .byte >$2578,>$2598,>$25b8, >$2938,>$2958,>$2978, >$2cf8,>$2d18,>$2d38
+label_screen_dest_lo: .byte <$04af,<$04b3,<$04b7, <$0527,<$052b,<$052f, <$05c7,<$05cb,<$05cf
+label_screen_dest_hi: .byte >$04af,>$04b3,>$04b7, >$0527,>$052b,>$052f, >$05c7,>$05cb,>$05cf
+label_glyph_lo: .byte <label_a,<label_b,<label_c,<label_d,<label_e,<label_f,<label_g,<label_h,<label_i
+label_glyph_hi: .byte >label_a,>label_b,>label_c,>label_d,>label_e,>label_f,>label_g,>label_h,>label_i
+; Each non-zero pair is multicolour bitmap pixel code 01, selected through the
+; screen high nibble. They are intentionally sparse so grid boundaries remain
+; visible beneath the dim keyboard affordances.
+label_a: .byte $00,$14,$41,$55,$41,$41,$41,$00
+label_b: .byte $00,$54,$41,$54,$41,$41,$54,$00
+label_c: .byte $00,$15,$40,$40,$40,$40,$15,$00
+label_d: .byte $00,$54,$41,$41,$41,$41,$54,$00
+label_e: .byte $00,$55,$40,$54,$40,$40,$55,$00
+label_f: .byte $00,$55,$40,$54,$40,$40,$40,$00
+label_g: .byte $00,$15,$40,$45,$41,$41,$15,$00
+label_h: .byte $00,$41,$41,$55,$41,$41,$41,$00
+label_i: .byte $00,$55,$14,$14,$14,$14,$55,$00
+turn_x_glyph: .byte $00,$41,$41,$14,$14,$41,$41,$00
+turn_o_glyph: .byte $00,$14,$41,$41,$41,$41,$14,$00
+draw_glyph:   .byte $00,$54,$41,$41,$41,$41,$54,$00
+
 view_mode: .byte 0
 title_mode: .byte 1
 turn_mark: .byte 1
@@ -1394,11 +1788,17 @@ game_index: .byte 0
 game_mode: .byte 1
 game_winner: .byte 0
 game_ai_pending: .byte 0
+game_winning_line: .byte 0
+game_terminal_ticks: .byte 0
+game_terminal_phase: .byte 0
+turn_indicator_colour: .byte 10
+terminal_colour: .byte 0
 mark_byte: .byte 0
 progress_filled: .byte 0
 progress_colour_nibble: .byte 0
 title_charset_memory_config: .byte 0
 info_scroll: .byte 0
+info_scrollbar_marker: .byte 0
 info_markdown_memory_config: .byte 0
 board_state: .fill 9, 0
 c9w00_filename: .text "EMBEDTOK.PRG"

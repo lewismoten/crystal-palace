@@ -355,13 +355,13 @@ def test_stage_058_preview_uses_only_native_art_navigation_and_restores_title_mo
     call(mpu, symbols["preview_title_up"]); assert mpu.memory[symbols["preview_title_mode"]] == 2
 
 
-def test_stage_082_build_uses_archive_colour_plane_separation(tmp_path):
-    """The release builder reserves Stage 082 for separate archive colour data."""
+def test_stage_083_build_uses_visible_game_state_and_info_viewport(tmp_path):
+    """The release builder reserves Stage 083 for visible state and INFO viewport."""
     import importlib.util
     import sys
 
     sys.path.insert(0, str(ROOT / "scripts"))
     spec = importlib.util.spec_from_file_location("build_disk", ROOT / "scripts" / "build_disk.py")
     builder = importlib.util.module_from_spec(spec); spec.loader.exec_module(builder)
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (82, "archive-colour-plane-separation")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (83, "visible-game-state-and-info-viewport")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
