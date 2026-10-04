@@ -18,11 +18,11 @@ The local board preview renders player marks and terminal states, but it does no
 
 ### Repository tools
 
-The documented commands assume a Debian/Ubuntu-like host with:
+The documented commands support Debian/Ubuntu and macOS:
 
 - `python3` (3.11 or newer recommended), `python3-venv`, and `pip`
-- `apt` and `dpkg-deb` for the reproducible local 64tass bootstrap
-- Internet access the first time `scripts/bootstrap_64tass.sh` downloads the Debian `64tass` package
+- Debian/Ubuntu: `apt` and `dpkg-deb`; macOS: [Homebrew](https://brew.sh/)
+- Internet access the first time `scripts/bootstrap_64tass.sh` obtains 64tass
 
 Create the development test environment:
 
@@ -32,7 +32,7 @@ python3 -m venv .venv
 scripts/bootstrap_64tass.sh
 ```
 
-`requirements-dev.txt` pins `py65` for assembled-6502 regression tests. The bootstrap script extracts 64tass beneath `tools/64tass/`; it does not install a system-wide assembler.
+`requirements-dev.txt` pins `py65` for assembled-6502 regression tests. On Debian/Ubuntu the bootstrap script extracts 64tass beneath `tools/64tass/`; on macOS it installs the `tass64` Homebrew formula if needed and creates a repository-local symlink at `tools/64tass/usr/bin/64tass`.
 
 ### Crystal-9 model artifact
 
