@@ -77,6 +77,20 @@ def crystal_palace_art_prgs(destination: Path) -> dict[str, Path]:
     return result
 
 
+def model_packet_files(layers: Path) -> dict[str, Path]:
+    """Return an all-or-nothing original-model packet set.
+
+    Empty means a presentation-only preview build; a partial packet directory is
+    unsafe because it could imply an incomplete original-model runtime.
+    """
+    packets = {path.name: path for path in sorted(layers.glob("C9W*.PRG"))}
+    if not packets:
+        return {}
+    if set(packets) != set(DISK_TENSOR_FILENAMES):
+        raise SystemExit("model packet directory must contain exactly the 48 original C9W*.PRG files or be empty")
+    return {DISK_TENSOR_FILENAMES[source_name]: path for source_name, path in packets.items()}
+
+
 def main() -> None:
     assembler = ROOT / "tools" / "64tass" / "usr" / "bin" / "64tass"
     if not assembler.is_file():
@@ -85,13 +99,12 @@ def main() -> None:
     subprocess.run([sys.executable, str(ROOT / "scripts" / "compile_info_markdown.py")], check=True)
     subprocess.run([str(assembler), "--cbm-prg", "-o", str(BUILD / "CP64.PRG"), str(PROGRAM_SOURCE)], check=True)
     files: dict[str, Path | tuple[Path, int]] = {"CP64.PRG": BUILD / "CP64.PRG", ARCHIVE_RUNTIME_FILENAME: BUILD / ARCHIVE_RUNTIME_FILENAME}
-    packets = {path.name: path for path in sorted((BUILD / "layers").glob("C9W*.PRG"))}
-    if set(packets) != set(DISK_TENSOR_FILENAMES):
-        raise SystemExit("descriptive disk-name map does not cover exactly the 48 original tensor packets")
-    files.update({DISK_TENSOR_FILENAMES[source_name]: path for source_name, path in packets.items()})
+    packets = model_packet_files(BUILD / "layers")
+    files.update(packets)
     files[ARCHIVE_MARKDOWN_FILENAME] = (ARCHIVE_MARKDOWN_SOURCE, SEQ_FILE_TYPE)
-    if len(files) != 51:
-        raise SystemExit(f"expected CP64, archive payload/text, plus 48 original tensor files, found {len(files)}")
+    expected_files = 3 + len(packets)
+    if len(files) != expected_files:
+        raise SystemExit(f"expected CP64, archive payload/text, plus {len(packets)} model files, found {len(files)}")
     # Presentation planes remain embedded. INFO text is intentionally different:
     # it is loaded only on INFO entry from ARCHIVE.PRG, while ARCHIVE.MD is a
     # readable sequential disk document containing the authored Markdown.
@@ -100,6 +113,8 @@ def main() -> None:
     shutil.copyfile(stage_image, BUILD / "cp64.d64")
     RELEASE_IMAGE.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(stage_image, RELEASE_IMAGE)
+    if not packets:
+        print("presentation preview: no original model packets were packaged")
     print(RELEASE_IMAGE)
 
 

@@ -16,7 +16,7 @@ python3 -m venv .venv
 scripts/bootstrap_64tass.sh
 ```
 
-With a verified `build/layers/` packet set already present, build and test:
+Build and test:
 
 ```sh
 .venv/bin/python scripts/build_disk.py
@@ -28,6 +28,11 @@ The ready-to-load disk image is written to:
 ```text
 release/crystal-palace-9.d64
 ```
+
+Without `build/layers/`, this is a **presentation preview**: title, INFO, and
+human board routes work, but no original-model packets are present and it does
+not claim an AI move. When all 48 verified packet files are present, the same
+command packages them into the D64.
 
 See [Building CP64](docs/BUILDING.md) for Linux/macOS setup, assembler details, model-packet requirements, and the complete verification sequence.
 

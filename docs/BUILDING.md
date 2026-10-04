@@ -13,7 +13,7 @@ The `release/` output is generated and Git-ignored. A numbered archival image is
 - Python 3 (`python3`)
 - Git
 - Internet access on the first assembler bootstrap
-- A verified `build/layers/` packet set for a model-enabled D64
+
 
 Create CP64's small development environment once:
 
@@ -48,9 +48,13 @@ ln -sf "$(command -v 64tass)" tools/64tass/usr/bin/64tass
 
 ## Model packet source
 
-`scripts/build_disk.py` packages 48 prebuilt original-model packet files from
-`build/layers/`. A fresh checkout does not contain them, because model packets
-are generated artifacts and are Git-ignored.
+`scripts/build_disk.py` works without model packets and produces a presentation
+preview D64. A fresh checkout does not contain `build/layers/`, because model
+packets are generated artifacts and are Git-ignored.
+
+When a complete packet set is available, the same build command packages all
+48 original-model packet files from `build/layers/`. A partial packet directory
+is rejected rather than producing a misleading disk.
 
 Do not point `scripts/export_c64_layers.py` at an arbitrary `.pt`,
 `model.safetensors`, or GGUF file. Its input is a specific historical
@@ -60,8 +64,7 @@ are not a drop-in replacement for that input contract.
 
 Until a verified CP64-compatible source/download workflow is published, obtain
 the checked packet set or the exact compatible source artifact from the project
-maintainer. Then place the resulting 48 `C9Wxx.PRG` files and `manifest.json`
-under:
+maintainer. Place the resulting 48 `C9Wxx.PRG` files and `manifest.json` under:
 
 ```text
 build/layers/
@@ -89,4 +92,4 @@ From the repository root:
 release/crystal-palace-9.d64
 ```
 
-The D64 contains the executable, archive runtime/text files, and 48 original model packet files. See [`D64_MANIFEST.md`](D64_MANIFEST.md) for the disk layout and [`STAGE_HISTORY.md`](STAGE_HISTORY.md) for proof boundaries and historical stage notes.
+The D64 always contains the executable and archive runtime/text files. It contains the 48 original model packet files only when the complete verified `build/layers/` set was supplied. See [`D64_MANIFEST.md`](D64_MANIFEST.md) for the disk layout and [`STAGE_HISTORY.md`](STAGE_HISTORY.md) for proof boundaries and historical stage notes.
