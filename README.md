@@ -11,15 +11,22 @@ The project currently provides source-exact Crystal Palace presentation assets, 
 From the repository root, on macOS or Debian/Ubuntu Linux:
 
 ```sh
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements-dev.txt
-scripts/bootstrap_64tass.sh
+scripts/bootstrap.sh
 ```
 
-Build and test:
+That one command creates `.venv`, installs Python dependencies (including
+PyTorch), installs the repository-local assembler, downloads the verified
+[original Crystal-9 FP16-scale INT4 artifact](https://huggingface.co/lewismoten/crystal-9/resolve/main/artifacts/crystal-9-int4-group2-packed-fp16-scales-v1.pt), verifies it, and creates the 48 pageable model packets.
+
+Build the D64:
 
 ```sh
 .venv/bin/python scripts/build_disk.py
+```
+
+Run the regression suite when changing source or assets:
+
+```sh
 .venv/bin/python -m pytest -q
 ```
 
@@ -29,14 +36,8 @@ The ready-to-load disk image is written to:
 release/crystal-palace-9.d64
 ```
 
-Without `build/layers/`, this is a **presentation preview**: title, INFO, and
-human board routes work, but no original-model packets are present and it does
-not claim an AI move. When all 48 verified packet files are present, the same
-command packages them into the D64.
-
-To include the original Crystal-9 packet set, follow the short download and
-export step in [Building CP64](docs/BUILDING.md#model-packet-source) before
-building.
+For a presentation-only preview without model packets, skip `bootstrap.sh` and
+run `scripts/bootstrap_64tass.sh` instead. The preview does not claim AI moves.
 
 See [Building CP64](docs/BUILDING.md) for Linux/macOS setup, assembler details, model-packet requirements, and the complete verification sequence.
 

@@ -8,42 +8,35 @@ release/crystal-palace-9.d64
 
 The `release/` output is generated and Git-ignored. A numbered archival image is also written under `build/`.
 
-## Prerequisites
+## One-command setup
 
 - Python 3 (`python3`)
 - Git
-- Internet access on the first assembler bootstrap
+- Internet access for the first setup
 
-
-Create CP64's small development environment once:
+Run this once from the repository root:
 
 ```sh
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements-dev.txt
+scripts/bootstrap.sh
 ```
 
-## Linux (Debian/Ubuntu)
+It creates `.venv`, installs `py65` and PyTorch from `requirements-dev.txt`,
+installs a repository-local 64tass, downloads the exact Crystal-9 model artifact,
+verifies it, and exports the 48 original tensor packets under `build/layers/`.
 
-The local assembler bootstrap uses `apt` and `dpkg-deb`; it does not install 64tass system-wide.
+The model source is the [Crystal-9 INT4 group-2 artifact with FP16 scales](https://huggingface.co/lewismoten/crystal-9/resolve/main/artifacts/crystal-9-int4-group2-packed-fp16-scales-v1.pt):
+
+```text
+SHA-256: 63eee663a143ee478308144da406873c72c05b6d5226dbb2f5e329dacb1392eb
+```
+
+## Assembler bootstrap details
+
+On Debian/Ubuntu, `bootstrap.sh` uses `apt` and `dpkg-deb`. On macOS, it uses
+Homebrew's `tass64` formula. Neither route installs CP64's assembler globally.
 
 ```sh
 scripts/bootstrap_64tass.sh
-```
-
-## macOS
-
-Install Homebrew first if it is not already installed. The same bootstrap command uses the `tass64` Homebrew formula when `64tass` is absent, then creates the repository-local assembler path expected by the build.
-
-```sh
-scripts/bootstrap_64tass.sh
-```
-
-If an older checkout still has the Debian-only bootstrap script, use this one-time workaround before building:
-
-```sh
-brew install tass64
-mkdir -p tools/64tass/usr/bin
-ln -sf "$(command -v 64tass)" tools/64tass/usr/bin/64tass
 ```
 
 ## Model packet source
@@ -52,9 +45,8 @@ ln -sf "$(command -v 64tass)" tools/64tass/usr/bin/64tass
 preview D64. A fresh checkout does not contain `build/layers/`, because model
 packets are generated artifacts and are Git-ignored.
 
-The exact public source artifact is the Crystal-9 INT4 group-2 package with
-FP16 scales. Download it, verify its SHA-256, and export its existing packed
-INT4 bytes and FP16 scale bytes into the 48 C64 packet files:
+`bootstrap.sh` performs the following model step. It is shown only for a manual
+retry or inspection:
 
 ```sh
 mkdir -p build/model
