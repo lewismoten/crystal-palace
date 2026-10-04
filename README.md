@@ -1,5 +1,7 @@
 # Crystal Palace 64 (CP64)
 
+![Crystal Palace 9](./docs/social-preview.jpg)
+
 A Commodore 64 feasibility project for evaluating **the original Crystal-9 packed INT4 neural-network weights** from a 1541 disk. CP64 does not replace the network with a move table, a hand-authored tic-tac-toe policy, distilled weights, or requantized weights.
 
 The executable is an engineering preview, not a claim of finished playable model parity. It combines source-exact Crystal Palace screen art with bounded, source-byte-backed Crystal-9 proof gates.
