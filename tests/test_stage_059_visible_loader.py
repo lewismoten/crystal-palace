@@ -20,9 +20,9 @@ def load_builder():
     return module
 
 
-def test_stage_081_declares_archive_and_title_composition():
+def test_stage_082_declares_archive_colour_plane_separation():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (81, "archive-and-title-composition")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (82, "archive-colour-plane-separation")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
 
 
@@ -526,6 +526,13 @@ def test_archive_renderer_banks_in_ram_for_the_a600_compiled_text():
     assert "and #$fe" in render
     assert "sta $01" in render
     assert render.rfind("sta $01") > render.index("render_info_scrollbar:")
+
+
+def test_info_colour_plane_is_relocated_beyond_the_title_charset_backup():
+    """49 archive rows no longer fit below $b000 beside the title charset."""
+    generated = (ROOT / "src" / "info_markdown.inc").read_text()
+    assert "info_markdown_chars:" in generated
+    assert "* = $b800\ninfo_markdown_colours:" in generated
 
 
 def test_info_cursor_down_is_checked_before_ambiguous_screen_code_q():

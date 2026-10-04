@@ -198,6 +198,7 @@ def main() -> None:
         f"INFO_LINE_COUNT = {count}",
         f"INFO_LINE_WIDTH = {WIDTH}",
         asm_bytes("info_markdown_chars", chars),
+        "* = $b800",
         asm_bytes("info_markdown_colours", colours),
         "",
     ))

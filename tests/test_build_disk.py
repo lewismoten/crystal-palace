@@ -21,11 +21,11 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_archive_and_title_composition():
+def test_current_disk_stage_reports_archive_colour_plane_separation():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 81
-    assert builder.CURRENT_DESCRIPTION == "archive-and-title-composition"
+    assert builder.CURRENT_STAGE == 82
+    assert builder.CURRENT_DESCRIPTION == "archive-colour-plane-separation"
 
 
 def test_disk_tensor_filenames_are_descriptive_but_preserve_packet_identity():
