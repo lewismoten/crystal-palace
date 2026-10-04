@@ -11,6 +11,7 @@ from make_d64 import SEQ_FILE_TYPE, build_d64_files
 
 ROOT = Path(__file__).parents[1]
 BUILD = ROOT / "build"
+RELEASE_IMAGE = ROOT / "release" / "crystal-palace-9.d64"
 CURRENT_STAGE = 86
 CURRENT_DESCRIPTION = "browser-verified-title-radar-blackout"
 PROGRAM_SOURCE = ROOT / "src" / "art_embedded_title.asm"
@@ -97,7 +98,9 @@ def main() -> None:
     stage_image = stage_image_path(CURRENT_STAGE, CURRENT_DESCRIPTION)
     build_d64_files(files, stage_image, disk_name="CP64 CRYSTAL9")
     shutil.copyfile(stage_image, BUILD / "cp64.d64")
-    print(stage_image)
+    RELEASE_IMAGE.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(stage_image, RELEASE_IMAGE)
+    print(RELEASE_IMAGE)
 
 
 if __name__ == "__main__":

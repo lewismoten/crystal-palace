@@ -21,6 +21,12 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
+def test_release_image_path_is_a_stable_user_facing_d64_name():
+    builder = load_builder()
+
+    assert builder.RELEASE_IMAGE == builder.ROOT / "release" / "crystal-palace-9.d64"
+
+
 def test_current_disk_stage_reports_title_input_and_runtime_plane_recovery():
     builder = load_builder()
 
