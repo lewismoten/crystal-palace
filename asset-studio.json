@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "name": "C64 Asset Studio",
+  "palette": {
+    "name": "Pepto C64",
+    "colors": [
+      "#000000", "#ffffff", "#68372b", "#70a4b2",
+      "#6f3d86", "#588d43", "#352879", "#b8c76f",
+      "#6f4f25", "#433900", "#9a6759", "#444444",
+      "#6c6c6c", "#9ad284", "#6c5eb5", "#959595"
+    ]
+  },
+  "charsets": [
+    {
+      "id": "palace",
+      "label": "Crystal Palace custom charset",
+      "path": "assets/charset/atlas.png",
+      "glyph_size": [8, 8],
+      "grid": [16, 16]
+    }
+  ],
+  "editors": [
+    {
+      "id": "glyphs",
+      "kind": "glyph-atlas",
+      "label": "Glyph atlas",
+      "charset": "palace"
+    },
+    {
+      "id": "title",
+      "kind": "petscii-screen",
+      "label": "Title screen",
+      "charset": "palace",
+      "glyph_map": "assets/title/glyph-map.png",
+      "color_map": "assets/title/color-map.png",
+      "size": [40, 25],
+      "selection": "assets/title/selection.json",
+      "layout": "asset-studio.json#/layouts/title-selection"
+    },
+    {
+      "id": "info",
+      "kind": "petscii-screen",
+      "label": "INFO screen",
+      "charset": "palace",
+      "glyph_map": "assets/info/glyph-map.png",
+      "color_map": "assets/info/color-map.png",
+      "size": [40, 25],
+      "layout": "asset-studio.json#/layouts/info-text"
+    },
+    {
+      "id": "board",
+      "kind": "multicolor-bitmap",
+      "label": "Multicolor bitmap",
+      "selectors": "assets/game/board/bitmap-selectors.png",
+      "screen_high": "assets/game/board/screen-hi.png",
+      "screen_low": "assets/game/board/screen-lo.png",
+      "color_ram": "assets/game/board/color-lo.png",
+      "layout": "assets/game/board/layout.json",
+      "logical_size": [160, 200]
+    },
+    {
+      "id": "marks",
+      "kind": "mark",
+      "label": "X / O marks",
+      "marks": [
+        {"id": "x", "path": "assets/game/marks/x.png", "size": [14, 24]},
+        {"id": "o", "path": "assets/game/marks/o.png", "size": [14, 24]}
+      ],
+      "layout": "assets/game/board/layout.json"
+    },
+    {
+      "id": "archive",
+      "kind": "markdown",
+      "label": "INFO Markdown",
+      "path": "assets/archive/archive.md",
+      "charset": "palace",
+      "layout": "asset-studio.json#/layouts/info-text",
+      "viewport": [29, 18]
+    },
+    {
+      "id": "layouts",
+      "kind": "layout",
+      "label": "Layout editor",
+      "paths": [
+        "assets/game/board/layout.json",
+        "asset-studio.json#/layouts"
+      ]
+    }
+  ],
+  "layouts": {
+    "info-text": {
+      "kind": "character-rectangle",
+      "target": "info",
+      "x": 5,
+      "y": 4,
+      "width": 29,
+      "height": 18,
+      "scrollbar_x": 34,
+      "footer": {"x": 4, "y": 23, "width": 35}
+    },
+    "title-selection": {
+      "kind": "selection-rows",
+      "target": "title",
+      "rows": [9, 10, 11],
+      "marker_x": 8,
+      "text_x": 10
+    }
+  }
+}

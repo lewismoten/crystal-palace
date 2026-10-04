@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en-US">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A static, local-file-capable C64 PNG asset editor.">
+  <title>C64 Asset Studio</title>
+  <link rel="stylesheet" href="web/studio.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#home">C64 <strong>Asset Studio</strong></a>
+    <nav id="editor-nav" aria-label="Editors"></nav>
+    <div class="file-actions">
+      <button id="open-local" type="button">Open local project</button>
+      <button id="download-active" type="button">Download active file</button>
+      <span id="storage-status" role="status">Repository files</span>
+    </div>
+  </header>
+  <main id="app" data-manifest="asset-studio.json" tabindex="-1"></main>
+  <template id="home-template">
+    <section class="home">
+      <div>
+        <p class="eyebrow">STATIC / GITHUB PAGES / LOCAL FILES</p>
+        <h1>Edit real C64 source assets, not screenshots.</h1>
+        <p class="lede">The project manifest describes palettes, charsets, screens, bitmaps, marks, Markdown, and placement data. Reuse it for another game by replacing the manifest paths and dimensions.</p>
+        <p class="legend">Glyph atlas · PETSCII viewer/editor · Multicolor bitmap viewer/editor · Layout viewer/editor</p>
+      </div>
+      <div id="home-cards" class="home-cards"></div>
+    </section>
+  </template>
+  <script type="module" src="web/studio.js"></script>
+</body>
+</html>

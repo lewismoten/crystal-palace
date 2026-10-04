@@ -48,6 +48,7 @@ See [Building CP64](docs/BUILDING.md) for Linux/macOS setup, assembler details, 
 - [D64 layout and original packet map](docs/D64_MANIFEST.md)
 - [Stage history and proof boundaries](docs/STAGE_HISTORY.md)
 - [Native screen-state assets, previews, palette, and VIC-II layout](assets/README.md)
+- [Static GitHub Pages asset editor](docs/ASSET_STUDIO.md)
 - [C64 Online acceptance target](https://c64online.com/c64-online-emulator/)
 
 ## Repository layout
