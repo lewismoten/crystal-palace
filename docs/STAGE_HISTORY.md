@@ -1,6 +1,6 @@
 # CP64 stage history
 
-This file is the release/proof ledger. A stage number identifies a bounded artifact or engineering gate; it is **not** a claim that all later gameplay behavior is working. The current checked-in source milestone is Stage 074. Generated D64 files are intentionally Git-ignored.
+This file is the release/proof ledger. A stage number identifies a bounded artifact or engineering gate; it is **not** a claim that all later gameplay behavior is working. The current checked-in source milestone is Stage 085. Generated D64 files are intentionally Git-ignored.
 
 ## Interpretation rules
 
@@ -82,9 +82,10 @@ This file is the release/proof ledger. A stage number identifies a bounded artif
 | 082 | Archive colour-plane separation | Corrects the late-archive corruption caused by 49 rows of character-plus-colour data extending from `$a600` into the `$b000` title-charset backup. Character rows now occupy `$a600–$ab8c`; colour rows occupy `$b800–$bd8c`, with the existing ROM-banking renderer reading both RAM planes. |
 | 083 | Visible game state and INFO viewport | Uses all 18 rows in the supplied INFO panel (`rows 4–21`) and a proportional scrollbar that stays visible at the final row. Updates title selection in place rather than copying the title plane for every arrow press, and clears the requested radar-area glyph cells. Adds dim A–I board labels, visible X/O turn state, two-player winning-line blink and return-to-title, plus draw indication and return-to-title; it does not fabricate an AI move. |
 | 084 | Disk-backed INFO archive | INFO now loads and validates a versioned compiled archive payload from disk, then copies it into the bounded character/colour viewer RAM. The D64 also carries `ARCHIVE.MD` as a readable sequential Markdown source. Normal A–I board input still performs no disk load. |
+| 085 | Title input and runtime-plane recovery | Moves the four user-rejected radar-panel glyph cells into a bounded derived title plane, so they are black before the initial title copy rather than depending on a later live-RAM cleanup. Replaces an unbounded Cursor Up release loop with a 32-read bounded drain, so a browser GETIN implementation that never emits a release cannot permanently lock title controls. This is assembled-code tested; browser acceptance remains required. |
 
 ## Current boundary and open work
 
-Stage 084 is not accepted as finished gameplay. It does **not** establish exhaustive legal histories, a full original-model computer turn after arbitrary board states, or browser confirmation of the title debounce. The original C9W00 bridge remains independently assembled-code-tested but must regain browser mount/load acceptance before it returns to the interactive game path.
+Stage 085 is not accepted as finished gameplay. It does **not** establish exhaustive legal histories, a full original-model computer turn after arbitrary board states, or browser confirmation of the title controls. The original C9W00 bridge remains independently assembled-code-tested but must regain browser mount/load acceptance before it returns to the interactive game path.
 
 The next meaningful proof is an extracted original-weight bridge that fits outside the embedded-art memory region, then complete legal-logit masking and exhaustive legal-history parity. No visual progress may be described as model thinking until it maps to those actual disk or computation boundaries.

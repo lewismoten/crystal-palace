@@ -4,9 +4,9 @@ A Commodore 64 feasibility project for evaluating **the original Crystal-9 packe
 
 The executable is an engineering preview, not a claim of finished playable model parity. It combines source-exact Crystal Palace screen art with bounded, source-byte-backed Crystal-9 proof gates.
 
-## Current milestone — Stage 084
+## Current milestone — Stage 085
 
-`cs64-084-disk-backed-info-archive.d64` is the current locally built image. Opening **INFO** performs the only presentation-side KERNAL load: it reads `ARCHIVE.PRG` into the volatile `$c000` window, validates its `ARCV` header/version/line geometry, then copies its character and colour planes into the fixed INFO RAM ranges. A failed or mismatched archive returns safely to the title instead of rendering stale RAM. Normal A–I board input does not load from disk.
+`cs64-085-title-input-and-runtime-plane-recovery.d64` is the current locally built image. Opening **INFO** performs the only presentation-side KERNAL load: it reads `ARCHIVE.PRG` into the volatile `$c000` window, validates its `ARCV` header/version/line geometry, then copies its character and colour planes into the fixed INFO RAM ranges. A failed or mismatched archive returns safely to the title instead of rendering stale RAM. Normal A–I board input does not load from disk. The title's four rejected radar-panel glyph cells are made black in derived runtime title planes before the first screen copy; the supplied source planes remain unchanged.
 
 The D64 also includes `ARCHIVE.MD` as a sequential (`SEQ`) file. It is the authored, disk-readable Markdown source for the compiled viewer payload; edit it, then rebuild. The runtime reads `ARCHIVE.PRG`, not Markdown text, because the 6502 viewer needs bounded custom-charset character and colour planes.
 
@@ -72,7 +72,7 @@ scripts/bootstrap_64tass.sh
 .venv/bin/python -m pytest -q
 ```
 
-`scripts/build_disk.py` regenerates `src/info_markdown.inc` and `build/ARCHIVE.PRG` from `assets/crystal-palace-screen-states/ARCHIVE.md`, assembles `CP64.PRG`, packages the D64, validates its DOS chains, and writes both the numbered Stage 084 image and `build/cp64.d64`.
+`scripts/build_disk.py` regenerates `src/info_markdown.inc` and `build/ARCHIVE.PRG` from `assets/crystal-palace-screen-states/ARCHIVE.md`, assembles `CP64.PRG`, packages the D64, validates its DOS chains, and writes both the numbered Stage 085 image and `build/cp64.d64`.
 
 Generated `.d64`, PRG, layer, and virtual-environment outputs are intentionally ignored by Git.
 

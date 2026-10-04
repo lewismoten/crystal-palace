@@ -21,11 +21,11 @@ def test_stage_image_path_uses_zero_padded_sequence_and_description():
     )
 
 
-def test_current_disk_stage_reports_disk_backed_info_archive():
+def test_current_disk_stage_reports_title_input_and_runtime_plane_recovery():
     builder = load_builder()
 
-    assert builder.CURRENT_STAGE == 84
-    assert builder.CURRENT_DESCRIPTION == "disk-backed-info-archive"
+    assert builder.CURRENT_STAGE == 85
+    assert builder.CURRENT_DESCRIPTION == "title-input-and-runtime-plane-recovery"
 
 
 def test_disk_tensor_filenames_are_descriptive_but_preserve_packet_identity():

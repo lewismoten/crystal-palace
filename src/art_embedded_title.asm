@@ -158,11 +158,15 @@ title_up:
     jsr wait_key_release
     jmp key_loop
 wait_key_release:
-    lda #0
-    sta $c6                 ; flush queued browser key-repeat characters
+    ; A browser can keep GETIN non-zero after key-up.  Never spin forever in
+    ; the title loop waiting for a synthetic release: drain a bounded sample
+    ; then clear queued repeats and resume accepting controls.
+    ldx #32
 wait_key_release_poll:
     jsr GETIN
+    dex
     bne wait_key_release_poll
+    lda #0
     sta $c6
     rts
 ; Browser keydown repeats can leave GETIN's queue empty while the physical
@@ -1950,9 +1954,12 @@ embedding_sumhi: .byte 0
 * = $3800
 .binary "../assets/crystal-palace-screen-states/crystal-palace-charset.bin"
 * = $4000
-title1_screen: .binary "../assets/crystal-palace-screen-states/crystal-palace-title-player-1.screen.bin"
+; Runtime presentation delta: the supplied source plane remains immutable.
+; These two derived planes make the four user-rejected radar glyph cells black
+; before the first title copy, rather than relying on a later RAM mutation.
+title1_screen: .binary "../assets/crystal-palace-screen-states/runtime/crystal-palace-title-player-1.screen.bin"
 * = $4c00
-title1_colour: .binary "../assets/crystal-palace-screen-states/crystal-palace-title-player-1.color.bin"
+title1_colour: .binary "../assets/crystal-palace-screen-states/runtime/crystal-palace-title-player-1.color.bin"
 * = $5800
 info_screen: .binary "../assets/crystal-palace-screen-states/crystal-palace-info.screen.bin"
 * = $5c00

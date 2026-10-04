@@ -31,7 +31,7 @@ def prepare_info_archive_load(mpu) -> None:
 
 def test_stage_084_declares_disk_backed_info_archive():
     builder = load_builder()
-    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (84, "disk-backed-info-archive")
+    assert (builder.CURRENT_STAGE, builder.CURRENT_DESCRIPTION) == (85, "title-input-and-runtime-plane-recovery")
     assert builder.PROGRAM_SOURCE.name == "art_embedded_title.asm"
 
 
@@ -54,8 +54,18 @@ def test_embedded_title_source_uses_no_screen_editor_output():
     source = (ROOT / "src" / "art_embedded_title.asm").read_text()
     assert "CHROUT" not in source
     assert '.binary "../assets/crystal-palace-screen-states/crystal-palace-charset.bin"' in source
-    assert '.binary "../assets/crystal-palace-screen-states/crystal-palace-title-player-1.screen.bin"' in source
-    assert '.binary "../assets/crystal-palace-screen-states/crystal-palace-title-player-1.color.bin"' in source
+    assert '.binary "../assets/crystal-palace-screen-states/runtime/crystal-palace-title-player-1.screen.bin"' in source
+    assert '.binary "../assets/crystal-palace-screen-states/runtime/crystal-palace-title-player-1.color.bin"' in source
+
+
+def test_runtime_title_planes_are_a_bounded_blackout_delta_over_immutable_source_art():
+    """Only the four rejected radar glyph cells differ from the supplied planes."""
+    for plane in ("screen", "color"):
+        source = (ASSETS / f"crystal-palace-title-player-1.{plane}.bin").read_bytes()
+        runtime = (ASSETS / "runtime" / f"crystal-palace-title-player-1.{plane}.bin").read_bytes()
+        assert len(runtime) == len(source) == 1000
+        assert {index for index, (before, after) in enumerate(zip(source, runtime)) if before != after} == {242, 282, 321, 322}
+        assert all(runtime[index] == 0 for index in (242, 282, 321, 322))
 
 
 @pytest.mark.parametrize("game_index", range(9))
@@ -443,7 +453,86 @@ def test_title_actions_return_to_the_key_loop_without_falling_into_basic():
     assert "title_info:\n    jsr show_info\n    jmp key_loop" in source
     assert "title_down:\n    jsr select_title_down\n    jsr wait_title_down_release\n    jmp key_loop" in source
     assert "cmp #13                  ; RETURN/Enter" in source
-    assert "wait_key_release:\n    lda #0\n    sta $c6" in source
+    assert "wait_key_release:\n    ; A browser can keep GETIN non-zero" in source
+    assert "ldx #32\nwait_key_release_poll:" in source
+
+
+def test_title_up_returns_even_when_browser_getin_never_reports_key_release(tmp_path):
+    """Synthetic browser repeats must not freeze all later title controls."""
+    import subprocess
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, call, labels
+
+    prg, labels_path = tmp_path / "CP64.PRG", tmp_path / "embedded.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "art_embedded_title.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path); image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
+    mpu.memory[load : load + len(image) - 2] = image[2:]
+    # GETIN permanently returns Cursor Up, the failure case for the old loop.
+    mpu.memory[0xFFE4 : 0xFFE7] = bytes((0xA9, 0x91, 0x60))
+    mpu.memory[0x00C6] = 7
+    call(mpu, symbols["wait_key_release"])
+    assert mpu.memory[0x00C6] == 0
+
+
+def test_main_title_getin_loop_accepts_real_screen_codes_and_blanks_only_reported_glyphs(tmp_path):
+    """Drive start→GETIN→dispatch, rather than calling title selectors directly."""
+    import subprocess
+    import pytest
+
+    pytest.importorskip("py65")
+    from py65.devices.mpu6502 import MPU
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_6502_embedding_gate import ASSEMBLER, labels
+
+    prg, labels_path = tmp_path / "CP64.PRG", tmp_path / "embedded.lbl"
+    subprocess.run([str(ASSEMBLER), "--cbm-prg", f"--labels={labels_path}", "-o", str(prg), str(ROOT / "src" / "art_embedded_title.asm")], check=True, capture_output=True, text=True)
+    symbols = labels(labels_path)
+
+    def boot_with_getin(keys: bytes):
+        image = prg.read_bytes(); mpu = MPU(); load = int.from_bytes(image[:2], "little")
+        mpu.memory[load : load + len(image) - 2] = image[2:]
+        # KERNAL GETIN harness: consume the supplied first key, then return 0.
+        mpu.memory[0x0002] = 0
+        mpu.memory[0x0300 : 0x0300 + len(keys) + 1] = keys + b"\0"
+        mpu.memory[0xFFE4 : 0xFFF0] = bytes((
+            0xAE, 0x02, 0x00,       # LDX $0002
+            0xBD, 0x00, 0x03,       # LDA $0300,X
+            0xE8,                   # INX
+            0x8E, 0x02, 0x00,       # STX $0002
+            0x60,                   # RTS
+        ))
+        return mpu
+
+    def run_until(mpu, predicate):
+        mpu.pc = symbols["start"]
+        for _ in range(2_000_000):
+            if predicate(mpu):
+                return
+            mpu.step()
+        raise AssertionError(f"main title loop did not reach expected state; PC=${mpu.pc:04X}")
+
+    # Screen-code $11 is Cursor Down: it must visibly move the selector through
+    # the actual main loop and leave the supplied title art intact except for the
+    # four reported glyph cells.
+    mpu = boot_with_getin(bytes((0x11,)))
+    run_until(mpu, lambda state: state.memory[0x0002] >= 2)
+    assert mpu.memory[symbols["title_mode"]] == 2
+    assert mpu.memory[0x05C1] == 44
+    assert {offset: (mpu.memory[0x0400 + offset], mpu.memory[0xD800 + offset]) for offset in (242, 282, 321, 322)} == {
+        242: (0, 0), 282: (0, 0), 321: (0, 0), 322: (0, 0)
+    }
+
+    # Screen-code 9 is I in the browser/C64 uppercase keyboard mode. With the
+    # actual archive payload and KERNAL-load stubs present, it must enter INFO
+    # through start→GETIN→show_info instead of disappearing into the title loop.
+    mpu = boot_with_getin(bytes((9,)))
+    prepare_info_archive_load(mpu)
+    run_until(mpu, lambda state: state.memory[symbols["view_mode"]] == 2)
+    assert mpu.memory[symbols["info_scroll"]] == 0
 
 
 def test_game_dispatch_accepts_browser_lowercase_a_to_i():
