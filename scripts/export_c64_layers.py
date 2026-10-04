@@ -39,8 +39,11 @@ def main() -> None:
     args.output.mkdir(parents=True, exist_ok=True)
     records = []
     for layer_id, (name, record) in enumerate(manifest["tensors"].items()):
-        scales = record["scales"].detach().cpu().contiguous().numpy().tobytes()
-        packed = record["packed"].detach().cpu().contiguous().numpy().tobytes()
+        # Use PyTorch's byte view rather than Tensor.numpy(): the exporter only
+        # needs raw storage bytes, so requiring NumPy adds an unnecessary setup
+        # dependency on Linux and macOS.
+        scales = bytes(record["scales"].detach().cpu().contiguous().view(torch.uint8).reshape(-1).tolist())
+        packed = bytes(record["packed"].detach().cpu().contiguous().view(torch.uint8).reshape(-1).tolist())
         packet = pack_layer(layer_id, scales, packed)
         filename = f"C9W{layer_id:02d}.PRG"
         (args.output / filename).write_bytes(LOAD_ADDRESS + packet)

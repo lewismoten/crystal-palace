@@ -52,29 +52,43 @@ ln -sf "$(command -v 64tass)" tools/64tass/usr/bin/64tass
 preview D64. A fresh checkout does not contain `build/layers/`, because model
 packets are generated artifacts and are Git-ignored.
 
-When a complete packet set is available, the same build command packages all
-48 original-model packet files from `build/layers/`. A partial packet directory
-is rejected rather than producing a misleading disk.
+The exact public source artifact is the Crystal-9 INT4 group-2 package with
+FP16 scales. Download it, verify its SHA-256, and export its existing packed
+INT4 bytes and FP16 scale bytes into the 48 C64 packet files:
+
+```sh
+mkdir -p build/model
+curl -L --fail \
+  --output build/model/crystal-9-int4-group2-packed-fp16-scales-v1.pt \
+  https://huggingface.co/lewismoten/crystal-9/resolve/main/artifacts/crystal-9-int4-group2-packed-fp16-scales-v1.pt
+
+.venv/bin/python -m pip install torch
+.venv/bin/python scripts/export_c64_layers.py \
+  --artifact build/model/crystal-9-int4-group2-packed-fp16-scales-v1.pt \
+  --output build/layers
+```
+
+Use this cross-platform check before exporting:
+
+```sh
+.venv/bin/python -c "import hashlib, pathlib; p=pathlib.Path('build/model/crystal-9-int4-group2-packed-fp16-scales-v1.pt'); assert hashlib.sha256(p.read_bytes()).hexdigest() == '63eee663a143ee478308144da406873c72c05b6d5226dbb2f5e329dacb1392eb'; print('verified')"
+```
+
+The exporter accepts this artifact because its embedded contract is
+`crystal-9-packed-int4-fp16-scales-v1` with `scale_storage: float16`. It does
+not distill, regenerate, or requantize tensors.
+
+The similarly named `crystal-9-int4-group2-packed-v1.pt` lacks that FP16-scale
+contract and is not interchangeable. The GitHub `crystal-9-int3-packed-v1.pt`
+artifact is INT3, regardless of an older directory name that includes `int4`.
+
+After export, the same build command packages all 48 original-model packet
+files from `build/layers/`. A partial packet directory is rejected rather than
+producing a misleading disk.
 
 Do not point `scripts/export_c64_layers.py` at an arbitrary `.pt`,
-`model.safetensors`, or GGUF file. Its input is a specific historical
-`crystal-9-packed-int4-fp16-scales-v1` PyTorch manifest with verbatim FP16
-scales and packed INT4 tensors. The current public Palace-9 download formats
-are not a drop-in replacement for that input contract.
-
-Until a verified CP64-compatible source/download workflow is published, obtain
-the checked packet set or the exact compatible source artifact from the project
-maintainer. Place the resulting 48 `C9Wxx.PRG` files and `manifest.json` under:
-
-```text
-build/layers/
-```
-
-The historical compatible source artifact, when supplied, must match:
-
-```text
-63eee663a143ee478308144da406873c72c05b6d5226dbb2f5e329dacb1392eb
-```
+`model.safetensors`, or GGUF file. Its input must be the verified artifact
+above.
 
 ## Build and verify
 

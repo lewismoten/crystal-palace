@@ -34,6 +34,10 @@ human board routes work, but no original-model packets are present and it does
 not claim an AI move. When all 48 verified packet files are present, the same
 command packages them into the D64.
 
+To include the original Crystal-9 packet set, follow the short download and
+export step in [Building CP64](docs/BUILDING.md#model-packet-source) before
+building.
+
 See [Building CP64](docs/BUILDING.md) for Linux/macOS setup, assembler details, model-packet requirements, and the complete verification sequence.
 
 ## Documentation
