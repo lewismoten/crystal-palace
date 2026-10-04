@@ -8,7 +8,8 @@ venv_python="$root/.venv/bin/python"
 artifact_dir="$root/build/model"
 artifact="$artifact_dir/crystal-9-int4-group2-packed-fp16-scales-v1.pt"
 layers="$root/build/layers"
-artifact_url="https://huggingface.co/lewismoten/crystal-9/resolve/main/artifacts/crystal-9-int4-group2-packed-fp16-scales-v1.pt"
+# Pin CP64 to the immutable official GitHub Release asset, not a moving branch.
+artifact_url="https://github.com/lewismoten/crystal-9/releases/download/v1.0.0/crystal-9-int4-group2-packed-fp16-scales-v1.pt"
 artifact_sha256="63eee663a143ee478308144da406873c72c05b6d5226dbb2f5e329dacb1392eb"
 
 if ! command -v "$python_bin" >/dev/null 2>&1; then

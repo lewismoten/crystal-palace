@@ -16,7 +16,7 @@ scripts/bootstrap.sh
 
 That one command creates `.venv`, installs Python dependencies (including
 PyTorch), installs the repository-local assembler, downloads the verified
-[original Crystal-9 FP16-scale INT4 artifact](https://huggingface.co/lewismoten/crystal-9/resolve/main/artifacts/crystal-9-int4-group2-packed-fp16-scales-v1.pt), verifies it, and creates the 48 pageable model packets.
+[official Crystal-9 v1.0.0 FP16-scale INT4 release artifact](https://github.com/lewismoten/crystal-9/releases/download/v1.0.0/crystal-9-int4-group2-packed-fp16-scales-v1.pt), verifies it, and creates the 48 pageable model packets.
 
 Build the D64:
 

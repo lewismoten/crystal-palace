@@ -24,7 +24,7 @@ It creates `.venv`, installs `py65` and PyTorch from `requirements-dev.txt`,
 installs a repository-local 64tass, downloads the exact Crystal-9 model artifact,
 verifies it, and exports the 48 original tensor packets under `build/layers/`.
 
-The model source is the [Crystal-9 INT4 group-2 artifact with FP16 scales](https://huggingface.co/lewismoten/crystal-9/resolve/main/artifacts/crystal-9-int4-group2-packed-fp16-scales-v1.pt):
+The model source is the [official Crystal-9 v1.0.0 INT4 group-2 artifact with FP16 scales](https://github.com/lewismoten/crystal-9/releases/download/v1.0.0/crystal-9-int4-group2-packed-fp16-scales-v1.pt):
 
 ```text
 SHA-256: 63eee663a143ee478308144da406873c72c05b6d5226dbb2f5e329dacb1392eb
@@ -52,7 +52,7 @@ retry or inspection:
 mkdir -p build/model
 curl -L --fail \
   --output build/model/crystal-9-int4-group2-packed-fp16-scales-v1.pt \
-  https://huggingface.co/lewismoten/crystal-9/resolve/main/artifacts/crystal-9-int4-group2-packed-fp16-scales-v1.pt
+  https://github.com/lewismoten/crystal-9/releases/download/v1.0.0/crystal-9-int4-group2-packed-fp16-scales-v1.pt
 
 .venv/bin/python -m pip install torch
 .venv/bin/python scripts/export_c64_layers.py \

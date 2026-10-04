@@ -18,6 +18,7 @@ def test_full_bootstrap_installs_build_dependencies_and_exact_model_packets():
 
     assert 'pip install -r "$root/requirements-dev.txt"' in source
     assert 'scripts/bootstrap_64tass.sh' in source
+    assert 'https://github.com/lewismoten/crystal-9/releases/download/v1.0.0/' in source
     assert 'crystal-9-int4-group2-packed-fp16-scales-v1.pt' in source
     assert '63eee663a143ee478308144da406873c72c05b6d5226dbb2f5e329dacb1392eb' in source
     assert 'scripts/export_c64_layers.py' in source
