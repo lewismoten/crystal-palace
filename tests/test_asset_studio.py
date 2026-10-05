@@ -25,6 +25,13 @@ def test_root_page_loads_the_generic_asset_studio():
     assert 'Multicolor bitmap' in page
 
 
+
+def test_asset_studio_png_decoder_compares_the_binary_signature_without_utf8_decoding():
+    script = (ROOT / "web" / "studio.js").read_text()
+    assert "data[0] !== 137" in script
+    assert "decode.decode(data.slice(0, 8))" not in script
+
+
 def test_asset_studio_launcher_disables_browser_asset_caching():
     launcher = (ROOT / "scripts" / "serve_asset_studio.py").read_text()
     assert 'Cache-Control' in launcher
