@@ -20,6 +20,7 @@ def test_asset_studio_manifest_declares_editable_c64_sources():
 def test_root_page_loads_the_generic_asset_studio():
     page = (ROOT / "index.html").read_text()
     assert '<script type="module" src="web/studio.js"></script>' in page
+    assert '<link rel="icon" href="favicon.ico" sizes="any">' in page
     assert 'asset-studio.json' in page
     assert 'Glyph atlas' in page
     assert 'Multicolor bitmap' in page
