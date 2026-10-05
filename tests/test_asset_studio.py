@@ -23,6 +23,7 @@ def test_root_page_loads_the_generic_asset_studio():
     assert '<link rel="icon" href="favicon.ico" sizes="any">' in page
     assert 'asset-studio.json' in page
     assert 'Glyph atlas' in page
+    assert 'IMAGE SOURCES → DERIVED CHARSET / MAPS · 256-GLYPH GUARD' in page
     assert 'Multicolor bitmap' in page
 
 
