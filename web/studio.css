@@ -57,6 +57,8 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; background: #
 .glyph-layout { display: grid; grid-template-columns: minmax(20rem, 1fr) minmax(14rem, 20rem); gap: 1rem; }
 .glyph-detail { display: grid; gap: .8rem; }
 .glyph-detail canvas { width: 256px; }
+.screen-canvas { width: 640px; }
+.glyph-chooser { width: 256px; display: block; }
 .mark-layout { display: grid; grid-template-columns: minmax(19rem, auto) minmax(12rem, 1fr); gap: 1rem; align-items: start; }
 .mark-layout canvas { width: min(100%, 560px); }
 .mark-preview { color: var(--muted); line-height: 1.6; }
