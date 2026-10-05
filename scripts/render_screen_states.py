@@ -167,7 +167,7 @@ STATES = {
 }
 
 DERIVED_VIEWS = {
-    "charset/atlas.png": lambda: (render_charset_charmap(), 128, 128),
+    "review/glyph-atlas.png": lambda: (render_charset_charmap(), 128, 128),
     "title/glyphs-auto.png": lambda: (render_character_screen_mono("title/auto/screen.bin"), WIDTH, HEIGHT),
     "title/colors-auto.png": lambda: (render_color_plane("title/auto/color.bin"), WIDTH, HEIGHT),
     "title/glyphs-one.png": lambda: (render_character_screen_mono("title/one/screen.bin"), WIDTH, HEIGHT),
@@ -188,6 +188,7 @@ def expected_images() -> dict[Path, bytes]:
 def write_previews() -> list[Path]:
     expected = expected_images()
     for path, content in expected.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
     return list(expected)
 
@@ -204,6 +205,7 @@ def main() -> int:
         print(f"verified {len(expected)} C64 indexed PNG previews")
     else:
         for path, content in expected.items():
+            path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(content)
             print(path.relative_to(ROOT))
     return 0

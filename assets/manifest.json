@@ -69,9 +69,21 @@
       "bytes": 144,
       "sha256": "ae1c3e3bf146bc5ba95df4ae20dd01b9dc20e437d69dbf0bcec37e3d4985b441"
     },
+    "game/marks-preview/bitmap.bin": {
+      "bytes": 8000,
+      "sha256": "9c18ecaccaaef412c5902bd3a039f597c83af6c16d828dc079e38c1348ab45d5"
+    },
+    "game/marks-preview/color.bin": {
+      "bytes": 1000,
+      "sha256": "9bb58a762ce8cd96c54b2236bb775c45a7de9fd58193a157a9398004971206d4"
+    },
+    "game/marks-preview/screen.bin": {
+      "bytes": 1000,
+      "sha256": "c19f09762930572e97ff822e2653d29b112fb1b3f1c58db7c4cd43fa5ba861e5"
+    },
     "info/color.bin": {
       "bytes": 1000,
-      "sha256": "410f4ad894cd74da123e88d6c945938d72a99b6f24085c2d42929388eda61596"
+      "sha256": "a564c35be332f13dc56918ec0e554f95cd0f42ae6523f9c704492a57a76e8c86"
     },
     "info/screen.bin": {
       "bytes": 1000,
@@ -79,7 +91,7 @@
     },
     "runtime/title-one.color.bin": {
       "bytes": 1000,
-      "sha256": "8a4d739b88f1ee698ca7e2f880d2c356153fd316cb9f6c98eae32947dd0fe3c4"
+      "sha256": "09ecafb79a12933eb0017bfd3cf94af91fbbc0b8fe61ba045f282fbab5d73f9b"
     },
     "runtime/title-one.screen.bin": {
       "bytes": 1000,
@@ -87,7 +99,7 @@
     },
     "title/auto/color.bin": {
       "bytes": 1000,
-      "sha256": "66a415764a44aed99e0fbffd85b454af78bda15c72d4f7b0b3a7f366e749f7e9"
+      "sha256": "23fb419882cfa1c2b5304fb6d283a86356e1caa5415824577622938dc79d7ca4"
     },
     "title/auto/screen.bin": {
       "bytes": 1000,
@@ -95,7 +107,7 @@
     },
     "title/one/color.bin": {
       "bytes": 1000,
-      "sha256": "8a4d739b88f1ee698ca7e2f880d2c356153fd316cb9f6c98eae32947dd0fe3c4"
+      "sha256": "09ecafb79a12933eb0017bfd3cf94af91fbbc0b8fe61ba045f282fbab5d73f9b"
     },
     "title/one/screen.bin": {
       "bytes": 1000,
@@ -103,7 +115,7 @@
     },
     "title/two/color.bin": {
       "bytes": 1000,
-      "sha256": "9844d62489bd876e0794d24fc586e2e7036224123599f440c51e38347adacd12"
+      "sha256": "39eeafca7df10f0133cc3fe46f9a04d74f36b26c8624d21134e3d24f16687ed4"
     },
     "title/two/screen.bin": {
       "bytes": 1000,

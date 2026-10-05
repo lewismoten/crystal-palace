@@ -12,8 +12,9 @@ def test_asset_studio_manifest_declares_editable_c64_sources():
     assert {editor["kind"] for editor in manifest["editors"]} == {
         "glyph-atlas", "petscii-screen", "multicolor-bitmap", "mark", "markdown", "layout"
     }
-    assert any(editor["id"] == "info" and editor["glyph_map"] == "assets/info/glyph-map.png" for editor in manifest["editors"])
-    assert any(editor["id"] == "board" and editor["layout"] == "assets/game/board/layout.json" for editor in manifest["editors"])
+    assert any(editor["id"] == "info" and editor["image"] == "assets/info/image.png" for editor in manifest["editors"])
+    assert manifest["charsets"][0]["sources"] == ["assets/title/image.png", "assets/info/image.png"]
+    assert manifest["charsets"][0]["id_order"] == "assets/charset/id-order.json"
 
 
 def test_root_page_loads_the_generic_asset_studio():

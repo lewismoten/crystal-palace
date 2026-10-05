@@ -14,7 +14,8 @@
     {
       "id": "palace",
       "label": "Crystal Palace custom charset",
-      "path": "assets/charset/atlas.png",
+      "sources": ["assets/title/image.png", "assets/info/image.png"],
+      "id_order": "assets/charset/id-order.json",
       "glyph_size": [8, 8],
       "grid": [16, 16]
     }
@@ -31,8 +32,7 @@
       "kind": "petscii-screen",
       "label": "Title screen",
       "charset": "palace",
-      "glyph_map": "assets/title/glyph-map.png",
-      "color_map": "assets/title/color-map.png",
+      "image": "assets/title/image.png",
       "size": [40, 25],
       "selection": "assets/title/selection.json",
       "layout": "asset-studio.json#/layouts/title-selection"
@@ -42,8 +42,7 @@
       "kind": "petscii-screen",
       "label": "INFO screen",
       "charset": "palace",
-      "glyph_map": "assets/info/glyph-map.png",
-      "color_map": "assets/info/color-map.png",
+      "image": "assets/info/image.png",
       "size": [40, 25],
       "layout": "asset-studio.json#/layouts/info-text"
     },

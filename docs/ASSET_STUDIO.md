@@ -41,8 +41,8 @@ Run the normal project validation after an edit:
 `asset-studio.json` is the site contract. It declares:
 
 - the native C64 palette;
-- shared glyph atlases and their dimensions;
-- PETSCII glyph/color maps and optional selection deltas;
+- shared character-screen image sources and their dimensions;
+- PETSCII source images and optional semantic selection metadata;
 - multicolor bitmap selector/color planes and logical size;
 - reusable marks;
 - Markdown sources and viewport dimensions; and
@@ -57,12 +57,20 @@ required.
 
 | Editor | Source it changes | Immediate review |
 | --- | --- | --- |
-| Glyph atlas | `charset/atlas.png` | Glyph usage count across the declared character screens; every shared glyph redraws in those screens. |
-| PETSCII screen | glyph and color maps | 40×25 custom-charset screen. Click sets a glyph; Shift-click sets a cell color. |
+| Glyph atlas | title and INFO `image.png` files | The atlas is derived from the editable title and INFO images. Editing a glyph updates every matching 8×8 source-image cell; usage is counted across the declared shared group. |
+| PETSCII screen | character-screen `image.png` | 40×25 custom-charset screen. Click sets a derived glyph; Shift-click sets a cell foreground color. The compiler rebuilds glyph/color maps. |
 | Multicolor bitmap | selector, screen-high, screen-low, Color RAM planes | 160×200 logical-pixel board; click changes a 2-bit selector or a 4×8 cell’s local color. |
 | X / O marks | mark PNG | 14×24 logical-pixel color grid. |
 | INFO Markdown | `archive.md` | A 29×18 INFO viewport preview with scroll position. The Python compiler remains the final runtime authority. |
 | Layout | board layout JSON or manifest layouts | Board A–I rectangles, INFO text viewport, and title selection rows. |
+
+The shared character-screen group is limited to **256 unique glyphs**. The
+Asset Studio reports an error when an edit would exceed that limit; reduce
+unique masks or split screens into separate charset groups. `id_order` can
+optionally preserve legacy C64 code positions without retaining visual atlas
+art. The atlas and screen maps remain derived build artifacts, so the
+repository intentionally does not contain `charset/atlas.png` or
+`glyph-map.png` source files.
 
 The editor does not run the C64 emulator yet. Its manifest and layout paths are
 intended to make an emulator panel an additive future page rather than a second

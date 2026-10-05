@@ -22,9 +22,7 @@ C64_PALETTE = (
 )
 TITLE_STATES = ("auto", "one", "two")
 SOURCE_PNGS = (
-    "charset/atlas.png",
-    "title/glyph-map.png", "title/color-map.png",
-    "info/glyph-map.png", "info/color-map.png",
+    "title/image.png", "info/image.png",
     "game/board/bitmap-selectors.png", "game/board/screen-hi.png", "game/board/screen-lo.png", "game/board/color-lo.png",
     "game/marks/x.png", "game/marks/o.png",
 )
@@ -106,42 +104,147 @@ def write_plane(output: Path, relative: str, payload: bytes) -> None:
     path.write_bytes(payload)
 
 
-def compile_charset(source: Path, output: Path) -> None:
-    pixels = require_pixels(source, "charset/atlas.png", 128, 128)
-    if any(index not in (0, 1) for index in pixels):
-        raise ValueError("charset/atlas.png: glyph atlas must be black/white")
+def cell_mask_and_color(image: IndexedPNG, cell: int, label: str) -> tuple[bytes, int]:
+    row, column = divmod(cell, 40)
+    colors: set[int] = set()
+    scanlines = bytearray()
+    for y in range(8):
+        pattern = 0
+        for x in range(8):
+            value = image.pixels[(row * 8 + y) * image.width + column * 8 + x]
+            if value:
+                colors.add(value)
+                pattern |= 0x80 >> x
+        scanlines.append(pattern)
+    if len(colors) > 1:
+        raise ValueError(f"{label}: character cell ({column}, {row}) uses {len(colors)} colors; reduce it to black plus one foreground color")
+    return bytes(scanlines), next(iter(colors), 0)
+
+
+def charset_id_order(source: Path) -> list[bytes]:
+    """Load the stable ID contract without retaining a source atlas PNG."""
+    payload = json.loads((source / "charset" / "id-order.json").read_text())
+    masks = payload.get("glyph_masks_hex")
+    if payload.get("format") != "cp64-charset-id-order-v1" or not isinstance(masks, list) or len(masks) != 256:
+        raise ValueError("charset/id-order.json: expected 256 glyph masks")
+    try:
+        ordered = [bytes.fromhex(mask) for mask in masks]
+    except ValueError as error:
+        raise ValueError("charset/id-order.json: invalid glyph mask encoding") from error
+    if any(len(mask) != 8 for mask in ordered) or ordered[0] != bytes(8):
+        raise ValueError("charset/id-order.json: expected eight-byte masks with a blank glyph zero")
+    return ordered
+
+
+def compile_character_images(images: dict[str, IndexedPNG], stable_order: list[bytes] | None = None) -> tuple[bytes, dict[str, bytes], dict[str, bytes]]:
+    """Derive one shared C64 charset and screen/color maps from rendered images."""
+    glyph_ids: dict[bytes, int] = {bytes(8): 0}
     charset = bytearray(2048)
-    for glyph in range(256):
-        origin_x, origin_y = glyph % 16 * 8, glyph // 16 * 8
-        for scanline in range(8):
-            charset[glyph * 8 + scanline] = sum((0x80 >> bit) for bit in range(8) if pixels[(origin_y + scanline) * 128 + origin_x + bit])
-    write_plane(output, "charset.bin", bytes(charset))
+    spare_ids: list[int] = []
+    if stable_order is not None:
+        for glyph, mask in enumerate(stable_order):
+            glyph_ids.setdefault(mask, glyph)
+            charset[glyph * 8:glyph * 8 + 8] = mask
+        spare_ids = [glyph for glyph, mask in enumerate(stable_order) if glyph_ids[mask] != glyph]
+    encoded: dict[str, list[tuple[bytes, int]]] = {}
+    for label, image in images.items():
+        if (image.width, image.height) != (320, 200):
+            raise ValueError(f"{label}: expected a 320×200 character-screen image")
+        cells = [cell_mask_and_color(image, cell, label) for cell in range(1000)]
+        encoded[label] = cells
+    active_masks = {mask for cells in encoded.values() for mask, _ in cells}
+    if len(active_masks) > 256:
+        raise ValueError(f"shared charset group needs {len(active_masks)} unique glyphs; reduce the screens that share this charset or reduce their unique glyphs")
+    for cells in encoded.values():
+        for mask, _ in cells:
+            if mask not in glyph_ids:
+                if stable_order is not None:
+                    if not spare_ids:
+                        raise ValueError("shared charset group has no free stable glyph IDs; reduce unique glyphs or split screens into a separate charset group")
+                    glyph_ids[mask] = spare_ids.pop(0)
+                    charset[glyph_ids[mask] * 8:glyph_ids[mask] * 8 + 8] = mask
+                else:
+                    glyph_ids[mask] = len(glyph_ids)
+    if stable_order is None:
+        for mask, glyph in glyph_ids.items():
+            charset[glyph * 8:glyph * 8 + 8] = mask
+    screens = {label: bytes(glyph_ids[mask] for mask, _ in cells) for label, cells in encoded.items()}
+    colors = {label: bytes(color for _, color in cells) for label, cells in encoded.items()}
+    return bytes(charset), screens, colors
 
 
-def compile_character_state(source: Path, output: Path, relative: str) -> None:
-    glyphs = require_pixels(source, f"{relative}/glyph-map.png", 80, 25)
-    colors = require_pixels(source, f"{relative}/color-map.png", 40, 25)
-    write_plane(output, f"{relative}/screen.bin", bytes((glyphs[cell * 2] << 4) | glyphs[cell * 2 + 1] for cell in range(1000)))
-    write_plane(output, f"{relative}/color.bin", bytes(colors))
-
-
-def compile_title_states(source: Path, output: Path) -> None:
-    """Build title variants from one base map and small selector/color deltas."""
-    glyphs = require_pixels(source, "title/glyph-map.png", 80, 25)
-    base_screen = bytes((glyphs[cell * 2] << 4) | glyphs[cell * 2 + 1] for cell in range(1000))
-    base_color = require_pixels(source, "title/color-map.png", 40, 25)
-    selections = json.loads((source / "title/selection.json").read_text())
+def title_state_image(base: IndexedPNG, selections: dict, state: str) -> IndexedPNG:
+    """Move the base title marker and recolor the named selection rows visually."""
     if selections.get("base") != "one" or set(selections.get("states", {})) != set(TITLE_STATES):
         raise ValueError("title/selection.json: expected one base and auto/one/two states")
+    marker_column, marker_row = selections["marker"]["source_cell"]
+    active, inactive = selections["highlight"]["active_color"], selections["highlight"]["inactive_color"]
+    if not (0 <= marker_column < 40 and 0 <= marker_row < 25 and 0 <= active < 16 and 0 <= inactive < 16):
+        raise ValueError("title/selection.json: invalid marker or highlight geometry")
+    pixels = bytearray(base.pixels)
+    def index(column: int, row: int, x: int, y: int) -> int:
+        return (row * 8 + y) * 320 + column * 8 + x
+    marker = bytes(pixels[index(marker_column, marker_row, x, y)] for y in range(8) for x in range(8))
+    for y in range(8):
+        for x in range(8):
+            pixels[index(marker_column, marker_row, x, y)] = 0
+    destination_row = selections["states"][state]["row"]
+    if not 0 <= destination_row < 25:
+        raise ValueError(f"title/selection.json: invalid {state} row")
+    for y in range(8):
+        for x in range(8):
+            pixels[index(marker_column, destination_row, x, y)] = marker[y * 8 + x]
+    for row in {data["row"] for data in selections["states"].values()}:
+        if not 0 <= row < 25:
+            raise ValueError("title/selection.json: invalid selection row")
+        text_start = selections["states"][next(name for name, data in selections["states"].items() if data["row"] == row)]["text_start_column"]
+        text_width = selections["states"][next(name for name, data in selections["states"].items() if data["row"] == row)]["text_width"]
+        for column in range(text_start, text_start + text_width):
+            for y in range(8):
+                for x in range(8):
+                    address = index(column, row, x, y)
+                    if pixels[address]:
+                        pixels[address] = active if row == destination_row else inactive
+    return IndexedPNG(base.width, base.height, base.palette, bytes(pixels))
+
+
+def character_images(source: Path) -> dict[str, IndexedPNG]:
+    title = read_indexed_png(source / "title/image.png")
+    selections = json.loads((source / "title/selection.json").read_text())
+    return {**{f"title/{state}": title_state_image(title, selections, state) for state in TITLE_STATES}, "info": read_indexed_png(source / "info/image.png")}
+
+
+def shared_glyph_count(source: Path) -> int:
+    _, screens, _ = compile_character_images(character_images(source), charset_id_order(source))
+    return len(set().union(*(set(screen) for screen in screens.values())))
+
+
+def compile_character_screens(source: Path, output: Path) -> None:
+    images = character_images(source)
+    charset, screens, colors = compile_character_images(images, charset_id_order(source))
+    selections = json.loads((source / "title" / "selection.json").read_text())
+    marker_column, marker_row = selections["marker"]["source_cell"]
+    marker_cell = marker_row * 40 + marker_column
+    marker_color = cell_mask_and_color(read_indexed_png(source / "title" / "image.png"), marker_cell, "title/image.png")[1]
     for state in TITLE_STATES:
-        screen, color = bytearray(base_screen), bytearray(base_color)
-        for plane, destination in (("screen", screen), ("color", color)):
-            for offset, value in selections["states"][state][plane]:
-                if not 0 <= offset < 1000 or not 0 <= value < 256:
-                    raise ValueError(f"title/selection.json: invalid {state} {plane} delta")
-                destination[offset] = value
-        write_plane(output, f"title/{state}/screen.bin", bytes(screen))
-        write_plane(output, f"title/{state}/color.bin", bytes(color))
+        color = bytearray(colors[f"title/{state}"])
+        color[marker_cell] = marker_color
+        for name, geometry in selections["states"].items():
+            row = geometry["row"]
+            color[row * 40 + geometry["hotkey_column"]] = selections["highlight"]["active_color"]
+            fill = selections["highlight"]["active_color"] if name == state else selections["highlight"]["inactive_color"]
+            for column in range(geometry["text_start_column"], geometry["text_start_column"] + geometry["text_width"]):
+                color[row * 40 + column] = fill
+        destination = selections["states"][state]["row"] * 40 + marker_column
+        if state != "one":
+            color[destination] = cell_mask_and_color(read_indexed_png(source / "title" / "image.png"), destination, "title/image.png")[1]
+        colors[f"title/{state}"] = bytes(color)
+    write_plane(output, "charset.bin", charset)
+    for state in TITLE_STATES:
+        write_plane(output, f"title/{state}/screen.bin", screens[f"title/{state}"])
+        write_plane(output, f"title/{state}/color.bin", colors[f"title/{state}"])
+    write_plane(output, "info/screen.bin", screens["info"])
+    write_plane(output, "info/color.bin", colors["info"])
 
 
 def compile_blank_board(source: Path, output: Path) -> None:
@@ -275,9 +378,7 @@ def validate_manifest(source: Path, output: Path) -> None:
 def compile_assets(source: Path = ASSETS, output: Path = OUTPUT) -> Path:
     for relative in SOURCE_PNGS:
         read_indexed_png(source / relative)
-    compile_charset(source, output)
-    compile_title_states(source, output)
-    compile_character_state(source, output, "info")
+    compile_character_screens(source, output)
     compile_blank_board(source, output)
     compile_mark_board(source, output, "x")
     compile_mark_board(source, output, "o")

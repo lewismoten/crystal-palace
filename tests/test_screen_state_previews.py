@@ -50,10 +50,13 @@ def test_screen_state_markdown_documents_png_sources_and_reviewed_final_screens(
     assert "`assets/` is the editable visual source" in readme
     assert "Generated\nC64 planes are ignored" in readme
     assert "color type 3 (indexed)" in readme
-    assert "glyph-map.png" in readme
+    assert "image.png" in readme
+    assert "256 unique glyphs" in readme
+    assert "glyph-map.png" not in readme
+    assert "charset/atlas.png" not in readme
     assert "bitmap-selectors.png" in readme
     assert "320×200 physical pixels" in readme
-    documented = {"atlas.png", "preview.png", "glyphs.png", "colors.png"}
+    documented = {"glyph-atlas.png", "preview.png", "glyphs.png", "colors.png"}
 
     assert documented <= {path.name for path in renderer().expected_images()}
     for name in documented:
