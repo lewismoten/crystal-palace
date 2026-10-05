@@ -18,11 +18,15 @@ That one command creates `.venv`, installs Python dependencies (including
 PyTorch), installs the repository-local assembler, downloads the verified
 [official Crystal-9 v1.0.0 FP16-scale INT4 release artifact](https://github.com/lewismoten/crystal-9/releases/download/v1.0.0/crystal-9-int4-group2-packed-fp16-scales-v1.pt), verifies it, and creates the 48 pageable model packets.
 
-Build the D64:
+After bootstrap, rebuild every generated binary, preview image, and D64:
 
 ```sh
-.venv/bin/python scripts/build_disk.py
+scripts/build_all.sh
 ```
+
+This is the normal one-command asset workflow after editing PNG, Markdown, or
+layout sources. It regenerates C64 binary planes, source-review PNGs, the D64,
+and verifies the generated previews.
 
 Run the regression suite when changing source or assets:
 

@@ -6,10 +6,12 @@ C64 planes are ignored under `build/assets/`; the compiler checks their sizes
 and SHA-256 values against `manifest.json`.
 
 ```sh
-python3 scripts/compile_c64_assets.py
-python3 scripts/render_screen_states.py --check
-.venv/bin/python scripts/build_disk.py
+scripts/build_all.sh
 ```
+
+Run that one command from the repository root after `scripts/bootstrap.sh`.
+It regenerates binary planes, all review previews, and
+`release/crystal-palace-9.d64`.
 
 ## Title and INFO screens
 

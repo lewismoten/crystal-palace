@@ -56,6 +56,32 @@ def test_asset_studio_styles_keep_character_screens_at_gameplay_scale():
     assert ".screen-canvas { width: 640px; }" in stylesheet
 
 
+def test_asset_studio_local_project_writes_changes_without_download_renames():
+    script = (ROOT / "web" / "studio.js").read_text()
+    page = (ROOT / "index.html").read_text()
+    assert "savePath(path).catch(error =>" in script
+    assert "Local project: changes auto-save" in script
+    assert "Save active file" in page
+
+
+def test_asset_studio_screen_selection_can_be_outlined_and_previewed_with_arrow_keys():
+    script = (ROOT / "web" / "studio.js").read_text()
+    assert "let showSelection = true" in script
+    assert "Cell outline: on" in script
+    assert "glyphCanvas.onkeydown" in script
+    assert "event.key === 'ArrowRight'" in script
+    assert "event.key === 'Enter'" in script
+    assert "candidateGlyph" in script
+
+
+def test_build_all_script_regenerates_previews_and_release_disk_after_bootstrap():
+    script = (ROOT / "scripts" / "build_all.sh").read_text()
+    assert "compile_c64_assets.py" in script
+    assert "render_screen_states.py" in script
+    assert "build_disk.py" in script
+    assert "release/crystal-palace-9.d64" in script
+
+
 def test_asset_studio_launcher_disables_browser_asset_caching():
     launcher = (ROOT / "scripts" / "serve_asset_studio.py").read_text()
     assert 'Cache-Control' in launcher

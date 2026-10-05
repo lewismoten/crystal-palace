@@ -20,19 +20,24 @@ sends `Cache-Control: no-store, max-age=0` for the page and ES modules.
 ## Local files and downloads
 
 - **Repository files** is read-only browser mode. Changes remain in memory
-  until **Download active file** saves the current PNG, JSON, or Markdown file.
+  until **Save active file** downloads the current PNG, JSON, or Markdown file.
 - **Open local project** lets Chromium-family browsers choose a local checkout.
-  Subsequent **Download active file** actions write the active changed source
-  file back into that selected directory instead of downloading it.
+  Edits then auto-save to the corresponding file in that selected directory;
+  **Save active file** remains available as an explicit retry. The status line
+  reports `Saved path` or a concrete write error.
 - A static GitHub Pages site cannot commit directly to Git. Review downloaded
   files, then commit them normally.
 
 The editor writes indexed PNGs with the manifest palette and unfiltered rows.
-Run the normal project validation after an edit:
+After `scripts/bootstrap.sh`, regenerate every derived asset and release image:
 
 ```sh
-.venv/bin/python scripts/compile_c64_assets.py
-.venv/bin/python scripts/render_screen_states.py --check
+scripts/build_all.sh
+```
+
+Run the regression suite separately when changing code or build logic:
+
+```sh
 .venv/bin/python -m pytest -q
 ```
 
@@ -58,7 +63,7 @@ required.
 | Editor | Source it changes | Immediate review |
 | --- | --- | --- |
 | Glyph atlas | title and INFO `image.png` files | The atlas is derived from the editable title and INFO images. Editing a glyph updates every matching 8×8 source-image cell; usage is counted across the declared shared group. |
-| PETSCII screen | character-screen `image.png` | 40×25 custom-charset screen. Click sets a derived glyph; Shift-click sets a cell foreground color. The compiler rebuilds glyph/color maps. |
+| PETSCII screen | character-screen `image.png` | 40×25 custom-charset screen. Click a cell to inspect it, toggle its visible outline, choose a glyph/color, or use arrow keys in the glyph map to preview candidates before Enter commits one. The compiler rebuilds glyph/color maps. |
 | Multicolor bitmap | selector, screen-high, screen-low, Color RAM planes | 160×200 logical-pixel board; click changes a 2-bit selector or a 4×8 cell’s local color. |
 | X / O marks | mark PNG | 14×24 logical-pixel color grid. |
 | INFO Markdown | `archive.md` | A 29×18 INFO viewport preview with scroll position. The Python compiler remains the final runtime authority. |
